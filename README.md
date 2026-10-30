@@ -1,0 +1,92 @@
+<p align="center"><img src="docs/logo.svg" alt="LighterDeck" width="420"></p>
+
+# LighterDeck
+
+A personal trading terminal for the perpetual futures on [Lighter](https://lighter.xyz), with server-side automations.
+
+[Leggi in italiano](README.it.md) · The interface is available in English and Italian (button in the top bar).
+
+## Features
+
+| Area | What's there |
+| --- | --- |
+| Charts | 1, 2 or 4 charts (side by side or stacked), 14 timeframes, OHLC legend, volume, entry and liquidation lines, macro events on the chart |
+| Markets | Live prices for every perpetual, mark/index, funding, open interest, order book with spread, market picker with search and categories |
+| Orders | Market and limit, post-only, reduce-only, slippage in bps, size in USD / quantity / % of equity / $ risk to the stop |
+| Protection | Native SL/TP sent together with the entry (OTO/OTOCO), partial close 25/50/75/100%, leverage and cross/isolated |
+| Risk | Limits per order, per market, total exposure, leverage, daily loss and number of positions; optional mandatory stop-loss; blocks reversals and stale prices |
+| Automations | Managed stop (initial, breakeven, trailing) and trades on macro events (at the release time or on a range breakout), with a kill switch |
+| Calendar | This week's economic events (Forex Factory), official Fed meetings, opening hours of the main exchanges |
+| Look | Four themes, English and Italian, layout that works in narrow windows and on phones |
+
+```
+frontend/   web page (HTML/CSS/JS, TradingView Lightweight Charts)
+backend/    FastAPI: Lighter data, calendar, risk checks, order signing (official SDK), automation engine
+deploy/     systemd service + example configuration
+```
+
+## Run it locally
+
+```
+python -m venv .venv
+.venv\Scripts\pip install -r backend\requirements.txt
+.venv\Scripts\python backend\main.py
+```
+Then open http://127.0.0.1:8200 (on macOS/Linux use `.venv/bin/` instead of `.venv\Scripts\`).
+
+Without an API key the deck is read-only: charts, prices, order book and calendar all work.
+To trade, click **Read-only** in the top bar and connect an API key: the server checks it with
+Lighter and saves it in `data/credentials.json` (it is never sent back to the browser). A key set
+in the server's env file takes precedence and can't be changed from the UI.
+
+## On a server
+
+The backend listens only on 127.0.0.1:8200. It is not exposed to the internet; reach it through an SSH tunnel:
+
+```
+ssh -N -L 8200:127.0.0.1:8200 user@your-server
+```
+Then open http://127.0.0.1:8200 on your computer.
+
+One-time install:
+
+```
+adduser --system --group --home /opt/lighterdeck lighterdeck
+mkdir -p /var/lib/lighterdeck /etc/lighterdeck && chown lighterdeck: /var/lib/lighterdeck
+# copy backend/, frontend/, deploy/ to /opt/lighterdeck
+python3 -m venv /opt/lighterdeck/.venv && /opt/lighterdeck/.venv/bin/pip install -r /opt/lighterdeck/backend/requirements.txt
+cp /opt/lighterdeck/deploy/lighterdeck.env.example /etc/lighterdeck/lighterdeck.env   # then fill it in
+chown root:lighterdeck /etc/lighterdeck/lighterdeck.env && chmod 640 /etc/lighterdeck/lighterdeck.env
+cp /opt/lighterdeck/deploy/lighterdeck.service /etc/systemd/system/
+systemctl daemon-reload && systemctl enable --now lighterdeck
+```
+
+## Security
+
+- A Lighter API key can open and close positions and withdraw to **your own** wallet, but it
+  can't transfer funds to anyone else (that needs the wallet's signature). Use a dedicated API key
+  index (e.g. 5), not the one the web app uses.
+- Hard cap in the env file: `MAX_NOTIONAL_USD`, `MAX_ORDERS_PER_DAY`, `MAX_SLIPPAGE_PCT`.
+  On top of it, the risk limits editable from the Automations page (saved in `data/limits.json`).
+- The **Auto ON/OFF** button is the kill switch: when OFF the engine sends no orders.
+  Stops already placed stay on Lighter.
+
+## Automations
+
+- **Managed stop** (per market): initial stop at -X% from entry, breakeven once profit reaches
+  +Y%, trailing Z% from the best price (active from +W%). The stop is never loosened.
+  On Lighter it is a real reduce-only stop-loss order, so it stays in place even if the server goes down.
+- **Event trade**: long/short N seconds after the event, or a breakout of the range of the
+  preceding minutes. The entry goes out with native SL/TP; trailing and breakeven then tighten the stop.
+  Every automatic entry goes through the same risk checks as manual orders.
+
+The free calendar (Forex Factory) has times, impact, forecast and previous values, but **not the actual figure**.
+Rules therefore react to the release time and to price movement, not to the published number.
+
+## Credits
+
+Margin, liquidation price and SL/TP formulas (`frontend/formulas.js`), `multiplier` conversions
+and SL/TP trigger validation are adapted from
+[elliottech/lighter-ts](https://github.com/elliottech/lighter-ts), MIT License, Copyright (c) 2026 Elliot Technologies, Inc.
+
+Charts by [TradingView Lightweight Charts](https://github.com/tradingview/lightweight-charts) (Apache-2.0).

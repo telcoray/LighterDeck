@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="LighterDeck">
+  <path d="M16 12V50H50" fill="none" stroke="#e4e6ea" stroke-width="7" stroke-linecap="square"/>
+  <path d="M38 13V41" stroke="#2bd9a4" stroke-width="2.4" stroke-linecap="round"/>
+  <rect x="33.5" y="19" width="9" height="16" rx="1.6" fill="#2bd9a4"/>
+</svg>

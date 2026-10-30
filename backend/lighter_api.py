@@ -1,0 +1,519 @@
+"""Thin layer over Lighter: public REST, authenticated reads and signed orders.
+
+Prices and sizes travel as floats inside the deck and are scaled to Lighter's
+integers here only (size * 10^size_decimals, price * 10^price_decimals).
+
+Markets can have a `multiplier`: values on the wire are "real" units, what people
+see are "display" units (display size = real size x multiplier, display price =
+real price / multiplier). Everything above this module works in display units;
+conversion happens here, as in Lighter's own frontend (lighter-ts, utils/multiplier.ts).
+Today every perp has multiplier 1, so both are the same number.
+"""
+import asyncio
+import logging
+import time
+
+import aiohttp
+
+import candles as candles_mod
+import config
+
+log = logging.getLogger("lighter")
+
+
+class Market:
+    def __init__(self, d):
+        self.id = d["market_id"]
+        self.symbol = d["symbol"]
+        self.multiplier = float(d.get("multiplier") or 1) or 1.0
+        self.real_size_decimals = d["size_decimals"]
+        self.real_price_decimals = d["price_decimals"]
+        # display precision gains a digit when the multiplier shifts values (lighter-ts getDisplayDecimals)
+        self.size_decimals = self.real_size_decimals + (1 if self.multiplier < 1 else 0)
+        self.price_decimals = self.real_price_decimals + (1 if self.multiplier > 1 else 0)
+        self.min_base = self.disp_size(float(d["min_base_amount"]))
+        self.min_quote = float(d["min_quote_amount"])
+        # margin fractions arrive in basis points (500 = 5%); fees as percent strings
+        self.imf = float(d.get("default_initial_margin_fraction") or 0) / 10000
+        self.mmf = float(d.get("maintenance_margin_fraction") or 0) / 10000
+        self.taker_fee = float(d.get("taker_fee") or 0) / 100
+        self.maker_fee = float(d.get("maker_fee") or 0) / 100
+        self.last_price = float(d.get("last_trade_price") or 0)
+        self.volume_usd = float(d.get("daily_quote_token_volume") or 0)
+        imf_bps = float(d.get("default_initial_margin_fraction") or 0)  # basis points
+        self.default_leverage = round(10000 / imf_bps, 1) if imf_bps else None
+        min_imf = float(d.get("min_initial_margin_fraction") or 0)
+        self.max_leverage = round(10000 / min_imf, 1) if min_imf else None
+        self.created_at = int(d.get("created_at") or 0)
+        self.name = self.symbol
+        self.asset_type = "CRYPTO"
+        self.categories = []
+        self.logo = ""
+        self.logo_ext = ""
+
+    def apply_token(self, t):
+        """Display metadata from Lighter's tokenlist (name, crypto/RWA, categories)."""
+        self.name = t.get("name") or self.symbol
+        self.asset_type = t.get("asset_type") or "CRYPTO"
+        self.categories = t.get("categories") or []
+        self.logo = t.get("logo") or ""
+        self.logo_ext = t.get("logo_extension") or ""
+
+    # ---- unit conversion: real (wire) <-> display ----
+    def disp_price(self, real):
+        return float(real) / self.multiplier
+
+    def disp_size(self, real):
+        return float(real) * self.multiplier
+
+    def size_int(self, size):
+        """Display size -> signed-less integer base amount for the signer."""
+        return int(round(abs(size) / self.multiplier * 10 ** self.real_size_decimals))
+
+    def price_int(self, price):
+        """Display price -> integer price for the signer."""
+        return int(round(price * self.multiplier * 10 ** self.real_price_decimals))
+
+    def round_price(self, price):
+        return round(price, self.price_decimals)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "symbol": self.symbol,
+            "size_decimals": self.size_decimals,
+            "price_decimals": self.price_decimals,
+            "min_base": self.min_base,
+            "min_quote": self.min_quote,
+            "multiplier": self.multiplier,
+            "imf": self.imf,
+            "mmf": self.mmf,
+            "taker_fee": self.taker_fee,
+            "maker_fee": self.maker_fee,
+            "volume_usd": self.volume_usd,
+            "default_leverage": self.default_leverage,
+            "max_leverage": self.max_leverage,
+            "name": self.name,
+            "asset_type": self.asset_type,
+            "categories": self.categories,
+            "has_logo": bool(self.logo),
+            "created_at": self.created_at,
+        }
+
+
+class LighterAPI:
+    def __init__(self):
+        self.http = None
+        self.markets = {}  # market_id -> Market
+        self.signer = None
+        self._auth = (None, 0)  # (token, expires_at)
+        self._orders_today = (time.strftime("%Y-%m-%d"), 0)
+        self._send_lock = asyncio.Lock()
+        self._candle_cache = {}  # (market, timeframe, count) -> (fetched_at, bars)
+
+    async def start(self):
+        self.http = aiohttp.ClientSession(base_url=config.LIGHTER_URL, timeout=aiohttp.ClientTimeout(total=15))
+        await self.load_markets()
+        if config.TRADING_ENABLED:
+            try:
+                await self.connect(config.ACCOUNT_INDEX, config.API_KEY_INDEX, config.API_PRIVATE_KEY)
+            except ValueError as e:
+                if config.CREDENTIALS_SOURCE == "env":
+                    raise RuntimeError(f"API key check failed: {e}")
+                log.error("saved API key rejected, running read-only: %s", e)
+
+    async def connect(self, account_index, api_key_index, private_key):
+        """Build a signer for this key and check it against the key registered on Lighter.
+        Raises ValueError (and keeps the current signer) when Lighter does not accept it."""
+        import lighter  # heavy import (signer .so), only when trading
+
+        try:
+            signer = lighter.SignerClient(url=config.LIGHTER_URL, account_index=account_index,
+                                          api_private_keys={api_key_index: private_key})
+        except Exception as e:
+            raise ValueError(str(e))
+        err = await asyncio.to_thread(signer.check_client)
+        if err:
+            await signer.close()
+            raise ValueError(err)
+        await self.disconnect()
+        self.signer = signer
+        config.ACCOUNT_INDEX, config.API_KEY_INDEX, config.API_PRIVATE_KEY = account_index, api_key_index, private_key
+        log.info("trading enabled for account %s (api key %s)", account_index, api_key_index)
+
+    async def disconnect(self):
+        if self.signer:
+            await self.signer.close()
+        self.signer = None
+        self._auth = (None, 0)
+        config.ACCOUNT_INDEX = config.API_KEY_INDEX = config.API_PRIVATE_KEY = None
+
+    async def accounts_for_address(self, address):
+        """Account indexes (main and sub-accounts) owned by an L1 wallet address."""
+        data = await self._get("/api/v1/accountsByL1Address", {"l1_address": address})
+        return [{"index": a["index"], "collateral": float(a.get("collateral") or 0)} for a in data.get("sub_accounts", [])]
+
+    async def close(self):
+        if self.signer:
+            await self.signer.close()
+        if self.http:
+            await self.http.close()
+
+    # ---------- public data ----------
+    async def _get(self, path, params=None, headers=None):
+        async with self.http.get(path, params=params, headers=headers) as r:
+            data = await r.json(content_type=None)
+            if r.status != 200 or data.get("code", 200) != 200:
+                raise RuntimeError(f"{path}: {r.status} {data}")
+            return data
+
+    async def load_markets(self):
+        data = await self._get("/api/v1/orderBookDetails")
+        markets = {}
+        for d in data["order_book_details"]:
+            if d.get("market_type") == "perp" and d.get("status") == "active":
+                markets[d["market_id"]] = Market(d)
+        try:
+            tokens = (await self._get("/api/v1/tokenlist")).get("tokens", [])
+            by_symbol = {}
+            for t in tokens:
+                if t.get("market") == "PERPS":
+                    by_symbol[t["symbol"]] = t
+                    if t.get("backend_symbol"):
+                        by_symbol[t["backend_symbol"]] = t
+            for m in markets.values():
+                if m.symbol in by_symbol:
+                    m.apply_token(by_symbol[m.symbol])
+        except Exception as e:  # metadata is cosmetic; trading works without it
+            log.warning("tokenlist unavailable: %s", e)
+        self.markets = markets
+        log.info("loaded %d markets", len(markets))
+
+    async def _native_candles(self, market_id, resolution, count):
+        """Up to `count` most recent candles of a timeframe Lighter serves, paging back 500 at a time."""
+        secs = candles_mod.NATIVE[resolution]
+        m = self.markets.get(market_id)
+        dp = m.disp_price if m else float
+        ds = m.disp_size if m else float
+        end = int(time.time())
+        out = []
+        for _ in range(min(8, -(-count // candles_mod.PAGE))):
+            n = min(candles_mod.PAGE, count - len(out))
+            data = await self._get("/api/v1/candles", {
+                "market_id": market_id, "resolution": resolution,
+                "start_timestamp": end - secs * n, "end_timestamp": end, "count_back": n,
+            })
+            page = [{"time": c["t"] // 1000, "open": dp(c["o"]), "high": dp(c["h"]), "low": dp(c["l"]),
+                     "close": dp(c["c"]), "volume": ds(c["v"])} for c in data.get("c", [])]
+            page = [c for c in page if not out or c["time"] < out[0]["time"]]
+            if not page:
+                break  # reached the start of the market's history
+            out = page + out
+            if len(out) >= count:
+                break
+            end = out[0]["time"] - 1
+        return out[-count:]
+
+    async def candles(self, market_id, resolution, count=500):
+        """OHLCV bars; merged timeframes (3m, 2h, 8h, 3d, 1w, 1M) are built from smaller ones."""
+        if resolution in candles_mod.NATIVE:
+            return await self._native_candles(market_id, resolution, count)
+        src, bucket = candles_mod.DERIVED[resolution]  # KeyError -> unknown timeframe
+        key = (market_id, resolution, count)
+        hit = self._candle_cache.get(key)
+        if hit and time.time() - hit[0] < 30:
+            return hit[1]
+        _, need = candles_mod.source_needed(resolution, count)
+        rows = await self._native_candles(market_id, src, min(need, 4000))
+        bars = candles_mod.merge(rows, bucket)[-count:]
+        self._candle_cache[key] = (time.time(), bars)
+        return bars
+
+    async def account(self):
+        if config.ACCOUNT_INDEX is None:
+            return None
+        data = await self._get("/api/v1/account", {"by": "index", "value": config.ACCOUNT_INDEX})
+        acc = data["accounts"][0]
+        positions = []
+        settings = {}  # market_id -> leverage/margin mode, also for markets without a position
+        for p in acc.get("positions", []):
+            size = float(p["position"]) * (1 if p["sign"] >= 0 else -1)
+            imf = float(p.get("initial_margin_fraction") or 0)  # percent
+            if imf:
+                settings[p["market_id"]] = {"leverage": round(100 / imf, 1), "cross": p.get("margin_mode", 0) == 0}
+            if size == 0:
+                continue
+            m = self.markets.get(p["market_id"])
+            dp = m.disp_price if m else float
+            positions.append({
+                "market_id": p["market_id"], "symbol": p["symbol"], "size": m.disp_size(size) if m else size,
+                "entry": dp(p["avg_entry_price"]), "value": float(p["position_value"]),
+                "upnl": float(p["unrealized_pnl"]), "rpnl": float(p.get("realized_pnl") or 0),
+                "liq": dp(p["liquidation_price"] or 0), "margin": float(p.get("allocated_margin") or 0),
+                "leverage": round(100 / imf, 1) if imf else None,
+                "cross": p.get("margin_mode", 0) == 0,
+            })
+        return {
+            "index": config.ACCOUNT_INDEX,
+            "collateral": float(acc.get("collateral") or 0),
+            "available": float(acc.get("available_balance") or 0),
+            "total_value": float(acc.get("total_asset_value") or 0),
+            "positions": positions,
+            "settings": settings,
+        }
+
+    async def orderbook(self, market_id, depth=14):
+        data = await self._get("/api/v1/orderBookOrders", {"market_id": market_id, "limit": 100})
+        m = self.markets[market_id]
+
+        def levels(orders, reverse):
+            agg = {}
+            for o in orders:
+                p = m.disp_price(o["price"])
+                agg[p] = agg.get(p, 0) + m.disp_size(o["remaining_base_amount"])
+            return [[p, s] for p, s in sorted(agg.items(), reverse=reverse)][:depth]
+
+        return {"asks": levels(data.get("asks", []), False), "bids": levels(data.get("bids", []), True),
+                "ts": time.time()}
+
+    async def trades(self, limit=50):
+        if not self.signer:
+            return []
+        data = await self._get("/api/v1/trades", {
+            "account_index": config.ACCOUNT_INDEX, "sort_by": "timestamp", "limit": limit,
+        }, headers={"authorization": await self._auth_token()})
+        out = []
+        for t in data.get("trades", []):
+            is_buyer = t["bid_account_id"] == config.ACCOUNT_INDEX
+            m = self.markets.get(t["market_id"])
+            maker = t["is_maker_ask"] != is_buyer  # we were the ask and the ask was maker, or vice versa
+            out.append({
+                "ts": t["timestamp"], "market_id": t["market_id"], "symbol": m.symbol if m else str(t["market_id"]),
+                "side": "buy" if is_buyer else "sell",
+                "size": m.disp_size(t["size"]) if m else float(t["size"]),
+                "price": m.disp_price(t["price"]) if m else float(t["price"]),
+                "usd": float(t["usd_amount"]), "role": "maker" if maker else "taker",
+                "pnl": float(t.get("bid_account_pnl" if is_buyer else "ask_account_pnl") or 0),
+            })
+        return out
+
+    async def daily_realized_pnl(self):
+        """Realized PnL of fills since 00:00 UTC. None when any closing fill lacks a PnL value."""
+        if not self.signer:
+            return 0.0
+        midnight = int(time.time() // 86400 * 86400) * 1000
+        data = await self._get("/api/v1/trades", {
+            "account_index": config.ACCOUNT_INDEX, "sort_by": "timestamp", "limit": 100,
+        }, headers={"authorization": await self._auth_token()})
+        total = 0.0
+        for t in data.get("trades", []):
+            if t["timestamp"] < midnight:
+                break
+            for side in ("ask", "bid"):
+                if t[f"{side}_account_id"] != config.ACCOUNT_INDEX:
+                    continue
+                v = t.get(f"{side}_account_pnl")
+                if v in (None, ""):
+                    return None
+                total += float(v)
+        return total
+
+    async def _auth_token(self):
+        token, exp = self._auth
+        if token and time.time() < exp - 60:
+            return token
+        token, err = self.signer.create_auth_token_with_expiry(api_key_index=config.API_KEY_INDEX)
+        if err:
+            raise RuntimeError(f"auth token: {err}")
+        self._auth = (token, time.time() + 600)
+        return token
+
+    async def active_orders(self, market_id):
+        if not self.signer:
+            return []
+        data = await self._get("/api/v1/accountActiveOrders",
+                               {"account_index": config.ACCOUNT_INDEX, "market_id": market_id},
+                               headers={"authorization": await self._auth_token()})
+        m = self.markets[market_id]
+        out = []
+        for o in data.get("orders", []):
+            out.append({
+                "order_index": o["order_index"], "client_order_index": o["client_order_index"],
+                "market_id": o["market_index"], "is_ask": o["is_ask"], "type": o["type"],
+                "price": m.disp_price(o["price"]), "trigger_price": m.disp_price(o.get("trigger_price") or 0),
+                "remaining": m.disp_size(o["remaining_base_amount"]), "reduce_only": o["reduce_only"],
+                "status": o["status"],
+            })
+        return out
+
+    # ---------- signed actions ----------
+    def _check_limits(self, notional):
+        if not self.signer:
+            raise RuntimeError("trading disabled: no API key configured")
+        if notional > config.MAX_NOTIONAL_USD:
+            raise RuntimeError(f"order ${notional:.0f} exceeds MAX_NOTIONAL_USD ${config.MAX_NOTIONAL_USD:.0f}")
+        day, n = self._orders_today
+        today = time.strftime("%Y-%m-%d")
+        if day != today:
+            day, n = today, 0
+        if n >= config.MAX_ORDERS_PER_DAY:
+            raise RuntimeError(f"MAX_ORDERS_PER_DAY ({config.MAX_ORDERS_PER_DAY}) reached")
+        self._orders_today = (day, n + 1)
+
+    @staticmethod
+    def _coi():
+        # client order index: unique-ish 48-bit integer
+        return int(time.time() * 1000) % (2 ** 47)
+
+    async def _send(self, coro_fn, what):
+        async with self._send_lock:
+            tx, resp, err = await coro_fn()
+        if err:
+            raise RuntimeError(f"{what}: {err}")
+        log.info("%s ok: %s", what, getattr(resp, "tx_hash", resp))
+        return tx, resp
+
+    async def market_order(self, market_id, size, ref_price, reduce_only=False, slippage_pct=None):
+        """size > 0 buys, size < 0 sells. ref_price = current mark; worst price = ref +/- slippage."""
+        m = self.markets[market_id]
+        slip = (slippage_pct if slippage_pct is not None else config.MAX_SLIPPAGE_PCT) / 100
+        is_ask = size < 0
+        worst = m.round_price(ref_price * (1 - slip if is_ask else 1 + slip))
+        if not reduce_only:
+            self._check_limits(abs(size) * ref_price)
+        elif not self.signer:
+            raise RuntimeError("trading disabled")
+        coi = self._coi()
+        await self._send(lambda: self.signer.create_market_order(
+            market_index=market_id, client_order_index=coi, base_amount=m.size_int(size),
+            avg_execution_price=m.price_int(worst), is_ask=is_ask, reduce_only=reduce_only,
+            api_key_index=config.API_KEY_INDEX,
+        ), f"market {'sell' if is_ask else 'buy'} {abs(size)} {m.symbol}")
+        return coi
+
+    async def limit_order(self, market_id, size, price, reduce_only=False, post_only=False):
+        """Good-till-time limit order; size > 0 buys, size < 0 sells."""
+        import lighter
+
+        m = self.markets[market_id]
+        if not reduce_only:
+            self._check_limits(abs(size) * price)
+        elif not self.signer:
+            raise RuntimeError("trading disabled")
+        tif = (lighter.SignerClient.ORDER_TIME_IN_FORCE_POST_ONLY if post_only
+               else lighter.SignerClient.ORDER_TIME_IN_FORCE_GOOD_TILL_TIME)
+        coi = self._coi()
+        await self._send(lambda: self.signer.create_order(
+            market_index=market_id, client_order_index=coi, base_amount=m.size_int(size),
+            price=m.price_int(m.round_price(price)), is_ask=size < 0,
+            order_type=lighter.SignerClient.ORDER_TYPE_LIMIT, time_in_force=tif, reduce_only=reduce_only,
+            api_key_index=config.API_KEY_INDEX,
+        ), f"limit {'sell' if size < 0 else 'buy'} {abs(size)} {m.symbol} @ {price}")
+        return coi
+
+    async def entry(self, market_id, size, kind, price, sl=None, tp=None, slippage_pct=None, post_only=False):
+        """Opening order with exchange-native protection attached (OTO / OTOCO).
+
+        size > 0 buys. For market orders `price` is the worst acceptable fill price;
+        for limit orders the limit price. SL/TP are position-tied (BaseAmount 0) and
+        are cancelled by the exchange when the position closes or flips.
+        """
+        import lighter
+        from lighter.signer_client import CreateOrderTxReq
+
+        S = lighter.SignerClient
+        m = self.markets[market_id]
+        self._check_limits(abs(size) * price)
+        is_ask = size < 0
+        tif = (S.ORDER_TIME_IN_FORCE_IMMEDIATE_OR_CANCEL if kind == "market"
+               else S.ORDER_TIME_IN_FORCE_POST_ONLY if post_only else S.ORDER_TIME_IN_FORCE_GOOD_TILL_TIME)
+        coi = self._coi()
+        orders = [CreateOrderTxReq(
+            MarketIndex=market_id, ClientOrderIndex=coi, BaseAmount=m.size_int(size),
+            Price=m.price_int(m.round_price(price)), IsAsk=int(is_ask),
+            Type=S.ORDER_TYPE_MARKET if kind == "market" else S.ORDER_TYPE_LIMIT, TimeInForce=tif,
+            ReduceOnly=0, TriggerPrice=0, OrderExpiry=0 if kind == "market" else -1,
+        )]
+        slip = (slippage_pct if slippage_pct is not None else config.MAX_SLIPPAGE_PCT) / 100
+        for trigger, order_type in ((tp, S.ORDER_TYPE_TAKE_PROFIT), (sl, S.ORDER_TYPE_STOP_LOSS)):
+            if not trigger:
+                continue
+            # closing side: a long exits by selling, so accept down to trigger*(1-slip)
+            worst = trigger * (1 - slip) if not is_ask else trigger * (1 + slip)
+            orders.append(CreateOrderTxReq(
+                MarketIndex=market_id, ClientOrderIndex=coi + len(orders), BaseAmount=0,
+                Price=m.price_int(m.round_price(worst)), IsAsk=int(not is_ask), Type=order_type,
+                TimeInForce=S.ORDER_TIME_IN_FORCE_IMMEDIATE_OR_CANCEL, ReduceOnly=1,
+                TriggerPrice=m.price_int(m.round_price(trigger)), OrderExpiry=-1,
+            ))
+        label = f"{kind} {'sell' if is_ask else 'buy'} {abs(size)} {m.symbol} @ {price}" + (
+            f" sl {sl}" if sl else "") + (f" tp {tp}" if tp else "")
+        if len(orders) == 1:
+            o = orders[0]
+            await self._send(lambda: self.signer.create_order(
+                market_index=market_id, client_order_index=coi, base_amount=o.BaseAmount, price=o.Price,
+                is_ask=is_ask, order_type=o.Type, time_in_force=tif, reduce_only=False,
+                order_expiry=0 if kind == "market" else S.DEFAULT_28_DAY_ORDER_EXPIRY,
+                api_key_index=config.API_KEY_INDEX,
+            ), label)
+        else:
+            grouping = (S.GROUPING_TYPE_ONE_TRIGGERS_A_ONE_CANCELS_THE_OTHER if len(orders) == 3
+                        else S.GROUPING_TYPE_ONE_TRIGGERS_THE_OTHER)
+            await self._send(lambda: self.signer.create_grouped_orders(
+                grouping_type=grouping, orders=orders, api_key_index=config.API_KEY_INDEX,
+            ), label)
+        return coi
+
+    async def set_leverage(self, market_id, leverage, cross=True):
+        import lighter
+
+        S = lighter.SignerClient
+        await self._send(lambda: self.signer.update_leverage(
+            market_index=market_id, margin_mode=S.CROSS_MARGIN_MODE if cross else S.ISOLATED_MARGIN_MODE,
+            leverage=leverage, api_key_index=config.API_KEY_INDEX,
+        ), f"leverage {self.markets[market_id].symbol} {leverage}x {'cross' if cross else 'isolated'}")
+
+    async def stop_order(self, market_id, position_size, trigger, kind="sl", slippage_pct=None):
+        """Reduce-only trigger order that closes `position_size` (signed position) at `trigger`."""
+        import lighter
+
+        m = self.markets[market_id]
+        slip = (slippage_pct if slippage_pct is not None else config.MAX_SLIPPAGE_PCT) / 100
+        is_ask = position_size > 0  # closing a long sells
+        worst = m.round_price(trigger * (1 - slip if is_ask else 1 + slip))
+        order_type = lighter.SignerClient.ORDER_TYPE_STOP_LOSS if kind == "sl" else lighter.SignerClient.ORDER_TYPE_TAKE_PROFIT
+        if not self.signer:
+            raise RuntimeError("trading disabled")
+        coi = self._coi()
+        await self._send(lambda: self.signer.create_order(
+            market_index=market_id, client_order_index=coi, base_amount=m.size_int(position_size),
+            price=m.price_int(worst), is_ask=is_ask, order_type=order_type,
+            time_in_force=lighter.SignerClient.ORDER_TIME_IN_FORCE_IMMEDIATE_OR_CANCEL,
+            reduce_only=True, trigger_price=m.price_int(m.round_price(trigger)),
+            api_key_index=config.API_KEY_INDEX,
+        ), f"{kind} {m.symbol} @ {trigger}")
+        return coi
+
+    async def modify_stop(self, market_id, order_index, position_size, trigger, slippage_pct=None):
+        m = self.markets[market_id]
+        slip = (slippage_pct if slippage_pct is not None else config.MAX_SLIPPAGE_PCT) / 100
+        is_ask = position_size > 0
+        worst = m.round_price(trigger * (1 - slip if is_ask else 1 + slip))
+        await self._send(lambda: self.signer.modify_order(
+            market_index=market_id, order_index=order_index, base_amount=m.size_int(position_size),
+            price=m.price_int(worst), trigger_price=m.price_int(m.round_price(trigger)),
+            api_key_index=config.API_KEY_INDEX,
+        ), f"move stop {m.symbol} -> {trigger}")
+
+    async def cancel_order(self, market_id, order_index):
+        await self._send(lambda: self.signer.cancel_order(
+            market_index=market_id, order_index=order_index, api_key_index=config.API_KEY_INDEX,
+        ), f"cancel {market_id}/{order_index}")
+
+    async def cancel_all(self):
+        import lighter
+
+        await self._send(lambda: self.signer.cancel_all_orders(
+            time_in_force=lighter.SignerClient.CANCEL_ALL_TIF_IMMEDIATE, timestamp_ms=0,
+            api_key_index=config.API_KEY_INDEX,
+        ), "cancel all")

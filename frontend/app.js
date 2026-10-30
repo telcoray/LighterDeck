@@ -1,0 +1,1264 @@
+"use strict";
+
+// ================= state =================
+const qs = new URLSearchParams(location.search);
+if (qs.get("token")) { store("token", qs.get("token")); history.replaceState(null, "", location.pathname); }
+const TOKEN = load("token", "");
+// every timeframe the backend offers; 3m, 2h, 8h, 3d, 1w and 1M are merged from smaller candles
+const ALL_TFS = ["1m", "3m", "5m", "15m", "30m", "1h", "2h", "4h", "8h", "12h", "1d", "3d", "1w", "1M"];
+const TF_LABEL = { "1d": "1D", "3d": "3D", "1w": "1W", "1M": "1M" };
+const tfLabel = (tf) => TF_LABEL[tf] || tf;
+const TF_SECS = { "1m": 60, "3m": 180, "5m": 300, "15m": 900, "30m": 1800, "1h": 3600, "2h": 7200, "4h": 14400,
+                  "8h": 28800, "12h": 43200, "1d": 86400, "3d": 259200, "1w": 604800, "1M": 2592000 };
+const DEFAULT_TFS = ["1m", "5m", "15m", "30m", "1h", "4h", "12h", "1d"];
+let shownTfs = load("tfs", DEFAULT_TFS).filter((t) => ALL_TFS.includes(t));
+
+// start (UTC seconds) of the bar containing ts, matching the backend's buckets
+function barStart(tf, ts) {
+  if (tf === "1w") { const day = Math.floor(ts / 86400); return (day - ((day + 3) % 7)) * 86400; }
+  if (tf === "1M") { const d = new Date(ts * 1000); return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1) / 1000; }
+  const secs = TF_SECS[tf];
+  return Math.floor(ts / secs) * secs;
+}
+const C = { green: "#2bd9a4", red: "#f2546d" };
+
+// ---------- themes: colours live in CSS variables (style.css), charts read them from there ----------
+const THEMES = [
+  { id: "champagne", name: "Champagne", note: "nero caldo, testo sabbia e oro" },
+  { id: "ghiaccio", name: "Ghiaccio", note: "blu notte, testo azzurro ghiaccio" },
+  { id: "grafite", name: "Grafite", note: "il tema originale, grigi neutri" },
+  { id: "fosforo", name: "Fosforo", note: "sfondo grafite, testo verde da terminale" },
+];
+const cssVar = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+function chartTheme() {
+  return {
+    layout: { textColor: cssVar("--muted") },
+    grid: { vertLines: { color: cssVar("--chart-grid") }, horzLines: { color: cssVar("--chart-grid") } },
+    rightPriceScale: { borderColor: cssVar("--line") },
+    timeScale: { borderColor: cssVar("--line") },
+    crosshair: {
+      vertLine: { color: cssVar("--line-3"), labelBackgroundColor: cssVar("--line-2") },
+      horzLine: { color: cssVar("--line-3"), labelBackgroundColor: cssVar("--line-2") },
+    },
+  };
+}
+
+function applyTheme(id) {
+  const theme = THEMES.find((t) => t.id === id) || THEMES[0];
+  document.documentElement.dataset.theme = theme.id;
+  store("theme", theme.id);
+  panels.forEach((p) => p.chart.applyOptions(chartTheme()));
+  $("#themeName").textContent = t(theme.name);
+  $("#themeSwatch").innerHTML = swatch();
+  $("#themeMenu").innerHTML = THEMES.map((th) => `<button data-theme="${th.id}" class="${th.id === theme.id ? "active" : ""}">
+      <span class="swatch" data-preview="${th.id}"></span><span>${t(th.name)}<small>${t(th.note)}</small></span><span class="check">✓</span></button>`).join("");
+  // each menu swatch shows that theme's own colours
+  $$("#themeMenu [data-preview]").forEach((el) => {
+    const keep = document.documentElement.dataset.theme;
+    document.documentElement.dataset.theme = el.dataset.preview;
+    el.innerHTML = swatch();
+    document.documentElement.dataset.theme = keep;
+  });
+}
+
+function swatch() {
+  return [cssVar("--bg"), cssVar("--text-2"), cssVar("--muted")].map((c) => `<i style="background:${c}"></i>`).join("");
+}
+
+let info = {}, markets = [], bySymbol = {}, byId = {};
+let prices = {}, account = null, events = [], lastTick = 0;
+let panels = [];
+let panelCfg = load("panels", [
+  { symbol: "BTC", tf: "1h" }, { symbol: "ETH", tf: "1h" }, { symbol: "SOL", tf: "1h" }, { symbol: "HYPE", tf: "1h" },
+]);
+let layout = load("layout", "4");
+let activeIdx = Math.min(load("active", 0), 3);
+let favs = load("favs", ["BTC", "ETH", "SOL", "HYPE", "XRP"]);
+let showBook = load("book", false);
+const ticket = { side: "buy", kind: "market" };
+
+function load(k, d) { try { const v = localStorage.getItem("ld." + k); return v === null ? d : JSON.parse(v); } catch { return d; } }
+function store(k, v) { try { localStorage.setItem("ld." + k, JSON.stringify(v)); } catch {} }
+const $ = (s, el = document) => el.querySelector(s);
+const $$ = (s, el = document) => [...el.querySelectorAll(s)];
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+async function api(path, opts = {}) {
+  const r = await fetch("/api" + path, { ...opts, headers: { "Content-Type": "application/json", "X-Token": TOKEN, "X-Lang": LANG, ...(opts.headers || {}) } });
+  const body = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(body.detail || r.statusText);
+  return body;
+}
+
+function toast(msg, err = false) {
+  const t = $("#toast");
+  t.textContent = msg;
+  t.className = "toast" + (err ? " err" : "");
+  clearTimeout(toast.t);
+  toast.t = setTimeout(() => t.classList.add("hidden"), 3500);
+}
+
+// ---------- formatting ----------
+const decimals = (m) => (m ? Math.min(m.price_decimals, 6) : 2);
+function fp(p, m) {
+  if (p === null || p === undefined || p === 0 || isNaN(p)) return "—";
+  const d = decimals(m);
+  return p.toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
+}
+function fusd(v, d = 2) {
+  if (v === null || v === undefined || isNaN(v)) return "—";
+  return (v < 0 ? "-$" : "$") + Math.abs(v).toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
+}
+function fcompact(v) {
+  if (!v) return "—";
+  const a = Math.abs(v);
+  return "$" + (a >= 1e9 ? (v / 1e9).toFixed(2) + "B" : a >= 1e6 ? (v / 1e6).toFixed(2) + "M" : a >= 1e3 ? (v / 1e3).toFixed(1) + "K" : v.toFixed(0));
+}
+const fpct = (v, d = 2) => (v >= 0 ? "+" : "") + v.toFixed(d) + "%";
+const cls = (v) => (v >= 0 ? "up" : "down");
+// market logo (cached by the backend) with the initial underneath as fallback
+function ico(sym, size = "") {
+  const m = bySymbol[sym];
+  const img = m && m.has_logo ? `<img src="/logo/${encodeURIComponent(sym)}" alt="" loading="lazy" onerror="this.remove()">` : "";
+  return `<i class="mk-ico${size ? " " + size : ""}">${esc(sym[0])}${img}</i>`;
+}
+const fsize = (v, m) => Math.abs(v).toLocaleString("en-US", { maximumFractionDigits: m ? m.size_decimals : 4 });
+
+// ================= charts =================
+class Panel {
+  constructor(idx) {
+    this.idx = idx;
+    this.el = document.createElement("div");
+    this.el.className = "panel";
+    this.el.innerHTML = `<div class="chart"></div>
+      <div class="legend"><span class="ttl"></span><i class="dot"></i><span class="ohlc"></span></div>
+      <div class="ev-tip hidden"></div>`;
+    this.el.addEventListener("mousedown", () => setActive(this.idx));
+    $(".ttl", this.el).addEventListener("click", (e) => { e.stopPropagation(); setActive(this.idx); openPalette(); });
+    this.chart = LightweightCharts.createChart($(".chart", this.el), {
+      autoSize: true,
+      layout: { background: { color: "transparent" }, fontSize: 11, fontFamily: "JetBrains Mono, monospace" },
+      rightPriceScale: { scaleMargins: { top: 0.12, bottom: 0.08 } },
+      timeScale: { timeVisible: true, secondsVisible: false, rightOffset: 6, barSpacing: 8 },
+      crosshair: { mode: 0, vertLine: { style: 2 }, horzLine: { style: 2 } },
+    });
+    this.chart.applyOptions(chartTheme());
+    this.series = this.chart.addCandlestickSeries({
+      upColor: C.green, downColor: C.red, borderVisible: false, wickUpColor: C.green, wickDownColor: C.red,
+      priceLineStyle: 2, priceLineWidth: 1, // last-price line and label take the candle colour
+    });
+    this.vol = this.chart.addHistogramSeries({ priceScaleId: "vol", priceFormat: { type: "volume" }, lastValueVisible: false, priceLineVisible: false });
+    this.chart.priceScale("vol").applyOptions({ scaleMargins: { top: 0.86, bottom: 0 } });
+    this.lines = [];
+    this.data = new Map();
+    this.eventBars = new Map();
+    this.chart.subscribeCrosshairMove((p) => {
+      const bar = p && p.time ? this.data.get(p.time) : null;
+      this.hover = bar || null;
+      this.renderLegend();
+      this.renderEventTip(p, bar);
+    });
+  }
+
+  get cfg() { return panelCfg[this.idx]; }
+  get market() { return bySymbol[this.cfg.symbol]; }
+
+  async load() {
+    const m = this.market;
+    if (!m) return;
+    const d = decimals(m);
+    this.series.applyOptions({ priceFormat: { type: "price", precision: d, minMove: 1 / 10 ** d } });
+    const token = (this.loadToken = Symbol());
+    const candles = await api(`/candles?market_id=${m.id}&resolution=${this.cfg.tf}&count=600`).catch((e) => { toast(e.message, true); return []; });
+    if (token !== this.loadToken) return;
+    this.data = new Map(candles.map((c) => [c.time, c]));
+    this.series.setData(candles);
+    this.vol.setData(candles.map((c) => ({ time: c.time, value: c.volume, color: c.close >= c.open ? "rgba(43,217,164,.28)" : "rgba(242,84,109,.28)" })));
+    this.last = candles[candles.length - 1] || null;
+    this.drawMarkers();
+    this.drawLines();
+    this.renderLegend();
+  }
+
+  renderLegend() {
+    const m = this.market;
+    if (this.ttlFor !== this.cfg.symbol + this.cfg.tf) { // avoid reloading the logo on every tick
+      this.ttlFor = this.cfg.symbol + this.cfg.tf;
+      $(".ttl", this.el).innerHTML = `${ico(this.cfg.symbol, "sm")}<b>${esc(this.cfg.symbol)}</b> · ${tfLabel(this.cfg.tf)} · Lighter`;
+    }
+    const b = this.hover || this.last;
+    if (!b) { $(".ohlc", this.el).textContent = ""; return; }
+    const ch = b.close - b.open, pct = b.open ? (ch / b.open) * 100 : 0;
+    const c = cls(ch);
+    $(".ohlc", this.el).innerHTML =
+      `<span>O<em class="${c}">${fp(b.open, m)}</em></span><span>H<em class="${c}">${fp(b.high, m)}</em></span>` +
+      `<span>L<em class="${c}">${fp(b.low, m)}</em></span><span>C<em class="${c}">${fp(b.close, m)}</em></span>` +
+      `<em class="${c}">${ch >= 0 ? "+" : ""}${fp(ch, m).replace("—", "0")} (${fpct(pct)})</em>`;
+  }
+
+  tick() {
+    const m = this.market;
+    const p = m && prices[m.id];
+    if (!p || !this.last) return;
+    const price = p.last || p.mark;
+    if (!price) return;
+    const barTime = barStart(this.cfg.tf, Math.floor(Date.now() / 1000));
+    if (barTime > this.last.time) this.last = { time: barTime, open: price, high: price, low: price, close: price, volume: 0 };
+    else this.last = { ...this.last, close: price, high: Math.max(this.last.high, price), low: Math.min(this.last.low, price) };
+    this.data.set(this.last.time, this.last);
+    this.series.update(this.last);
+    if (!this.hover) this.renderLegend();
+  }
+
+  drawMarkers() {
+    const now = Date.now() / 1000;
+    // one discreet dot per bar that had high-impact news
+    const bars = new Map();
+    for (const e of events) {
+      if (e.impact !== "High" || e.ts > now) continue;
+      const t = barStart(this.cfg.tf, e.ts);
+      bars.set(t, (bars.get(t) || []).concat(e));
+    }
+    this.eventBars = bars;
+    const markers = [...bars.entries()].sort((a, b) => a[0] - b[0]).map(([time]) => ({
+      time, position: "belowBar", shape: "circle", size: 0.4, color: "rgba(232,177,74,.8)",
+      text: "",
+    }));
+    this.series.setMarkers(markers);
+  }
+
+  // box with the events behind a dot, shown while the pointer is on or near it
+  renderEventTip(p, bar) {
+    const tip = $(".ev-tip", this.el);
+    const evs = bar && this.eventBars.get(bar.time);
+    const lowY = evs && this.series.priceToCoordinate(bar.low);
+    if (!evs || lowY === null || !p.point || p.point.y < lowY - 6 || p.point.y > lowY + 34) {
+      tip.classList.add("hidden");
+      return;
+    }
+    const m = this.market;
+    let prev = null; // previous bar (bars are not all the same length on 1W / 1M)
+    for (const [t, c] of this.data) { if (t >= bar.time) break; prev = c; }
+    const before = prev ? prev.close : null, after = bar.close;
+    const move = before ? ((after - before) / before) * 100 : null;
+    tip.innerHTML = evs.sort((a, b) => a.ts - b.ts).map((e) => `
+        <div class="ev">
+          <div class="ev-t"><span class="imp ${e.impact}"></span>${esc(e.country)} · ${esc(e.title)}${e.source && e.source !== "ff" ? `<span class="src">${esc(e.source)}</span>` : ""}</div>
+          <div class="ev-s">${new Date(e.ts * 1000).toLocaleString(LOCALE, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}${e.forecast || e.previous ? " · " + t("prev. {f} · prec. {p}", { f: esc(e.forecast || "—"), p: esc(e.previous || "—") }) : ""}</div>
+        </div>`).join("") +
+      (move !== null ? `<div class="ev-move">${t("Candela {tf}: {move} · chiusura {close}", { tf: tfLabel(this.cfg.tf), move: `<b class="${cls(move)}">${fpct(move)}</b>`, close: fp(after, m) })}</div>` : "");
+    tip.classList.remove("hidden");
+    const w = this.el.clientWidth, h = this.el.clientHeight;
+    const tw = tip.offsetWidth, th = tip.offsetHeight;
+    let x = p.point.x + 14, y = p.point.y + 14;
+    if (x + tw > w - 70) x = p.point.x - tw - 14;
+    if (y + th > h - 30) y = p.point.y - th - 14;
+    tip.style.left = Math.max(6, x) + "px";
+    tip.style.top = Math.max(6, y) + "px";
+  }
+
+  drawLines() {
+    for (const l of this.lines) this.series.removePriceLine(l);
+    this.lines = [];
+    const m = this.market;
+    const pos = account && m && account.positions.find((p) => p.market_id === m.id);
+    if (!pos) return;
+    const side = pos.size > 0 ? "LONG" : "SHORT";
+    this.lines.push(this.series.createPriceLine({ price: pos.entry, color: "#6aa8ff", lineStyle: 2, lineWidth: 1, title: `${side} ${fsize(pos.size, m)}` }));
+    if (pos.liq) this.lines.push(this.series.createPriceLine({ price: pos.liq, color: C.red, lineStyle: 1, lineWidth: 1, title: "LIQ" }));
+  }
+
+  destroy() { this.chart.remove(); this.el.remove(); }
+}
+
+function savePanels() { store("panels", panelCfg); }
+
+// ---------- timeframe toolbar + "More" menu ----------
+function setTf(tf) {
+  panelCfg[activeIdx].tf = tf;
+  savePanels();
+  panels[activeIdx].load();
+  setActive(activeIdx);
+}
+
+function renderTfs() {
+  const cur = panelCfg[activeIdx].tf;
+  $("#tfs").innerHTML = shownTfs.map((t) => `<button data-tf="${t}" class="${t === cur ? "active" : ""}">${tfLabel(t)}</button>`).join("");
+  const hidden = ALL_TFS.filter((t) => !shownTfs.includes(t));
+  // a selected timeframe that is not in the toolbar shows on the More button
+  const more = $("#tfMoreBtn");
+  more.classList.toggle("active", !shownTfs.includes(cur));
+  $("span", more).textContent = shownTfs.includes(cur) ? t("Altri") : tfLabel(cur);
+  $("#tfHidden").innerHTML = hidden.length
+    ? hidden.map((t) => `<button data-pick="${t}" class="${t === cur ? "active" : ""}">${tfLabel(t)}</button>`).join("")
+    : `<span class="muted">${t("Tutti i timeframe sono nella barra.")}</span>`;
+  $("#tfShown").innerHTML = ALL_TFS.map((t) => `<button data-show="${t}" class="${shownTfs.includes(t) ? "on" : ""}">${tfLabel(t)}<i>✓</i></button>`).join("");
+}
+
+function toggleTfMenu(open) {
+  const menu = $("#tfMenu");
+  const show = open === undefined ? menu.classList.contains("hidden") : open;
+  menu.classList.toggle("hidden", !show);
+  if (show) renderTfs();
+}
+
+function buildCharts() {
+  panels.forEach((p) => p.destroy());
+  panels = [];
+  const n = { "1": 1, "2v": 2, "2h": 2, "4": 4 }[layout];
+  if (activeIdx >= n) activeIdx = 0;
+  const box = $("#charts");
+  box.className = "charts l" + layout;
+  for (let i = 0; i < n; i++) {
+    const p = new Panel(i);
+    box.appendChild(p.el);
+    panels.push(p);
+    p.load();
+  }
+  $$("#layouts button").forEach((b) => b.classList.toggle("active", b.dataset.layout === layout));
+  setActive(activeIdx);
+}
+
+function setActive(i) {
+  activeIdx = i;
+  store("active", i);
+  panels.forEach((p) => p.el.classList.toggle("active", p.idx === i));
+  const cfg = panelCfg[i];
+  renderTfs();
+  renderMarketBar();
+  renderTicket();
+  renderTicker();
+  if (showBook) loadBook();
+}
+
+const activeMarket = () => bySymbol[panelCfg[activeIdx].symbol];
+
+function setSymbol(sym) {
+  if (!bySymbol[sym]) return;
+  panelCfg[activeIdx].symbol = sym;
+  savePanels();
+  panels[activeIdx] && panels[activeIdx].load();
+  setActive(activeIdx);
+}
+
+// ================= market bar / ticker =================
+function renderMarketBar() {
+  const m = activeMarket();
+  if (!m) return;
+  $("#mkSym").textContent = m.symbol;
+  if ($("#mkIco").dataset.sym !== m.symbol) {
+    $("#mkIco").outerHTML = ico(m.symbol).replace('<i class="mk-ico"', `<i class="mk-ico" id="mkIco" data-sym="${m.symbol}"`);
+  }
+  const p = prices[m.id];
+  if (!p) return;
+  $("#stMark").textContent = fp(p.mark, m);
+  const ch = $("#stChg");
+  ch.textContent = fpct(p.change);
+  ch.className = cls(p.change);
+  $("#stVol").textContent = fcompact(p.volume);
+  $("#stIdx").textContent = fp(p.index, m);
+  const f = $("#stFund");
+  f.textContent = p.funding.toFixed(4) + "%";
+  f.className = p.funding >= 0 ? "" : "down";
+  $("#stOi").textContent = fcompact(p.oi);
+}
+
+function renderTicker() {
+  const box = $("#ticker");
+  const active = activeMarket();
+  box.innerHTML = favs.filter((s) => bySymbol[s]).map((s) => {
+    const m = bySymbol[s];
+    const p = prices[m.id];
+    return `<button class="tk${active && active.symbol === s ? " active" : ""}" data-sym="${s}">
+      ${ico(s, "xs")}<b>${s}</b><span class="num">${p ? fp(p.last || p.mark, m) : "—"}</span>
+      <span class="chg ${p ? cls(p.change) : ""}">${p ? fpct(p.change) : ""}</span></button>`;
+  }).join("");
+}
+
+// ================= order book =================
+// ---------- order book: live stream straight from Lighter's websocket ----------
+// Snapshot on subscribe, then deltas (size 0 removes a level). Each update's begin_nonce
+// must match the previous nonce; on a gap we resubscribe for a fresh snapshot.
+const book = { ws: null, market: null, asks: new Map(), bids: new Map(), nonce: null, dirty: false, live: false };
+
+function bookConnect() {
+  if (book.ws || !info.ws_url) return;
+  const ws = new WebSocket(info.ws_url);
+  book.ws = ws;
+  ws.onopen = () => bookSubscribe(activeMarket());
+  ws.onmessage = (ev) => {
+    const msg = JSON.parse(ev.data);
+    if (msg.type === "ping") { ws.send(JSON.stringify({ type: "pong" })); return; }
+    if (!msg.type || !msg.type.endsWith("order_book") || !book.market) return;
+    if (msg.channel && msg.channel !== `order_book:${book.market.id}`) return;
+    const ob = msg.order_book;
+    if (msg.type === "subscribed/order_book") { book.asks.clear(); book.bids.clear(); }
+    else if (book.nonce !== null && ob.begin_nonce !== book.nonce) { bookSubscribe(book.market, true); return; }
+    const m = book.market;
+    for (const [side, map] of [["asks", book.asks], ["bids", book.bids]]) {
+      for (const lvl of ob[side] || []) {
+        const price = +lvl.price / (m.multiplier || 1), size = +lvl.size * (m.multiplier || 1);
+        if (size > 0) map.set(price, size); else map.delete(price);
+      }
+    }
+    book.nonce = ob.nonce;
+    book.live = true;
+    book.dirty = true;
+  };
+  ws.onclose = () => {
+    book.ws = null;
+    book.live = false;
+    if (showBook) setTimeout(bookConnect, 2000);
+  };
+}
+
+function bookSubscribe(m, resync = false) {
+  if (!book.ws || book.ws.readyState !== 1 || !m) return;
+  if (book.market && (book.market.id !== m.id || resync)) {
+    book.ws.send(JSON.stringify({ type: "unsubscribe", channel: `order_book/${book.market.id}` }));
+  }
+  book.market = m;
+  book.nonce = null;
+  book.asks.clear();
+  book.bids.clear();
+  book.ws.send(JSON.stringify({ type: "subscribe", channel: `order_book/${m.id}` }));
+}
+
+function loadBook() {
+  if (!showBook) return;
+  if (!book.ws) bookConnect();
+  else if (!book.market || book.market !== activeMarket()) bookSubscribe(activeMarket());
+}
+
+function renderBook() {
+  if (!book.dirty || !showBook || !book.market) return;
+  book.dirty = false;
+  const m = book.market;
+  const depth = 14;
+  const asks = [...book.asks].sort((a, b) => a[0] - b[0]).slice(0, depth);
+  const bids = [...book.bids].sort((a, b) => b[0] - a[0]).slice(0, depth);
+  const rows = (lvls, rev) => {
+    let tot = 0;
+    const withTot = lvls.map(([p, s]) => { tot += s; return [p, s, tot]; });
+    const max = tot || 1;
+    const html = withTot.map(([p, s, t]) => `<div class="lvl"><i style="width:${(t / max) * 100}%"></i><span>${fp(p, m)}</span><span>${fsize(s, m)}</span><span>${fsize(t, m)}</span></div>`);
+    return (rev ? html.reverse() : html).join("");
+  };
+  $("#bookAsks").innerHTML = rows(asks, true);
+  $("#bookBids").innerHTML = rows(bids, false);
+  const a = asks[0] && asks[0][0], b = bids[0] && bids[0][0];
+  if (a && b) {
+    const spread = ((a - b) / ((a + b) / 2)) * 10000;
+    $("#bookMid").innerHTML = `<span>${fp((a + b) / 2, m)}</span><small>spread ${spread.toFixed(1)} bps · live</small>`;
+  }
+}
+
+function toggleBook(v) {
+  showBook = v;
+  store("book", v);
+  $("#book").classList.toggle("hidden", !v);
+  $("#obToggle").classList.toggle("active", v);
+  if (v) loadBook();
+  else if (book.ws) { book.ws.close(); book.market = null; }
+}
+
+// ================= ticket =================
+function renderTicket() {
+  const m = activeMarket();
+  if (!m) return;
+  $("#tkSym").textContent = m.symbol;
+  const pos = account && account.positions.find((p) => p.market_id === m.id);
+  const set = account && account.settings && account.settings[m.id];
+  const lev = set ? set.leverage : m.default_leverage;
+  $("#tkLev").textContent = `${lev ? lev + "x " : ""}${set && !set.cross ? "Isolated" : "Cross"}`;
+  $("#tkAvail").textContent = account ? fusd(account.available) : "—";
+  $("#tkPos").innerHTML = pos ? `<span class="${pos.size > 0 ? "up" : "down"}">${pos.size > 0 ? "Long" : "Short"} ${fsize(pos.size, m)}</span>` : "—";
+  const unit = $("#tkUnit").value;
+  $("#tkSizeUnit").textContent = { usd: "USD", base: m.symbol, equity_pct: "%", risk_usd: "USD" }[unit];
+  const chips = {
+    usd: [25, 50, 100, 250].map((v) => [v, "$" + v]),
+    base: [1, 5, 10, 50].map((x) => +(x * 10 ** -Math.max(0, m.size_decimals - 2)).toFixed(m.size_decimals)).map((v) => [v, v]),
+    equity_pct: [1, 2, 5, 10].map((v) => [v, v + "%"]),
+    risk_usd: [5, 10, 25, 50].map((v) => [v, "$" + v]),
+  }[unit];
+  $("#tkChips").innerHTML = chips.map(([v, t]) => `<button data-v="${v}">${t}</button>`).join("");
+  const isLimit = ticket.kind === "limit";
+  $$(".limit-only").forEach((e) => e.classList.toggle("hidden", !isLimit));
+  $$(".market-only").forEach((e) => e.classList.toggle("hidden", isLimit));
+  $$("#sideSel button").forEach((b) => b.classList.toggle("active", b.dataset.side === ticket.side));
+  $$("#kindSel button").forEach((b) => b.classList.toggle("active", b.dataset.kind === ticket.kind));
+  const ex = $("#tkExec");
+  ex.className = "execute" + (!info.trading ? " connect" : ticket.side === "sell" ? " sell" : "");
+  ex.textContent = info.trading ? `${ticket.side === "buy" ? "Buy / Long" : "Sell / Short"} ${m.symbol}` : t("Sola lettura · collega un'API key");
+  updateTicketSummary();
+}
+
+function ticketBody() {
+  const m = activeMarket();
+  const body = {
+    market_id: m.id, side: ticket.side, kind: ticket.kind, size: +$("#tkSize").value, unit: $("#tkUnit").value,
+    reduce_only: $("#tkReduce").checked,
+  };
+  if (+$("#tkSl").value) body.sl_price = +$("#tkSl").value;
+  if (+$("#tkTp").value) body.tp_price = +$("#tkTp").value;
+  if (ticket.kind === "limit") {
+    body.price = +$("#tkPrice").value;
+    body.post_only = $("#tkPost").checked;
+  } else {
+    body.slippage_bps = +$("#tkSlip").value || 50;
+  }
+  return body;
+}
+
+// local estimate, refined by the server preview (which also runs every risk check)
+function updateTicketSummary() {
+  const m = activeMarket();
+  const p = m && prices[m.id];
+  const size = +$("#tkSize").value;
+  const unit = $("#tkUnit").value;
+  const sl = +$("#tkSl").value;
+  const ref = ticket.kind === "limit" && +$("#tkPrice").value ? +$("#tkPrice").value : p ? (ticket.side === "buy" ? p.ask : p.bid) || p.mark : 0;
+  let qty = null;
+  if (m && ref && size > 0) {
+    if (unit === "usd") qty = size / ref;
+    else if (unit === "base") qty = size;
+    else if (unit === "equity_pct" && account) qty = (account.total_value * size) / 100 / ref;
+    else if (unit === "risk_usd" && sl && sl !== ref) qty = size / Math.abs(ref - sl);
+  }
+  $("#tkNotional").textContent = qty ? fusd(qty * ref) : "—";
+  $("#tkQty").textContent = qty ? `${qty.toFixed(m.size_decimals)} ${m.symbol}` : "—";
+  renderTicketEstimates(m, p, qty, ref);
+  clearTimeout(updateTicketSummary.t);
+  updateTicketSummary.t = setTimeout(previewTicket, 350);
+}
+
+// margin, fees, liquidation and SL/TP outcome (formulas.js, ported from lighter-ts)
+function renderTicketEstimates(m, p, qty, entry) {
+  const side = ticket.side === "buy" ? 1 : -1;
+  const set = account && account.settings && account.settings[m.id];
+  const leverage = (set && set.leverage) || m.default_leverage;
+  const notional = qty ? qty * entry : 0;
+  const isMaker = ticket.kind === "limit" && $("#tkPost").checked;
+  const feeRate = isMaker ? m.maker_fee : m.taker_fee;
+  const feeUsd = Formulas.fee(notional, feeRate);
+  const reduce = $("#tkReduce").checked;
+  $("#tkMargin").textContent = qty && !reduce ? `${fusd(Formulas.orderMargin(notional, leverage))} · ${leverage}x` : "—";
+  $("#tkFee").textContent = qty ? `${fusd(feeUsd)} · ${(feeRate * 100).toFixed(3)}%` : "—";
+  const mark = p && p.mark;
+  const liq = Formulas.liquidationAfterOrder({
+    account, market: m, side, qty, entry, mark, feeUsd,
+    markOf: (id) => prices[id] && prices[id].mark, mmfOf: (id) => (byId[id] ? byId[id].mmf : m.mmf),
+  });
+  const liqEl = $("#tkLiq");
+  liqEl.textContent = liq ? fp(liq, m) : account ? "—" : t("serve l'account");
+  liqEl.className = liq && mark && Math.abs(liq - mark) / mark < 0.05 ? "down" : "";
+  for (const [id, isSL] of [["Sl", true], ["Tp", false]]) {
+    const trigger = +$("#tk" + id).value;
+    const out = $(`#tk${id}Out`);
+    const res = Formulas.sltpOutcome({ isSL, side, entry, trigger, qty, leverage });
+    if (!res) { out.textContent = ""; out.className = "sltp-out"; continue; }
+    const wrongSide = res.usd < 0; // e.g. a long's stop above entry would be a gain
+    const beyondLiq = isSL && Formulas.slBeyondLiquidation(side, trigger, liq);
+    out.textContent = wrongSide ? t("lato sbagliato") : beyondLiq ? t("oltre la liquidazione")
+      : `${isSL ? "−" : "+"}${fusd(Math.abs(res.usd))} · ${isSL ? "−" : "+"}${Math.abs(res.pct).toFixed(1)}%`;
+    out.className = "sltp-out " + (wrongSide || beyondLiq ? "warn" : isSL ? "down" : "up");
+  }
+}
+
+async function previewTicket() {
+  const note = $("#tkRisk");
+  const m = activeMarket();
+  if (!info.trading || !m || !(+$("#tkSize").value > 0)) { note.classList.add("hidden"); return; }
+  const key = JSON.stringify(ticketBody());
+  if (key === previewTicket.key && Date.now() - previewTicket.at < 5000) return;
+  previewTicket.key = key;
+  previewTicket.at = Date.now();
+  const r = await api("/preview", { method: "POST", body: key }).catch((e) => ({ ok: false, error: e.message }));
+  if (key !== previewTicket.key) return;
+  note.classList.toggle("hidden", r.ok);
+  if (!r.ok) note.textContent = r.error;
+  else {
+    $("#tkNotional").textContent = fusd(r.notional);
+    $("#tkQty").textContent = `${r.size} ${m.symbol}`;
+  }
+}
+
+function ticketMsg(text, kind) {
+  const el = $("#tkMsg");
+  el.textContent = text;
+  el.className = "ticket-msg " + kind;
+}
+
+async function executeTicket() {
+  const m = activeMarket();
+  const size = +$("#tkSize").value;
+  if (!m || !(size > 0)) return ticketMsg(t("Inserisci una size valida."), "err");
+  const body = ticketBody();
+  if (ticket.kind === "limit" && !body.price) return ticketMsg(t("Inserisci il prezzo limite."), "err");
+  const label = `${ticket.side === "buy" ? "LONG" : "SHORT"} ${m.symbol} · ${$("#tkNotional").textContent} · ${ticket.kind}`;
+  if (!confirm(`${t("Confermi l'ordine?")}\n\n${label}`)) return;
+  const btn = $("#tkExec");
+  btn.disabled = true;
+  try {
+    const r = await api("/order", { method: "POST", body: JSON.stringify(body) });
+    ticketMsg(t("Eseguito: {side} {size} {sym}. Controlla posizioni e ordini per i fill.", { side: ticket.side, size: r.size, sym: m.symbol }), "ok");
+  } catch (e) {
+    ticketMsg(e.message, "err");
+  } finally {
+    btn.disabled = !info.trading;
+  }
+}
+
+// ================= account / bottom tables =================
+function renderAccount() {
+  const has = !!account;
+  $("#accIdx").textContent = has ? "#" + account.index : "";
+  $("#accEq").textContent = has ? account.total_value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—";
+  $("#accAvail").textContent = has ? fusd(account.available) : "—";
+  const upnl = has ? account.positions.reduce((s, p) => s + p.upnl, 0) : null;
+  const u = $("#accUpnl");
+  u.textContent = has ? fusd(upnl) : "—";
+  u.className = has ? cls(upnl) : "";
+  $("#accLimit").textContent = info.limits ? fusd(info.limits.per_order_usd, 0) : "—";
+  const pill = $("#accountPill");
+  pill.innerHTML = info.trading ? `<i class="dot"></i><span>${t("Account #{n}", { n: info.account_index })}</span>` : `<i class="dot off"></i><span>${t("Sola lettura")}</span>`;
+  pill.classList.toggle("muted", !info.trading);
+  pill.title = info.trading ? t("API key collegata") : t("Collega un'API key");
+  renderPositions();
+  renderTicket();
+  panels.forEach((p) => p.drawLines());
+}
+
+function renderPositions() {
+  const box = $("#btab-positions");
+  const list = account ? account.positions : [];
+  $("#posCount").textContent = list.length || "";
+  if (!list.length) {
+    box.innerHTML = `<div class="empty">${info.trading ? t("Nessuna posizione aperta.") : t("Sola lettura: collega un'API key per vedere posizioni e ordini.")}</div>`;
+    return;
+  }
+  box.innerHTML = `<table class="table"><thead><tr><th>${t("Mercato")}</th><th class="r">Size</th><th class="r">${t("Valore")}</th><th class="r">Entry</th><th class="r">Mark</th><th class="r">${t("Liquidazione")}</th><th class="r">${t("PnL non realizzato")}</th><th>${t("Chiudi · un click")}</th></tr></thead><tbody>${
+    list.map((p) => {
+      const m = byId[p.market_id];
+      const mark = prices[p.market_id] ? prices[p.market_id].mark : 0;
+      const pct = p.value ? (p.upnl / (p.value - p.upnl * Math.sign(p.size))) * 100 : 0;
+      return `<tr><td class="mk">${esc(p.symbol)}<small class="${p.size > 0 ? "up" : "down"}">${p.size > 0 ? "Long" : "Short"}${p.leverage ? " · " + p.leverage + "x" : ""}</small></td>
+        <td class="r">${fsize(p.size, m)}</td><td class="r">${fusd(p.value)}</td><td class="r">${fp(p.entry, m)}</td><td class="r">${fp(mark, m)}</td>
+        <td class="r">${fp(p.liq, m)}</td><td class="r ${cls(p.upnl)}">${fusd(p.upnl)} <span class="muted">${isFinite(pct) ? fpct(pct) : ""}</span></td>
+        <td><span class="qbtn">${[25, 50, 75, 100].map((f) => `<button data-close="${p.market_id}" data-f="${f}">${f}%</button>`).join("")}</span></td></tr>`;
+    }).join("")}</tbody></table>`;
+}
+
+async function loadOrders() {
+  const box = $("#btab-orders");
+  if (!info.trading) { box.innerHTML = `<div class="empty">${t("Sola lettura.")}</div>`; return; }
+  const ids = new Set([...(account ? account.positions.map((p) => p.market_id) : []), ...panelCfg.map((c) => bySymbol[c.symbol] && bySymbol[c.symbol].id)].filter((x) => x !== undefined));
+  const orders = await api(`/open_orders?market_ids=${[...ids].join(",")}`).catch((e) => { box.innerHTML = `<div class="empty">${esc(e.message)}</div>`; return null; });
+  if (!orders) return;
+  if (!orders.length) { box.innerHTML = `<div class="empty">${t("Nessun ordine aperto sui mercati in uso.")}</div>`; return; }
+  box.innerHTML = `<table class="table"><thead><tr><th>${t("Mercato")}</th><th>${t("Tipo")}</th><th>${t("Lato")}</th><th class="r">${t("Prezzo")}</th><th class="r">Trigger</th><th class="r">${t("Size residua")}</th><th>Reduce only</th><th></th></tr></thead><tbody>${
+    orders.map((o) => {
+      const m = byId[o.market_id];
+      return `<tr><td class="mk">${esc(o.symbol)}</td><td>${esc(o.type)}</td><td class="${o.is_ask ? "down" : "up"}">${o.is_ask ? "Sell" : "Buy"}</td>
+        <td class="r">${fp(o.price, m)}</td><td class="r">${o.trigger_price ? fp(o.trigger_price, m) : "—"}</td><td class="r">${fsize(o.remaining, m)}</td>
+        <td>${o.reduce_only ? t("sì") : "—"}</td><td class="r"><button class="xbtn" data-cancel="${o.market_id}:${o.order_index}">${t("Annulla")}</button></td></tr>`;
+    }).join("")}</tbody></table>`;
+}
+
+async function loadTrades() {
+  const box = $("#btab-trades");
+  if (!info.trading) { box.innerHTML = `<div class="empty">${t("Sola lettura.")}</div>`; return; }
+  const trades = await api("/trades").catch((e) => { box.innerHTML = `<div class="empty">${esc(e.message)}</div>`; return null; });
+  if (!trades) return;
+  if (!trades.length) { box.innerHTML = `<div class="empty">${t("Nessun trade recente.")}</div>`; return; }
+  box.innerHTML = `<table class="table"><thead><tr><th>${t("Ora")}</th><th>${t("Mercato")}</th><th>${t("Lato")}</th><th class="r">Size</th><th class="r">${t("Prezzo")}</th><th class="r">${t("Valore")}</th><th>${t("Ruolo")}</th><th class="r">${t("PnL realizzato")}</th></tr></thead><tbody>${
+    trades.map((t) => {
+      const m = byId[t.market_id];
+      return `<tr><td>${new Date(t.ts).toLocaleString(LOCALE, { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" })}</td>
+        <td class="mk">${esc(t.symbol)}</td><td class="${t.side === "buy" ? "up" : "down"}">${t.side === "buy" ? "Buy" : "Sell"}</td>
+        <td class="r">${fsize(t.size, m)}</td><td class="r">${fp(t.price, m)}</td><td class="r">${fusd(t.usd)}</td><td>${t.role}</td>
+        <td class="r ${t.pnl ? cls(t.pnl) : ""}">${t.pnl ? fusd(t.pnl) : "—"}</td></tr>`;
+    }).join("")}</tbody></table>`;
+}
+
+// ================= calendar =================
+const SESSIONS = [
+  { name: "Stati Uniti", ex: "NYSE", tz: "America/New_York", open: [9, 30], close: [16, 0] },
+  { name: "Regno Unito", ex: "LSE", tz: "Europe/London", open: [8, 0], close: [16, 30] },
+  { name: "Germania", ex: "Xetra", tz: "Europe/Berlin", open: [9, 0], close: [17, 30] },
+  { name: "Giappone", ex: "TSE", tz: "Asia/Tokyo", open: [9, 0], close: [15, 30] },
+  { name: "Hong Kong", ex: "HKEX", tz: "Asia/Hong_Kong", open: [9, 30], close: [16, 0] },
+  { name: "Australia", ex: "ASX", tz: "Australia/Sydney", open: [10, 0], close: [16, 0] },
+];
+
+function zoned(ts, tz) {
+  const parts = Object.fromEntries(new Intl.DateTimeFormat("en-US", { timeZone: tz, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", weekday: "short" })
+    .formatToParts(new Date(ts)).map((p) => [p.type, p.value]));
+  return { y: +parts.year, mo: +parts.month, d: +parts.day, h: +parts.hour, mi: +parts.minute, s: +parts.second, wd: parts.weekday };
+}
+// UTC ms of a wall-clock time in tz
+function wallToUtc(y, mo, d, h, mi, tz) {
+  let guess = Date.UTC(y, mo - 1, d, h, mi);
+  for (let i = 0; i < 2; i++) {
+    const z = zoned(guess, tz);
+    const asUtc = Date.UTC(z.y, z.mo - 1, z.d, z.h, z.mi, z.s);
+    guess += Date.UTC(y, mo - 1, d, h, mi) - asUtc;
+  }
+  return guess;
+}
+
+function sessionStatus(s, now) {
+  for (let dayOff = 0; dayOff < 8; dayOff++) {
+    const z = zoned(now + dayOff * 86400000, s.tz);
+    if (z.wd === "Sat" || z.wd === "Sun") continue;
+    const open = wallToUtc(z.y, z.mo, z.d, s.open[0], s.open[1], s.tz);
+    const close = wallToUtc(z.y, z.mo, z.d, s.close[0], s.close[1], s.tz);
+    if (now < open) return { open: false, at: open };
+    if (now < close) return { open: true, at: close };
+  }
+  return { open: false, at: null };
+}
+
+function dur(ms) {
+  const m = Math.max(0, Math.round(ms / 60000));
+  if (m < 1) return "<1m";
+  if (m < 60) return m + "m";
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ${m % 60}m`;
+  return `${Math.floor(h / 24)}${LANG === "en" ? "d" : "g"} ${h % 24}h`;
+}
+
+function renderSessions() {
+  const now = Date.now();
+  const rows = SESSIONS.map((s) => ({ s, st: sessionStatus(s, now) }))
+    .sort((a, b) => (b.st.open - a.st.open) || (a.st.at - b.st.at));
+  const local = (t) => new Date(t).toLocaleString(LOCALE, { weekday: "short", hour: "2-digit", minute: "2-digit" });
+  $("#ctab-sessions").innerHTML = rows.map(({ s, st }) => `<div class="cal-row">
+      <div><div class="t">${t(s.name)}</div><div class="s">${s.ex} · ${st.open ? t("chiude") : t("apre")} ${st.at ? local(st.at) : ""}</div></div>
+      <div class="w ${st.open ? "open" : st.at - now < 3600000 ? "soon" : ""}">${st.open ? t("aperto · {d}", { d: dur(st.at - now) }) : t("tra {d}", { d: dur(st.at - now) })}</div>
+    </div>`).join("");
+}
+
+function renderEcon() {
+  const f = load("econf", "hm");
+  $$("#econFilter button").forEach((b) => b.classList.toggle("active", b.dataset.f === f));
+  const now = Date.now() / 1000;
+  const list = events.filter((e) => e.ts > now - 3 * 3600 && (f === "h" ? e.impact === "High" : f === "usd" ? e.country === "USD" && e.impact !== "Holiday" : e.impact === "High" || e.impact === "Medium")).slice(0, 40);
+  let lastDay = "";
+  $("#econList").innerHTML = list.map((e) => {
+    const d = new Date(e.ts * 1000);
+    const day = d.toLocaleDateString(LOCALE, { weekday: "long", day: "numeric", month: "short" });
+    const head = day !== lastDay ? `<div class="group">${day}</div>` : "";
+    lastDay = day;
+    const left = e.ts - now;
+    return `${head}<div class="cal-row${left < 0 ? " past" : ""}">
+      <div style="min-width:0"><div class="t"><span class="imp ${e.impact}"></span>${esc(e.country)} · ${esc(e.title)}${e.source && e.source !== "ff" ? `<span class="src">${esc(e.source)}</span>` : ""}</div>
+      <div class="s">${t("prev. {f} · prec. {p}", { f: esc(e.forecast || "—"), p: esc(e.previous || "—") })}</div></div>
+      <div class="w ${left > 0 && left < 3600 ? "soon" : ""}">${d.toLocaleTimeString(LOCALE, { hour: "2-digit", minute: "2-digit" })}<div class="s">${left > 0 ? t("tra {d}", { d: dur(left * 1000) }) : ""}</div></div>
+    </div>`;
+  }).join("") || `<div class="empty">${t("Nessun evento.")}</div>`;
+}
+
+async function loadCalendar() {
+  events = await api("/calendar").catch(() => events);
+  renderEcon();
+  renderEventSelect();
+  panels.forEach((p) => p.drawMarkers());
+}
+
+// ================= markets page =================
+let mktSort = { key: "volume", dir: -1 };
+function renderMarkets() {
+  const q = $("#mktSearch").value.trim().toUpperCase();
+  const rows = markets.filter((m) => !q || m.symbol.includes(q)).map((m) => {
+    const p = prices[m.id] || {};
+    return { m, symbol: m.symbol, price: p.last || p.mark || 0, change: p.change || 0, volume: p.volume || m.volume_usd, oi: p.oi || 0, funding: p.funding || 0 };
+  });
+  rows.sort((a, b) => (a[mktSort.key] > b[mktSort.key] ? 1 : -1) * mktSort.dir);
+  $("#mktTable tbody").innerHTML = rows.slice(0, 250).map((r) => `<tr data-sym="${r.symbol}">
+      <td><button class="star${favs.includes(r.symbol) ? " on" : ""}" data-star="${r.symbol}">★</button></td>
+      <td class="mk"><span class="sym">${ico(r.symbol)}${r.symbol}</span></td><td class="r">${fp(r.price, r.m)}</td><td class="r ${cls(r.change)}">${fpct(r.change)}</td>
+      <td class="r">${fcompact(r.volume)}</td><td class="r">${fcompact(r.oi)}</td><td class="r ${r.funding < 0 ? "down" : ""}">${r.funding.toFixed(4)}%</td>
+      <td class="r"><span class="open-btn">${t("Apri nel grafico →")}</span></td></tr>`).join("");
+}
+
+// ================= automations =================
+function renderEventSelect() {
+  const sel = $("#eventSelect");
+  const keep = sel.value;
+  const now = Date.now() / 1000;
+  sel.innerHTML = events.filter((e) => e.ts > now && e.impact !== "Holiday").map((e) =>
+    `<option value="${e.id}">${new Date(e.ts * 1000).toLocaleString(LOCALE, { weekday: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })} · ${e.country} ${esc(e.title)} (${e.impact})</option>`).join("");
+  if (keep) sel.value = keep;
+}
+
+function formToRule(form) {
+  const out = {};
+  for (const [k, v] of new FormData(form).entries()) {
+    if (v === "" || form.querySelector(`[name="${k}"]`).closest(".hidden")) continue;
+    out[k] = ["event_id", "mode"].includes(k) ? v : +v;
+  }
+  return out;
+}
+
+async function loadRules() {
+  const rules = await api("/rules").catch(() => []);
+  $("#rulesCount").textContent = rules.length ? t(rules.length === 1 ? "{n} regola" : "{n} regole", { n: rules.length }) : "";
+  const box = $("#rules");
+  if (!rules.length) { box.innerHTML = `<div class="empty" style="padding:8px 0">${t("Nessuna regola. Crea uno stop gestito o un trade su evento.")}</div>`; return; }
+  box.innerHTML = rules.map((r) => {
+    const status = r.type === "event_trade" ? r.status : r.state && r.state.stop ? "stop " + r.state.stop : t("in attesa");
+    const when = r.event_ts ? new Date(r.event_ts * 1000).toLocaleString(LOCALE, { weekday: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) + " · " : "";
+    return `<div class="rule"><div class="top"><span>${esc(r.description)}</span><span class="badge ${esc(r.status || "")}">${esc(status)}</span></div>
+      <div class="sub">${when}${r.enabled ? t("attiva") : t("in pausa")}${r.note ? " · " + esc(r.note) : ""}</div>
+      <div class="actions"><button data-toggle="${r.id}" data-en="${r.enabled ? 1 : 0}">${r.enabled ? t("Pausa") : t("Riattiva")}</button><button data-del="${r.id}">${t("Elimina")}</button></div></div>`;
+  }).join("");
+}
+
+async function loadLimits() {
+  const r = await api("/limits").catch(() => null);
+  if (!r) return;
+  const f = $("#limitsForm");
+  for (const [k, v] of Object.entries(r.limits)) {
+    const el = f.elements[k];
+    if (!el) continue;
+    if (el.type === "checkbox") el.checked = v;
+    else el.value = v;
+  }
+  $("#hardCap").textContent = t("Tetto fisso del server: ${cap} per ordine (MAX_NOTIONAL_USD). Le automazioni rispettano gli stessi limiti.", { cap: r.hard_cap_usd.toLocaleString("en-US") });
+  $("#dailyPnl").textContent = info.trading ? (r.daily_pnl === null ? t("PnL di oggi non disponibile") : t("PnL realizzato oggi {pnl}", { pnl: fusd(r.daily_pnl) })) : "";
+  info.limits = { ...info.limits, ...r.limits };
+}
+
+let levCross = true;
+function openLeverage() {
+  const m = activeMarket();
+  const box = $("#levBox");
+  if (!box.classList.contains("hidden")) { box.classList.add("hidden"); return; }
+  const set = account && account.settings && account.settings[m.id];
+  $("#levInput").value = set ? Math.round(set.leverage) : Math.min(m.default_leverage || 5, (info.limits || {}).leverage_cap || 5);
+  $("#levInput").max = m.max_leverage || 50;
+  levCross = set ? set.cross : true;
+  $$(".levmode button").forEach((b) => b.classList.toggle("active", (b.dataset.cross === "1") === levCross));
+  $("#levHint").textContent = t("{sym}: massimo dell'exchange {max}x, tuo limite {cap}x.", { sym: m.symbol, max: m.max_leverage || "—", cap: (info.limits || {}).leverage_cap || "—" });
+  box.classList.remove("hidden");
+}
+
+function renderArmed(armed) {
+  info.armed = armed;
+  const b = $("#armedBtn");
+  b.classList.toggle("on", armed);
+  $("span", b).textContent = armed ? "Auto ON" : "Auto OFF";
+  $("#autoState").textContent = armed ? t("Le automazioni sono attive: il server può inviare ordini.") : t("Interruttore generale spento: nessuna regola invia ordini.");
+}
+
+// ================= activity log =================
+let logSeq = 0;
+function addLogs(entries) {
+  entries = entries.filter((l) => l.seq > logSeq);
+  if (!entries.length) return;
+  logSeq = entries[entries.length - 1].seq;
+  for (const box of [$("#btab-log"), $("#activityLog")]) {
+    if (box.querySelector(".empty")) box.innerHTML = "";
+    for (const l of entries) {
+      const row = document.createElement("div");
+      row.className = "row " + l.level;
+      row.innerHTML = `<time>${new Date(l.ts * 1000).toLocaleTimeString(LOCALE)}</time><span>${esc(l.msg)}</span>`;
+      box.prepend(row);
+    }
+    while (box.children.length > 300) box.lastChild.remove();
+  }
+  loadRules();
+}
+
+// ================= live socket =================
+function connect() {
+  const ws = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws?token=${encodeURIComponent(TOKEN)}`);
+  ws.onopen = () => setStatus(true);
+  ws.onmessage = (ev) => {
+    const msg = JSON.parse(ev.data);
+    if (msg.type !== "tick") return;
+    prices = msg.prices;
+    lastTick = Date.now();
+    const accChanged = JSON.stringify(msg.account) !== JSON.stringify(account);
+    account = msg.account;
+    panels.forEach((p) => p.tick());
+    renderMarketBar();
+    renderTicker();
+    updateTicketSummary();
+    if (accChanged) renderAccount();
+    else if (account) renderPositions();
+    if (msg.armed !== info.armed) renderArmed(msg.armed);
+    if (msg.logs.length) addLogs(msg.logs);
+    if (!$("#view-markets").classList.contains("hidden") && Date.now() - (renderMarkets.at || 0) > 2000) {
+      renderMarkets.at = Date.now();
+      renderMarkets();
+    }
+  };
+  ws.onclose = () => { setStatus(false); setTimeout(connect, 2000); };
+}
+
+let feedOk = false;
+function setStatus(ok) {
+  feedOk = ok;
+  $("#statusPill").innerHTML = ok ? `<i class="dot"></i><span>${t("Pronto")}</span>` : `<i class="dot warn"></i><span>${t("Riconnessione…")}</span>`;
+}
+
+// ================= ui wiring =================
+function switchView(v) {
+  $$("#views button").forEach((b) => b.classList.toggle("active", b.dataset.view === v));
+  $$(".view").forEach((s) => s.classList.toggle("hidden", s.id !== "view-" + v));
+  if (v === "markets") renderMarkets();
+  if (v === "auto") { loadRules(); loadLimits(); }
+  store("view", v);
+}
+
+function switchBottom(t) {
+  $$("#bottomTabs button").forEach((b) => b.classList.toggle("active", b.dataset.btab === t));
+  $$(".btab").forEach((s) => s.classList.toggle("hidden", s.id !== "btab-" + t));
+  if (t === "orders") loadOrders();
+  if (t === "trades") loadTrades();
+}
+
+function wire() {
+  $$("#views button").forEach((b) => (b.onclick = () => switchView(b.dataset.view)));
+  $("#tfs").onclick = (e) => { const b = e.target.closest("[data-tf]"); if (b) setTf(b.dataset.tf); };
+  $("#tfMoreBtn").onclick = (e) => { e.stopPropagation(); toggleTfMenu(); };
+  $("#tfMenu").onclick = (e) => {
+    e.stopPropagation();
+    const pick = e.target.closest("[data-pick]"), show = e.target.closest("[data-show]");
+    if (pick) { setTf(pick.dataset.pick); toggleTfMenu(false); }
+    if (show) {
+      const t = show.dataset.show;
+      if (shownTfs.includes(t)) { if (shownTfs.length > 1) shownTfs = shownTfs.filter((x) => x !== t); }
+      else shownTfs = ALL_TFS.filter((x) => x === t || shownTfs.includes(x)); // keep natural order
+      store("tfs", shownTfs);
+      renderTfs();
+    }
+  };
+  $("#tfReset").onclick = (e) => { e.stopPropagation(); shownTfs = [...DEFAULT_TFS]; store("tfs", shownTfs); renderTfs(); };
+  document.addEventListener("click", () => toggleTfMenu(false));
+  $$("#layouts button").forEach((b) => (b.onclick = () => { layout = b.dataset.layout; store("layout", layout); buildCharts(); }));
+  $("#obToggle").onclick = () => toggleBook(!showBook);
+  $("#mktSelect").onclick = () => ($("#picker").classList.contains("hidden") ? openPalette() : closePalette());
+  $("#ticker").onclick = (e) => { const b = e.target.closest("[data-sym]"); if (b) setSymbol(b.dataset.sym); };
+
+  // market picker lives in picker.js
+  document.addEventListener("keydown", (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { e.preventDefault(); openPalette(); }
+    else if (e.key === "Escape") closePalette();
+  });
+
+  // ticket
+  $$("#sideSel button").forEach((b) => (b.onclick = () => { ticket.side = b.dataset.side; renderTicket(); }));
+  $$("#kindSel button").forEach((b) => (b.onclick = () => {
+    ticket.kind = b.dataset.kind;
+    if (ticket.kind === "limit" && !$("#tkPrice").value) fillMid();
+    renderTicket();
+  }));
+  $("#tkUnit").onchange = () => {
+    renderTicket();
+    const chips = $$("#tkChips button"); // sensible default for the new unit
+    $("#tkSize").value = chips[1] ? chips[1].dataset.v : "";
+    updateTicketSummary();
+  };
+  ["#tkSize", "#tkPrice"].forEach((s) => ($(s).oninput = updateTicketSummary));
+  $("#tkChips").onclick = (e) => { const b = e.target.closest("[data-v]"); if (b) { $("#tkSize").value = b.dataset.v; updateTicketSummary(); } };
+  $("#tkMid").onclick = fillMid;
+  $("#tkExec").onclick = () => (info.trading ? executeTicket() : openKeyDialog());
+  ["#tkSl", "#tkTp", "#tkSlip"].forEach((s) => ($(s).oninput = updateTicketSummary));
+  ["#tkReduce", "#tkPost"].forEach((s) => ($(s).onchange = updateTicketSummary));
+  $("#tkLev").onclick = openLeverage;
+  $$(".levmode button").forEach((b) => (b.onclick = () => {
+    levCross = b.dataset.cross === "1";
+    $$(".levmode button").forEach((x) => x.classList.toggle("active", x === b));
+  }));
+  $("#levApply").onclick = async () => {
+    const m = activeMarket();
+    const lev = Math.round(+$("#levInput").value);
+    if (!info.trading) return toast(t("Sola lettura: nessuna API key"), true);
+    try {
+      await api(`/leverage?market_id=${m.id}&leverage=${lev}&cross=${levCross}`, { method: "POST" });
+      toast(t("{sym}: leva {lev}x {mode} inviata", { sym: m.symbol, lev, mode: levCross ? "cross" : "isolated" }));
+      $("#levBox").classList.add("hidden");
+    } catch (e) { toast(e.message, true); }
+  };
+  $("#limitsForm").onsubmit = async (e) => {
+    e.preventDefault();
+    const patch = {};
+    for (const el of e.target.elements) {
+      if (!el.name) continue;
+      patch[el.name] = el.type === "checkbox" ? el.checked : +el.value;
+    }
+    try { await api("/limits", { method: "PATCH", body: JSON.stringify(patch) }); toast(t("Limiti salvati")); loadLimits(); }
+    catch (err) { toast(err.message, true); }
+  };
+
+  // bottom tables
+  $$("#bottomTabs button").forEach((b) => (b.onclick = () => switchBottom(b.dataset.btab)));
+  $("#btab-positions").onclick = async (e) => {
+    const b = e.target.closest("[data-close]");
+    if (!b) return;
+    const mid = +b.dataset.close, f = +b.dataset.f;
+    if (f === 100 && !confirm(t("Chiudere tutta la posizione {sym} a mercato?", { sym: byId[mid].symbol }))) return;
+    try { await api(`/close?market_id=${mid}&fraction=${f / 100}`, { method: "POST" }); toast(t("Chiusura {f}% inviata", { f })); } catch (err) { toast(err.message, true); }
+  };
+  $("#btab-orders").onclick = async (e) => {
+    const b = e.target.closest("[data-cancel]");
+    if (!b) return;
+    const [mid, oi] = b.dataset.cancel.split(":");
+    try { await api(`/cancel_order?market_id=${mid}&order_index=${oi}`, { method: "POST" }); toast(t("Ordine annullato")); loadOrders(); } catch (err) { toast(err.message, true); }
+  };
+
+  // calendar
+  $$("#calTabs button").forEach((b) => (b.onclick = () => {
+    $$("#calTabs button").forEach((x) => x.classList.toggle("active", x === b));
+    $$(".ctab").forEach((c) => c.classList.toggle("hidden", c.id !== "ctab-" + b.dataset.ctab));
+  }));
+  $("#econFilter").onclick = (e) => { const b = e.target.closest("[data-f]"); if (b) { store("econf", b.dataset.f); renderEcon(); } };
+  $("#calTz").textContent = Intl.DateTimeFormat().resolvedOptions().timeZone.split("/").pop().replace("_", " ") + " · " + utcOffset();
+
+  // markets page
+  $("#mktSearch").oninput = renderMarkets;
+  $$("#mktTable th[data-sort]").forEach((th) => (th.onclick = () => {
+    const k = th.dataset.sort;
+    mktSort = { key: k, dir: mktSort.key === k ? -mktSort.dir : k === "symbol" ? 1 : -1 };
+    renderMarkets();
+  }));
+  $("#mktTable tbody").onclick = (e) => {
+    const star = e.target.closest("[data-star]");
+    if (star) {
+      const s = star.dataset.star;
+      favs = favs.includes(s) ? favs.filter((x) => x !== s) : [...favs, s];
+      store("favs", favs);
+      renderMarkets();
+      renderTicker();
+      return;
+    }
+    const tr = e.target.closest("tr[data-sym]");
+    if (tr) { setSymbol(tr.dataset.sym); switchView("trade"); }
+  };
+
+  // automations
+  $("#armedBtn").onclick = async () => {
+    const next = !info.armed;
+    if (next && !confirm(t("Attivare le automazioni?\n\nDa ora il server può inviare ordini reali secondo le regole."))) return;
+    try { const r = await api(`/armed?armed=${next}`, { method: "POST" }); renderArmed(r.armed); } catch (e) { toast(e.message, true); }
+  };
+  $("#modeSelect").onchange = (e) => {
+    const br = e.target.value === "breakout";
+    $$(".m-breakout").forEach((x) => x.classList.toggle("hidden", !br));
+    $$(".m-fixed").forEach((x) => x.classList.toggle("hidden", br));
+  };
+  for (const [sel, type] of [["#stopForm", "managed_stop"], ["#eventForm", "event_trade"]]) {
+    $(sel).onsubmit = async (e) => {
+      e.preventDefault();
+      try { await api("/rules", { method: "POST", body: JSON.stringify({ type, ...formToRule(e.target) }) }); toast(t("Regola aggiunta")); loadRules(); }
+      catch (err) { toast(err.message, true); }
+    };
+  }
+  $("#rules").onclick = async (e) => {
+    const tog = e.target.closest("[data-toggle]"), d = e.target.closest("[data-del]");
+    if (tog) await api(`/rules/${tog.dataset.toggle}`, { method: "PATCH", body: JSON.stringify({ enabled: tog.dataset.en !== "1" }) });
+    if (d && confirm(t("Eliminare la regola?\nUn ordine stop già piazzato resta su Lighter."))) await api(`/rules/${d.dataset.del}`, { method: "DELETE" });
+    if (tog || d) loadRules();
+  };
+}
+
+function fillMid() {
+  const m = activeMarket();
+  const p = m && prices[m.id];
+  if (p && p.bid && p.ask) $("#tkPrice").value = ((p.bid + p.ask) / 2).toFixed(decimals(m));
+  updateTicketSummary();
+}
+
+function utcOffset() {
+  const o = -new Date().getTimezoneOffset() / 60;
+  return "UTC" + (o >= 0 ? "+" : "") + o;
+}
+
+function clock() {
+  const d = new Date();
+  $("#sbClock").textContent = d.toISOString().slice(11, 19) + " UTC";
+  $("#sbAge").textContent = lastTick ? t("Prezzi ricevuti {ms} ms fa", { ms: Math.max(0, Date.now() - lastTick) }) : t("In attesa di prezzi");
+}
+
+// ================= API key dialog =================
+function openKeyDialog() {
+  const on = info.trading;
+  $("#keyConnected").classList.toggle("hidden", !on);
+  $("#keyForm").classList.toggle("hidden", on);
+  $("#keyTitle").textContent = on ? t("API key collegata") : t("Collega un'API key");
+  if (on) {
+    $("#keyWho").textContent = t("Account #{n}", { n: info.account_index });
+    $("#keyEnvNote").classList.toggle("hidden", info.credentials !== "env");
+    $("#keyRemove").classList.toggle("hidden", info.credentials === "env");
+  }
+  $("#keyError").classList.add("hidden");
+  $("#keyAccounts").innerHTML = "";
+  $("#keyShade").classList.remove("hidden");
+  $("#keyModal").classList.remove("hidden");
+  if (!on) $(info.account_index == null ? "#keyAddress" : "#keyIndex").focus();
+}
+
+function closeKeyDialog() {
+  $("#keyShade").classList.add("hidden");
+  $("#keyModal").classList.add("hidden");
+  $("#keyPrivate").value = ""; // never keep the key in the page longer than needed
+}
+
+function keyError(msg) {
+  const box = $("#keyError");
+  box.textContent = msg;
+  box.classList.toggle("hidden", !msg);
+}
+
+function credentialsChanged(newInfo) {
+  info = { ...info, ...newInfo };
+  account = null;
+  renderArmed(info.armed);
+  renderAccount();
+  loadOrders();
+}
+
+function wireKeyDialog() {
+  $("#accountPill").onclick = openKeyDialog;
+  $("#keyClose").onclick = closeKeyDialog;
+  $("#keyShade").onmousedown = closeKeyDialog;
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("#keyModal").classList.contains("hidden")) closeKeyDialog(); });
+  $("#keyFind").onclick = async () => {
+    keyError("");
+    $("#keyAccounts").innerHTML = "";
+    try {
+      const list = await api("/accounts_for_address?address=" + encodeURIComponent($("#keyAddress").value.trim()));
+      if (list.length === 1) $("#keyAccount").value = list[0].index;
+      $("#keyAccounts").innerHTML = list.map((a) =>
+        `<button type="button" class="chip" data-acc="${a.index}">#${a.index} · ${fusd(a.collateral, 0)}</button>`).join("");
+    } catch (e) { keyError(e.message); }
+  };
+  $("#keyAccounts").onclick = (e) => { const b = e.target.closest("[data-acc]"); if (b) $("#keyAccount").value = b.dataset.acc; };
+  $("#keyForm").onsubmit = async (e) => {
+    e.preventDefault();
+    keyError("");
+    const btn = $("#keySubmit");
+    btn.disabled = true;
+    btn.textContent = t("Verifica in corso…");
+    try {
+      const res = await api("/credentials", { method: "POST", body: JSON.stringify({
+        account_index: +$("#keyAccount").value, api_key_index: +$("#keyIndex").value, private_key: $("#keyPrivate").value,
+      }) });
+      closeKeyDialog();
+      credentialsChanged(res);
+      toast(t("API key collegata: account #{n}", { n: res.account_index }));
+    } catch (err) {
+      keyError(err.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = t("Verifica e collega");
+    }
+  };
+  $("#keyRemove").onclick = async () => {
+    if (!confirm(t("Scollegare l'API key? Le automazioni verranno disattivate e LighterDeck torna in sola lettura."))) return;
+    try {
+      const res = await api("/credentials", { method: "DELETE" });
+      closeKeyDialog();
+      credentialsChanged(res);
+      toast(t("API key scollegata: sola lettura"));
+    } catch (err) { toast(err.message, true); }
+  };
+}
+
+// ================= init =================
+// flags drawn as SVG: Windows browsers show emoji flags as plain letters
+const FLAGS = {
+  it: '<rect width="3" height="2" fill="#fff"/><rect width="1" height="2" fill="#009246"/><rect x="2" width="1" height="2" fill="#ce2b37"/>',
+  en: '<rect width="3" height="2" fill="#012169"/><path d="M0 0L3 2M3 0L0 2" stroke="#fff" stroke-width=".4"/><path d="M0 0L3 2M3 0L0 2" stroke="#c8102e" stroke-width=".15"/><path d="M1.5 0V2M0 1H3" stroke="#fff" stroke-width=".6"/><path d="M1.5 0V2M0 1H3" stroke="#c8102e" stroke-width=".35"/>',
+};
+
+function renderLangBtn() {
+  const other = LANGS.find((l) => l.id !== LANG);
+  $("#langBtn").innerHTML = `<svg class="flag" viewBox="0 0 3 2" preserveAspectRatio="none">${FLAGS[other.id]}</svg>${other.short}`;
+  $("#langBtn").title = other.name;
+}
+
+// redraw every piece of text built in JavaScript; charts, prices and the book keep running
+function rerenderLanguage() {
+  renderLangBtn();
+  applyTheme(document.documentElement.dataset.theme);
+  setStatus(feedOk);
+  renderArmed(info.armed);
+  renderTfs();
+  renderTicket();
+  renderAccount();
+  renderSessions();
+  renderEcon();
+  renderEventSelect();
+  loadRules();
+  renderMarkets();
+  panels.forEach((p) => { p.ttlFor = null; p.renderLegend(); });
+  fillPickerSorts();
+  if (!$("#picker").classList.contains("hidden")) renderPicker();
+  if (!$("#btab-orders").classList.contains("hidden")) loadOrders();
+  if (!$("#btab-trades").classList.contains("hidden")) loadTrades();
+  if (!$("#view-auto").classList.contains("hidden")) loadLimits();
+  for (const box of [$("#btab-log"), $("#activityLog")]) {
+    const empty = box.querySelector(".empty");
+    if (empty) empty.textContent = t("Nessuna attività.");
+  }
+}
+
+async function init() {
+  translateDom();
+  renderLangBtn();
+  $("#langBtn").onclick = () => setLang(LANGS.find((l) => l.id !== LANG).id);
+  onLangChange = rerenderLanguage;
+  try {
+    info = await api("/info");
+  } catch (e) {
+    const token = prompt(t("Token di accesso LighterDeck:"));
+    if (token) { store("token", token); location.reload(); }
+    return;
+  }
+  markets = info.markets;
+  bySymbol = Object.fromEntries(markets.map((m) => [m.symbol, m]));
+  byId = Object.fromEntries(markets.map((m) => [m.id, m]));
+  panelCfg = panelCfg.map((c) => (bySymbol[c.symbol] ? c : { ...c, symbol: "BTC" }));
+  const opts = markets.map((m) => `<option value="${m.id}">${m.symbol}</option>`).join("");
+  $$(".marketSelect").forEach((s) => (s.innerHTML = opts));
+  const net = info.network === "testnet" ? "Testnet" : "Mainnet";
+  $("#netBadge").textContent = net;
+  $("#sbNet").textContent = net;
+  renderArmed(info.armed);
+
+  wire();
+  wireKeyDialog();
+  applyTheme(load("theme", "champagne"));
+  $("#themeBtn").onclick = (e) => { e.stopPropagation(); $("#themeMenu").classList.toggle("hidden"); };
+  $("#themeMenu").onclick = (e) => {
+    e.stopPropagation();
+    const b = e.target.closest("[data-theme]");
+    if (b) { applyTheme(b.dataset.theme); $("#themeMenu").classList.add("hidden"); }
+  };
+  document.addEventListener("click", () => $("#themeMenu").classList.add("hidden"));
+  buildCharts();
+  toggleBook(showBook);
+  renderAccount();
+  switchView(load("view", "trade"));
+  renderSessions();
+  await loadCalendar();
+  loadRules();
+  api("/logs").then(addLogs).catch(() => {});
+  for (const box of [$("#btab-log"), $("#activityLog")]) if (!box.children.length) box.innerHTML = `<div class="empty">${t("Nessuna attività.")}</div>`;
+  connect();
+
+  setInterval(clock, 250);
+  setInterval(renderSessions, 30 * 1000);
+  setInterval(renderEcon, 60 * 1000);
+  setInterval(renderBook, 200); // the stream updates ~20x/s; redraw at most 5x/s
+  setInterval(() => { if (!$("#btab-orders").classList.contains("hidden")) loadOrders(); }, 5000);
+  setInterval(loadCalendar, 10 * 60 * 1000);
+  setInterval(() => panels.forEach((p) => p.load()), 15 * 60 * 1000);
+}
+
+init();

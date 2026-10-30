@@ -1,0 +1,397 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LighterDeck</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script>
+  // apply the saved theme before the page paints (no flash of the default colours)
+  try { document.documentElement.dataset.theme = JSON.parse(localStorage.getItem("ld.theme")) || "champagne"; }
+  catch (e) { document.documentElement.dataset.theme = "champagne"; }
+  // English: keep the page hidden until i18n.js has swapped the Italian source text
+  // (translateDom removes the class; the timeout is a safety net if a script fails)
+  try {
+    var lang = JSON.parse(localStorage.getItem("ld.lang")) || ((navigator.language || "").toLowerCase().startsWith("it") ? "it" : "en");
+    if (lang === "en") {
+      document.documentElement.classList.add("i18n-pending");
+      setTimeout(() => document.documentElement.classList.remove("i18n-pending"), 1500);
+    }
+  } catch (e) {}
+</script>
+<style>html.i18n-pending body { visibility: hidden; }</style>
+<link rel="icon" href="favicon.svg?v=1" type="image/svg+xml">
+<link rel="stylesheet" href="style.css?v=25">
+<script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
+</head>
+<body>
+
+<!-- ============ top bar ============ -->
+<header class="topbar">
+  <div class="logo">
+    <img src="logo.svg?v=1" alt="" width="22" height="22">
+    <span>LighterDeck</span>
+  </div>
+  <nav class="views" id="views">
+    <button data-view="trade" class="active">Trade</button>
+    <button data-view="markets">Mercati</button>
+    <button data-view="auto">Automazioni</button>
+    <button data-view="activity">Attività</button>
+  </nav>
+  <div class="grow"></div>
+  <span class="pill" id="statusPill"><i class="dot"></i><span>Connessione…</span></span>
+  <button class="kill" id="armedBtn" title="Interruttore generale delle automazioni">
+    <svg viewBox="0 0 12 12" width="10" height="10"><rect x="2" y="2" width="3" height="8" fill="currentColor"/><rect x="7" y="2" width="3" height="8" fill="currentColor"/></svg>
+    <span>Auto OFF</span>
+  </button>
+  <button class="pill muted" id="accountPill" title="Collega un'API key"><i class="dot off"></i><span>Sola lettura</span></button>
+  <div class="theme-pick">
+    <button class="theme-btn" id="themeBtn" title="Cambia tema"><span class="swatch" id="themeSwatch"></span><span id="themeName">Tema</span></button>
+    <div class="theme-menu hidden" id="themeMenu"></div>
+  </div>
+  <button class="lang-btn" id="langBtn" title="Lingua"></button>
+  <span class="net" id="netBadge">Mainnet</span>
+</header>
+
+<!-- ============ favourites strip ============ -->
+<div class="ticker">
+  <div class="ticker-items" id="ticker"></div>
+  <div class="grow"></div>
+  <span class="caps muted">Perpetual · dati pubblici</span>
+</div>
+
+<!-- ============ TRADE VIEW ============ -->
+<section class="view" id="view-trade">
+  <div class="trade">
+    <div class="work">
+      <div class="marketbar">
+        <button class="mkt-select" id="mktSelect"><i class="mk-ico" id="mkIco">B</i><b id="mkSym">BTC</b><span class="tag">PERP</span>
+          <svg viewBox="0 0 10 10" width="9" height="9"><path d="M2 3.5l3 3 3-3" stroke="currentColor" fill="none" stroke-width="1.4"/></svg>
+        </button>
+        <div class="stat"><label>Mark</label><span id="stMark">—</span></div>
+        <div class="stat"><label>24h</label><span id="stChg">—</span></div>
+        <div class="stat"><label>Volume 24h</label><span id="stVol">—</span></div>
+        <div class="stat"><label>Index</label><span id="stIdx">—</span></div>
+        <div class="stat"><label>Funding est.</label><span id="stFund">—</span></div>
+        <div class="stat"><label>Open interest</label><span id="stOi">—</span></div>
+      </div>
+
+      <div class="toolbar">
+        <div class="seg tfs" id="tfs"></div>
+        <div class="tf-more">
+          <button class="tool" id="tfMoreBtn" title="Altri timeframe"><span>Altri</span><svg viewBox="0 0 10 10" width="8" height="8"><path d="M2 3.5l3 3 3-3" stroke="currentColor" fill="none" stroke-width="1.4"/></svg></button>
+          <div class="tf-menu hidden" id="tfMenu">
+            <div class="caps muted">Altri timeframe</div>
+            <div class="tf-hidden" id="tfHidden"></div>
+            <div class="tf-sep"></div>
+            <div class="tf-head"><span class="caps muted">Mostra nella barra</span><button class="link" id="tfReset">Ripristina</button></div>
+            <div class="tf-shown" id="tfShown"></div>
+            <p class="hint">3m, 2h, 8h, 3D, 1W e 1M sono costruiti unendo candele più piccole, come fa Lighter.</p>
+          </div>
+        </div>
+        <span class="sep"></span>
+        <div class="seg layouts" id="layouts">
+          <button data-layout="1" title="1 grafico"><svg viewBox="0 0 14 14"><rect x="1.5" y="1.5" width="11" height="11" rx="1.5"/></svg></button>
+          <button data-layout="2v" title="2 affiancati"><svg viewBox="0 0 14 14"><rect x="1.5" y="1.5" width="11" height="11" rx="1.5"/><path d="M7 1.5v11"/></svg></button>
+          <button data-layout="2h" title="2 sovrapposti"><svg viewBox="0 0 14 14"><rect x="1.5" y="1.5" width="11" height="11" rx="1.5"/><path d="M1.5 7h11"/></svg></button>
+          <button data-layout="4" title="4 grafici"><svg viewBox="0 0 14 14"><rect x="1.5" y="1.5" width="11" height="11" rx="1.5"/><path d="M7 1.5v11M1.5 7h11"/></svg></button>
+        </div>
+        <div class="grow"></div>
+        <button class="tool" id="obToggle"><svg viewBox="0 0 14 14"><path d="M2 3h10M2 7h7M2 11h10"/></svg>Order book</button>
+        <span class="live"><i class="dot"></i>Live</span>
+      </div>
+
+      <div class="stage">
+        <div class="charts" id="charts"></div>
+        <aside class="book hidden" id="book">
+          <div class="book-head"><span>Prezzo</span><span>Size</span><span>Totale</span></div>
+          <div class="book-side asks" id="bookAsks"></div>
+          <div class="book-mid" id="bookMid">—</div>
+          <div class="book-side bids" id="bookBids"></div>
+        </aside>
+      </div>
+
+      <div class="bottom">
+        <nav class="subtabs" id="bottomTabs">
+          <button data-btab="positions" class="active">Posizioni <span class="count" id="posCount"></span></button>
+          <button data-btab="orders">Ordini aperti</button>
+          <button data-btab="trades">Storico trade</button>
+          <button data-btab="log">Esecuzioni</button>
+        </nav>
+        <div class="btab" id="btab-positions"></div>
+        <div class="btab hidden" id="btab-orders"></div>
+        <div class="btab hidden" id="btab-trades"></div>
+        <div class="btab hidden" id="btab-log"></div>
+      </div>
+    </div>
+
+    <!-- ============ right rail ============ -->
+    <aside class="rail">
+      <section class="card ticket">
+        <div class="ticket-head"><b id="tkSym">BTC</b><button class="lev" id="tkLev" title="Leva e margine">Cross</button></div>
+        <div class="levbox hidden" id="levBox">
+          <div class="field"><label>Leva</label><input id="levInput" type="number" min="1" step="1"><span class="unit">x</span></div>
+          <div class="seg levmode"><button data-cross="1" class="active">Cross</button><button data-cross="0">Isolated</button></div>
+          <div class="hint" id="levHint"></div>
+          <button class="primary" id="levApply">Applica leva</button>
+        </div>
+        <div class="sidesel" id="sideSel">
+          <button data-side="buy" class="active">Buy / Long</button>
+          <button data-side="sell">Sell / Short</button>
+        </div>
+        <div class="kindsel" id="kindSel">
+          <button data-kind="market" class="active">Market</button>
+          <button data-kind="limit">Limit</button>
+        </div>
+        <dl class="kv">
+          <dt>Disponibile</dt><dd id="tkAvail">—</dd>
+          <dt>Posizione</dt><dd id="tkPos">—</dd>
+        </dl>
+        <label class="fl">Size in
+          <select id="tkUnit"><option value="usd">Valore USD</option><option value="base">Quantità</option><option value="equity_pct">% capitale</option><option value="risk_usd">Rischio $ allo stop</option></select>
+        </label>
+        <div class="field"><label>Size</label><input id="tkSize" type="number" min="0" step="any" value="50"><span class="unit" id="tkSizeUnit">USD</span></div>
+        <div class="chips" id="tkChips"></div>
+        <div class="field limit-only hidden"><label>Prezzo limite</label><input id="tkPrice" type="number" step="any"><button class="unit link" id="tkMid">Mid</button></div>
+        <div class="checks">
+          <label><input type="checkbox" id="tkReduce"> Reduce only</label>
+          <label class="limit-only hidden"><input type="checkbox" id="tkPost"> Post only</label>
+        </div>
+        <div class="two">
+          <div class="field sm"><label>Stop-loss · prezzo</label><input id="tkSl" type="number" step="any" placeholder="Opzionale"><span class="sltp-out" id="tkSlOut"></span></div>
+          <div class="field sm"><label>Take-profit · prezzo</label><input id="tkTp" type="number" step="any" placeholder="Opzionale"><span class="sltp-out" id="tkTpOut"></span></div>
+        </div>
+        <details class="exec market-only">
+          <summary>Opzioni di esecuzione</summary>
+          <div class="field sm"><label>Slippage massimo · bps</label><input id="tkSlip" type="number" min="1" step="1" value="50"></div>
+        </details>
+        <dl class="kv summary">
+          <dt>Valore ordine</dt><dd id="tkNotional">—</dd>
+          <dt>Quantità</dt><dd id="tkQty">—</dd>
+          <dt>Margine richiesto</dt><dd id="tkMargin">—</dd>
+          <dt>Commissioni stimate</dt><dd id="tkFee">—</dd>
+          <dt>Liquidazione stimata</dt><dd id="tkLiq">—</dd>
+        </dl>
+        <div class="risk-note hidden" id="tkRisk"></div>
+        <button class="execute" id="tkExec">Esegui</button>
+        <div class="ticket-msg hidden" id="tkMsg"></div>
+      </section>
+
+      <section class="card">
+        <div class="card-head"><b>Account</b><span class="muted" id="accIdx"></span></div>
+        <div class="equity"><span id="accEq">—</span><small>USDC</small></div>
+        <dl class="kv">
+          <dt>Margine disponibile</dt><dd id="accAvail">—</dd>
+          <dt>PnL non realizzato</dt><dd id="accUpnl">—</dd>
+          <dt>Limite per ordine</dt><dd id="accLimit">—</dd>
+        </dl>
+      </section>
+
+      <section class="card cal">
+        <div class="card-head"><b>Calendario</b><span class="muted" id="calTz"></span></div>
+        <nav class="subtabs small" id="calTabs">
+          <button data-ctab="sessions" class="active">Aperture mercati</button>
+          <button data-ctab="econ">Economia</button>
+        </nav>
+        <div id="ctab-sessions" class="ctab"></div>
+        <div id="ctab-econ" class="ctab hidden">
+          <div class="chipsel" id="econFilter">
+            <button data-f="hm" class="active">Alto + medio</button>
+            <button data-f="h">Solo alto</button>
+            <button data-f="usd">Solo USD</button>
+          </div>
+          <div id="econList"></div>
+        </div>
+      </section>
+    </aside>
+  </div>
+</section>
+
+<!-- ============ MARKETS VIEW ============ -->
+<section class="view hidden" id="view-markets">
+  <div class="page">
+    <div class="page-head">
+      <h1>Mercati</h1>
+      <input id="mktSearch" class="search" placeholder="Cerca simbolo…">
+    </div>
+    <table class="table" id="mktTable">
+      <thead><tr>
+        <th></th><th data-sort="symbol">Mercato</th><th data-sort="price" class="r">Prezzo</th><th data-sort="change" class="r">24h</th>
+        <th data-sort="volume" class="r">Volume 24h</th><th data-sort="oi" class="r">Open interest</th><th data-sort="funding" class="r">Funding</th><th></th>
+      </tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============ AUTOMATION VIEW ============ -->
+<section class="view hidden" id="view-auto">
+  <div class="page">
+    <div class="page-head">
+      <h1>Automazioni</h1>
+      <span class="muted" id="autoState"></span>
+    </div>
+    <div class="auto-grid">
+      <div>
+        <section class="card">
+          <div class="card-head"><b>Stop gestito</b><span class="muted">stop iniziale → breakeven → trailing</span></div>
+          <form id="stopForm" class="form">
+            <div class="field"><label>Mercato</label><select name="market_id" class="marketSelect"></select></div>
+            <div class="two">
+              <div class="field"><label>Stop iniziale</label><input name="initial_stop_pct" type="number" step="0.1" placeholder="1.5"><span class="unit">%</span></div>
+              <div class="field"><label>Breakeven a</label><input name="breakeven_at_pct" type="number" step="0.1" placeholder="1.0"><span class="unit">+%</span></div>
+            </div>
+            <div class="two">
+              <div class="field"><label>Trailing</label><input name="trail_pct" type="number" step="0.1" placeholder="0.8"><span class="unit">%</span></div>
+              <div class="field"><label>Trailing attivo da</label><input name="trail_activate_pct" type="number" step="0.1" value="0"><span class="unit">+%</span></div>
+            </div>
+            <button type="submit" class="primary">Aggiungi stop gestito</button>
+          </form>
+        </section>
+
+        <section class="card">
+          <div class="card-head"><b>Trade su evento</b><span class="muted">dal calendario economico</span></div>
+          <form id="eventForm" class="form">
+            <div class="field"><label>Evento</label><select name="event_id" id="eventSelect"></select></div>
+            <div class="two">
+              <div class="field"><label>Mercato</label><select name="market_id" class="marketSelect"></select></div>
+              <div class="field"><label>Modalità</label>
+                <select name="mode" id="modeSelect">
+                  <option value="breakout">Breakout del range</option>
+                  <option value="long">Long all'orario</option>
+                  <option value="short">Short all'orario</option>
+                </select>
+              </div>
+            </div>
+            <div class="three m-breakout">
+              <div class="field"><label>Range prima</label><input name="range_minutes" type="number" value="15"><span class="unit">min</span></div>
+              <div class="field"><label>Buffer</label><input name="buffer_pct" type="number" step="0.01" value="0.05"><span class="unit">%</span></div>
+              <div class="field"><label>Finestra</label><input name="window_minutes" type="number" value="30"><span class="unit">min</span></div>
+            </div>
+            <div class="field m-fixed hidden"><label>Ritardo</label><input name="delay_s" type="number" value="5"><span class="unit">sec</span></div>
+            <div class="three">
+              <div class="field"><label>Size</label><input name="size_usd" type="number" value="50" required><span class="unit">USD</span></div>
+              <div class="field"><label>Stop loss</label><input name="stop_pct" type="number" step="0.1" value="1"><span class="unit">%</span></div>
+              <div class="field"><label>Take profit</label><input name="tp_pct" type="number" step="0.1" placeholder="—"><span class="unit">%</span></div>
+            </div>
+            <div class="two">
+              <div class="field"><label>Breakeven a</label><input name="breakeven_at_pct" type="number" step="0.1" placeholder="—"><span class="unit">+%</span></div>
+              <div class="field"><label>Trailing</label><input name="trail_pct" type="number" step="0.1" placeholder="—"><span class="unit">%</span></div>
+            </div>
+            <button type="submit" class="primary">Aggiungi trade su evento</button>
+          </form>
+        </section>
+      </div>
+
+      <div>
+        <section class="card">
+          <div class="card-head"><b>Regole</b><span class="muted" id="rulesCount"></span></div>
+          <div id="rules"></div>
+        </section>
+        <section class="card">
+          <div class="card-head"><b>Limiti di rischio</b><span class="muted" id="dailyPnl"></span></div>
+          <form id="limitsForm" class="form">
+            <div class="two">
+              <div class="field"><label>Max per ordine</label><input name="per_order_usd" type="number" step="1"><span class="unit">USD</span></div>
+              <div class="field"><label>Max per mercato</label><input name="per_market_usd" type="number" step="1"><span class="unit">USD</span></div>
+            </div>
+            <div class="two">
+              <div class="field"><label>Esposizione totale</label><input name="total_exposure_usd" type="number" step="1"><span class="unit">USD</span></div>
+              <div class="field"><label>Perdita giornaliera</label><input name="daily_loss_usd" type="number" step="1"><span class="unit">USD</span></div>
+            </div>
+            <div class="three">
+              <div class="field"><label>Leva max</label><input name="leverage_cap" type="number" step="1"><span class="unit">x</span></div>
+              <div class="field"><label>Posizioni</label><input name="open_markets" type="number" step="1"></div>
+              <div class="field"><label>Slippage</label><input name="slippage_bps_cap" type="number" step="1"><span class="unit">bps</span></div>
+            </div>
+            <div class="checks"><label><input type="checkbox" name="stop_required"> Stop-loss obbligatorio su ogni nuova posizione</label></div>
+            <p class="hint" id="hardCap"></p>
+            <button type="submit" class="primary">Salva limiti</button>
+          </form>
+        </section>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ ACTIVITY VIEW ============ -->
+<section class="view hidden" id="view-activity">
+  <div class="page">
+    <div class="page-head"><h1>Attività</h1></div>
+    <div id="activityLog" class="log"></div>
+  </div>
+</section>
+
+<!-- ============ status bar ============ -->
+<footer class="statusbar">
+  <span class="live"><i class="dot"></i>Live data</span>
+  <span id="sbNet">Mainnet</span>
+  <span>Feed pubblico</span>
+  <span id="sbAge">—</span>
+  <div class="grow"></div>
+  <span id="sbClock"></span>
+</footer>
+
+<!-- API key -->
+<div class="picker-shade hidden" id="keyShade"></div>
+<div class="modal hidden" id="keyModal" role="dialog" aria-labelledby="keyTitle">
+  <div class="modal-head"><h3 id="keyTitle">Collega un'API key</h3><button class="xbtn" id="keyClose" title="Chiudi (Esc)">✕</button></div>
+  <div id="keyConnected" class="hidden">
+    <p class="key-status"><i class="dot"></i><span id="keyWho"></span></p>
+    <p class="muted" id="keyEnvNote">La chiave è impostata nel file env del server: per cambiarla modifica quel file.</p>
+    <button class="ghost danger" id="keyRemove">Scollega l'API key</button>
+  </div>
+  <form id="keyForm" autocomplete="off">
+    <ol class="key-steps">
+      <li>Su <a href="https://app.lighter.xyz" target="_blank" rel="noopener">app.lighter.xyz</a> apri le impostazioni dell'account e crea una nuova API key.</li>
+      <li>Copia la chiave privata e il suo indice (da 3 in su: 0–2 sono riservati all'app di Lighter).</li>
+      <li>Incollali qui: LighterDeck controlla la chiave con Lighter prima di salvarla.</li>
+    </ol>
+    <div class="field sm"><label>Indirizzo del wallet (facoltativo, per trovare l'account)</label>
+      <div class="key-find"><input id="keyAddress" placeholder="0x…" spellcheck="false"><button type="button" class="ghost" id="keyFind">Trova</button></div>
+    </div>
+    <div class="key-accounts" id="keyAccounts"></div>
+    <div class="key-row">
+      <div class="field sm"><label>Indice account</label><input id="keyAccount" type="number" min="0" step="1" required></div>
+      <div class="field sm"><label>Indice API key</label><input id="keyIndex" type="number" min="0" max="254" step="1" required></div>
+    </div>
+    <div class="field sm"><label>Chiave privata dell'API key</label><input id="keyPrivate" type="password" spellcheck="false" required></div>
+    <p class="key-note">La chiave resta solo sul server, in data/credentials.json, e non viene mai rimandata al browser. Un'API key firma ordini e può prelevare solo verso il tuo wallet: non può mandare fondi ad altri indirizzi.</p>
+    <p class="key-error hidden" id="keyError"></p>
+    <button class="primary" id="keySubmit" type="submit">Verifica e collega</button>
+  </form>
+</div>
+
+<!-- market picker -->
+<div class="picker-shade hidden" id="pickerShade"></div>
+<div class="picker hidden" id="picker" role="dialog" aria-label="Seleziona mercato">
+  <div class="pk-search">
+    <svg viewBox="0 0 16 16" width="14" height="14"><circle cx="7" cy="7" r="4.5" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M10.5 10.5l3 3" stroke="currentColor" stroke-width="1.4"/></svg>
+    <input id="pkSearch" placeholder="Cerca mercato o nome…" spellcheck="false" autocomplete="off">
+    <button class="xbtn" id="pkClose" title="Chiudi (Esc)">✕</button>
+  </div>
+  <div class="pk-recents" id="pkRecentsRow"><span class="caps muted">Recenti</span><div id="pkRecents"></div></div>
+  <div class="pk-bar">
+    <nav class="pk-tabs" id="pkTabs"></nav>
+    <div class="grow"></div>
+    <span class="caps muted" id="pkCount"></span>
+    <div class="seg" id="pkViews">
+      <button data-view="list" title="Lista"><svg viewBox="0 0 14 14" width="13" height="13"><path d="M2 3.5h10M2 7h10M2 10.5h10" stroke="currentColor" stroke-width="1.3"/></svg></button>
+      <button data-view="grid" title="Griglia"><svg viewBox="0 0 14 14" width="13" height="13"><rect x="2" y="2" width="4" height="4" fill="currentColor"/><rect x="8" y="2" width="4" height="4" fill="currentColor"/><rect x="2" y="8" width="4" height="4" fill="currentColor"/><rect x="8" y="8" width="4" height="4" fill="currentColor"/></svg></button>
+    </div>
+    <label class="pk-sort"><span class="caps muted">Ordina</span><select id="pkSort"></select><button id="pkDir" title="Inverti ordine">↓</button></label>
+  </div>
+  <div class="pk-cats" id="pkCats"></div>
+  <div class="pk-list list" id="pkList" tabindex="0"></div>
+  <div class="pk-foot"><span><kbd>↑</kbd><kbd>↓</kbd> Naviga</span><span><kbd>↵</kbd> Apri</span><span><kbd>Tab</kbd> Vai alla lista</span><span><kbd>F</kbd> Preferito</span><span><kbd>/</kbd> Cerca</span><span><kbd>Esc</kbd> Chiudi</span><span class="grow"></span><span><kbd>Ctrl</kbd><kbd>K</kbd> Apri ovunque</span></div>
+</div>
+
+<div class="toast hidden" id="toast"></div>
+<script src="i18n.js?v=25"></script>
+<script src="formulas.js?v=25"></script>
+<script src="app.js?v=25"></script>
+<script src="picker.js?v=25"></script>
+</body>
+</html>

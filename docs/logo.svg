@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 128" role="img" aria-label="LighterDeck">
+  <rect width="520" height="128" rx="20" fill="#0a0b0d"/>
+  <g transform="translate(28,20) scale(1.375)">
+    <path d="M16 12V50H50" fill="none" stroke="#e4e6ea" stroke-width="7" stroke-linecap="square"/>
+    <path d="M38 13V41" stroke="#2bd9a4" stroke-width="2.4" stroke-linecap="round"/>
+    <rect x="33.5" y="19" width="9" height="16" rx="1.6" fill="#2bd9a4"/>
+  </g>
+  <text x="128" y="78" fill="#e4e6ea" font-family="Inter, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="46" font-weight="600" letter-spacing="-1">Lighter<tspan fill="#2bd9a4">Deck</tspan></text>
+</svg>

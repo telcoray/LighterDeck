@@ -1,0 +1,19 @@
+# runtime data (rules, limits, calendar cache) and secrets
+data/
+*.env
+.env
+lighterdeck.env
+
+# python
+.venv/
+__pycache__/
+*.pyc
+
+# editors / os
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# local Claude Code settings
+.claude/

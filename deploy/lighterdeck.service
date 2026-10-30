@@ -1,0 +1,24 @@
+[Unit]
+Description=LighterDeck trading backend
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=lighterdeck
+Group=lighterdeck
+WorkingDirectory=/opt/lighterdeck
+EnvironmentFile=/etc/lighterdeck/lighterdeck.env
+Environment=DATA_DIR=/var/lib/lighterdeck
+ExecStart=/opt/lighterdeck/.venv/bin/python backend/main.py
+Restart=always
+RestartSec=5
+# keep it small next to the other services
+MemoryMax=400M
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/lighterdeck
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
