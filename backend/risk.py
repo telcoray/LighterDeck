@@ -83,6 +83,7 @@ class Proposal:
     slippage_bps: float | None = None
     mark: float | None = None  # given for market orders
     daily_pnl: float | None = None
+    check_sides: bool = True   # SL/TP side check; off for the live ticket preview, on when the order is sent
     notional: float = field(init=False)
 
     @property
@@ -115,6 +116,8 @@ def rule_exchange_minimum(p, L):
 
 
 def rule_protection_side(p, L):
+    if not p.check_sides:
+        return None
     return sltp_trigger_error(p.side, p.price, p.mark, p.stop, p.target)
 
 
@@ -272,13 +275,13 @@ class RiskGuard:
         return (stats["ask"] if side > 0 else stats["bid"]) or stats["mark"]
 
     async def review(self, account, market_id, side, size, price, stop=None, target=None,
-                     slippage_bps=None, reduce_only=False, mark=None):
+                     slippage_bps=None, reduce_only=False, mark=None, check_sides=True):
         """Raise Blocked with the first broken rule; return quietly when the order may go."""
         market = self.api.markets.get(market_id)
         if not market:
             raise Blocked(tr("Mercato non disponibile", "Market not available"))
         self.convert_usd_limits(account)
-        proposal = Proposal(account, market, side, size, price, stop, target, slippage_bps, mark)
+        proposal = Proposal(account, market, side, size, price, stop, target, slippage_bps, mark, check_sides=check_sides)
         if reduce_only:
             reason = rule_reduces_position(proposal, self.limits)
             if reason:

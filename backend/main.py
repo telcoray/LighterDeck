@@ -185,7 +185,7 @@ class OrderReq(BaseModel):
     trail: TrailReq | None = None     # managed stop to start once the order fills
 
 
-async def plan_order(o: OrderReq):
+async def plan_order(o: OrderReq, check_sides=True):
     """Size, prices and risk checks for a ticket. Raises Blocked / ValueError."""
     m = api.markets.get(o.market_id)
     if not m:
@@ -222,15 +222,17 @@ async def plan_order(o: OrderReq):
     if o.trail:
         trail_fields(o.trail)
     mark = feed.mark(o.market_id) if o.kind == "market" else None
-    await risk.review(acc, o.market_id, side, size, ref, o.sl_price, o.tp_price, slip_bps, o.reduce_only, mark)
+    await risk.review(acc, o.market_id, side, size, ref, o.sl_price, o.tp_price, slip_bps, o.reduce_only, mark,
+                      check_sides=check_sides)
     return {"size": size, "side": side, "ref": ref, "worst": m.round_price(worst), "notional": size * ref,
             "slippage_bps": slip_bps}
 
 
 @app.post("/api/preview")
-async def preview(o: OrderReq):
+async def preview(o: OrderReq, live: bool = False):
+    """live: the ticket while it is being filled in, so a half-typed SL/TP isn't flagged yet."""
     try:
-        plan = await plan_order(o)
+        plan = await plan_order(o, check_sides=not live)
         return {"ok": True, **plan}
     except (Blocked, ValueError) as e:
         return {"ok": False, "error": str(e)}

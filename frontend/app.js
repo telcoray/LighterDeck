@@ -810,11 +810,6 @@ function updateTicketSummary() {
   updateTicketSummary.t = setTimeout(previewTicket, 350);
 }
 
-// SL/TP side warnings ("wrong side", "must be above the entry price") wait until typing has stopped
-// for a while, so "1" on the way to "103.4" doesn't flash a warning
-const SLTP_GRACE_MS = 10000;
-let sltpTypedAt = 0, sideWarnHeld = false;
-
 // margin, fees, liquidation and SL/TP outcome (formulas.js, ported from lighter-ts)
 function renderTicketEstimates(m, p, qty, entry) {
   const side = ticket.side === "buy" ? 1 : -1;
@@ -837,7 +832,6 @@ function renderTicketEstimates(m, p, qty, entry) {
   liqEl.className = liq && mark && Math.abs(liq - mark) / mark < 0.05 ? "down" : "";
   const draft = { market: m.id, side, entry, liq: qty && !reduce ? liq : null, lines: [] };
   if (ticket.kind === "limit" && +$("#tkPrice").value) draft.lines.push({ kind: "limit", price: entry, title: `LIMIT ${side > 0 ? "BUY" : "SELL"}${qty ? " " + fsize(qty, m) : ""}` });
-  sideWarnHeld = false;
   // The ticket's SL/TP are position-tied on Lighter (size 0): when they fire they close the whole position.
   // So with a position already open on this side, the outcome is for the position plus this order,
   // at their average entry; the side check still uses this order's price.
@@ -852,26 +846,16 @@ function renderTicketEstimates(m, p, qty, entry) {
     const res = Formulas.sltpOutcome({ isSL, side, entry: avgEntry, trigger, qty: totQty || null, leverage });
     if (trigger > 0) draft.lines.push({ kind: isSL ? "sl" : "tp", price: trigger, title: isSL ? "SL" : "TP" });
     if (!res || !check) { out.textContent = ""; out.className = "sltp-out"; continue; }
-    const wrongSide = check.usd < 0; // e.g. a long's stop above the price would fire at once
+    // a level on the wrong side shows nothing here: the check comes when the trade button is pressed
+    if (check.usd < 0) { out.textContent = ""; out.className = "sltp-out"; continue; }
     const beyondLiq = isSL && Formulas.slBeyondLiquidation(side, trigger, liq);
     const pnl = isSL ? -res.usd : res.usd, roe = isSL ? -res.pct : res.pct; // signed result when it fires
     const sign = (v) => (v >= 0 ? "+" : "−");
-    if ((wrongSide || beyondLiq) && Date.now() - sltpTypedAt < SLTP_GRACE_MS) { // still typing: warn later
-      sideWarnHeld = true;
-      out.textContent = "";
-      out.className = "sltp-out";
-      continue;
-    }
-    out.textContent = wrongSide ? t("lato sbagliato") : beyondLiq ? t("oltre la liquidazione")
+    out.textContent = beyondLiq ? t("oltre la liquidazione")
       : `${sign(pnl)}${fusd(Math.abs(pnl))} · ROE ${sign(roe)}${Math.abs(roe).toFixed(1)}%`;
-    out.className = "sltp-out " + (wrongSide || beyondLiq ? "warn" : pnl >= 0 ? "up" : "down");
+    out.className = "sltp-out " + (beyondLiq ? "warn" : pnl >= 0 ? "up" : "down");
     draft.lines[draft.lines.length - 1].title += " " + out.textContent;
   }
-  const note = $("#tkSltpNote");
-  const sltp = +$("#tkSl").value > 0 || +$("#tkTp").value > 0;
-  note.classList.toggle("hidden", !(held && sltp));
-  if (held && sltp) note.textContent = t("SL e TP chiudono tutta la posizione: {pos} già aperta + questo ordine. Il risultato è calcolato sul totale.",
-    { pos: `${pos.size > 0 ? "Long" : "Short"} ${fsize(pos.size, m)}` });
   draft.lines.push(...trailDraft(m, side, entry));
   setTicketDraft(draft);
 }
@@ -903,13 +887,12 @@ async function previewTicket() {
   const m = activeMarket();
   if (!info.trading || !m || !(+$("#tkSize").value > 0)) { note.classList.add("hidden"); return; }
   const key = JSON.stringify(ticketBody());
-  if (sideWarnHeld) note.classList.add("hidden"); // while typing SL/TP, even when the order itself hasn't changed
   if (key === previewTicket.key && Date.now() - previewTicket.at < 5000) return;
   previewTicket.key = key;
   previewTicket.at = Date.now();
-  const r = await api("/preview", { method: "POST", body: key }).catch((e) => ({ ok: false, error: e.message }));
+  const r = await api("/preview?live=true", { method: "POST", body: key }).catch((e) => ({ ok: false, error: e.message }));
   if (key !== previewTicket.key) return;
-  note.classList.toggle("hidden", r.ok || sideWarnHeld); // the server's side check waits like the local one
+  note.classList.toggle("hidden", r.ok);
   if (!r.ok) note.textContent = r.error;
   else {
     $("#tkNotional").textContent = fusd(r.notional);
@@ -932,6 +915,11 @@ async function executeTicket() {
   if (body.trail === null) return ticketMsg(t("Inserisci la distanza del trailing."), "err");
   const label = `${ticket.side === "buy" ? "LONG" : "SHORT"} ${m.symbol} · ${$("#tkNotional").textContent} · ${ticket.kind}`
     + (body.trail ? ` · trailing ${trailLabel(trailToStop(body.trail), m)}` : "");
+  if (!(pendingConfirm && pendingConfirm.key === "order")) { // first click: full check, SL/TP sides included
+    const r = await api("/preview", { method: "POST", body: JSON.stringify(body) }).catch((e) => ({ ok: false, error: e.message }));
+    if (!r.ok) return ticketMsg(r.error, "err");
+    $("#tkMsg").className = "ticket-msg hidden";
+  }
   if (!askConfirm("order", `${t("Conferma")} ${label}`)) return;
   const btn = $("#tkExec");
   btn.disabled = true;
@@ -1387,11 +1375,6 @@ function wire() {
   $("#tkMid").onclick = fillMid;
   $("#tkExec").onclick = () => (info.trading ? executeTicket() : openKeyDialog());
   ["#tkSl", "#tkTp", "#tkSlip"].forEach((s) => ($(s).oninput = updateTicketSummary));
-  for (const s of ["#tkSl", "#tkTp"]) $(s).addEventListener("input", () => {
-    sltpTypedAt = Date.now();
-    clearTimeout(wire.sltpTimer);
-    wire.sltpTimer = setTimeout(() => { previewTicket.key = null; updateTicketSummary(); }, SLTP_GRACE_MS + 50);
-  });
   ["#tkReduce", "#tkPost"].forEach((s) => ($(s).onchange = updateTicketSummary));
   $("#tkLev").onclick = openLeverage;
   $$(".levmode button").forEach((b) => (b.onclick = () => {
