@@ -841,10 +841,17 @@ function renderTicketEstimates(m, p, qty, entry) {
     const wrongSide = res.usd < 0; // e.g. a long's stop above entry would be a gain
     const beyondLiq = isSL && Formulas.slBeyondLiquidation(side, trigger, liq);
     out.textContent = wrongSide ? t("lato sbagliato") : beyondLiq ? t("oltre la liquidazione")
-      : `${isSL ? "−" : "+"}${fusd(Math.abs(res.usd))} · ${isSL ? "−" : "+"}${Math.abs(res.pct).toFixed(1)}%`;
+      : `${isSL ? "−" : "+"}${fusd(Math.abs(res.usd))} · ROE ${isSL ? "−" : "+"}${Math.abs(res.pct).toFixed(1)}%`;
     out.className = "sltp-out " + (wrongSide || beyondLiq ? "warn" : isSL ? "down" : "up");
     draft.lines[draft.lines.length - 1].title += " " + out.textContent;
   }
+  // native SL/TP go out with this order only: say so when a position is already open
+  const pos = account && account.positions.find((x) => x.market_id === m.id);
+  const note = $("#tkSltpNote");
+  const sltp = +$("#tkSl").value > 0 || +$("#tkTp").value > 0;
+  note.classList.toggle("hidden", !(pos && sltp && !reduce));
+  if (pos && sltp) note.textContent = t("SL e TP valgono solo per questo ordine ({usd}), non per la posizione già aperta ({pos}).",
+    { usd: qty ? fusd(qty * entry) : "—", pos: `${pos.size > 0 ? "Long" : "Short"} ${fsize(pos.size, m)}` });
   draft.lines.push(...trailDraft(m, side, entry));
   setTicketDraft(draft);
 }
@@ -951,11 +958,13 @@ function renderPositions() {
     box.innerHTML = `<div class="empty">${info.trading ? t("Nessuna posizione aperta.") : t("Sola lettura: collega un'API key per vedere posizioni e ordini.")}</div>`;
     return;
   }
-  box.innerHTML = `<table class="table"><thead><tr><th>${t("Mercato")}</th><th class="r">Size</th><th class="r">${t("Valore")}</th><th class="r">Entry</th><th class="r">Mark</th><th class="r">${t("Liquidazione")}</th><th class="r">${t("PnL non realizzato")}</th><th>${t("Trailing")}</th><th>${t("Chiudi a mercato")}</th></tr></thead><tbody>${
+  box.innerHTML = `<table class="table"><thead><tr><th>${t("Mercato")}</th><th class="r">Size</th><th class="r">${t("Valore")}</th><th class="r">Entry</th><th class="r">Mark</th><th class="r">${t("Liquidazione")}</th><th class="r" title="${t("La percentuale è il ROE: PnL sul margine iniziale.")}">${t("PnL non realizzato")}</th><th>${t("Trailing")}</th><th>${t("Chiudi a mercato")}</th></tr></thead><tbody>${
     list.map((p) => {
       const m = byId[p.market_id];
       const mark = prices[p.market_id] ? prices[p.market_id].mark : 0;
-      const pct = p.value ? (p.upnl / (p.value - p.upnl * Math.sign(p.size))) * 100 : 0;
+      // ROE: PnL on the initial margin (entry value / leverage), as Lighter and the ticket show it
+      const margin = p.leverage ? (Math.abs(p.size) * p.entry) / p.leverage : 0;
+      const pct = margin ? (p.upnl / margin) * 100 : 0;
       return `<tr><td class="mk">${esc(p.symbol)}<small class="${p.size > 0 ? "up" : "down"}">${p.size > 0 ? "Long" : "Short"}${p.leverage ? " · " + p.leverage + "x" : ""}</small></td>
         <td class="r ${p.size > 0 ? "up" : "down"}">${fsize(p.size, m)}</td><td class="r main">${fusd(p.value)}</td><td class="r">${fp(p.entry, m)}</td><td class="r main">${fp(mark, m)}</td>
         <td class="r liq">${fp(p.liq, m)}</td><td class="r pnl ${cls(p.upnl)}">${fusd(p.upnl)}<small>${isFinite(pct) ? fpct(pct) : ""}</small></td>

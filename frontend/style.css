@@ -514,6 +514,7 @@ kbd { font-family: var(--mono); font-size: 9.5px; border: 1px solid var(--line-2
 /* outcome on its own line under the price, so it never runs into the label however narrow the field */
 .sltp-out { padding: 0 10px 7px; margin-top: -3px; font-family: var(--mono); font-size: 10.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; }
 .sltp-out:empty { display: none; }
+.sltp-note { margin: -2px 0 8px; font-size: 11px; line-height: 1.45; color: var(--amber); }
 .sltp-out.warn { color: var(--amber); }
 
 /* theme switcher */

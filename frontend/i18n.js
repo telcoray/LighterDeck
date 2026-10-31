@@ -301,6 +301,8 @@ const EN = {
   "Anteprima ticket": "Ticket preview",
   "LIQ stimata": "Est. LIQ",
   "Conferma": "Confirm",
+  "SL e TP valgono solo per questo ordine ({usd}), non per la posizione già aperta ({pos}).": "SL and TP cover only this order ({usd}), not the position already open ({pos}).",
+  "La percentuale è il ROE: PnL sul margine iniziale.": "The percentage is ROE: PnL on the initial margin.",
   "Sposta": "Move",
   "{kind} spostato a {price}": "{kind} moved to {price}",
   "Chiudi tutto": "Close all",
