@@ -832,26 +832,34 @@ function renderTicketEstimates(m, p, qty, entry) {
   liqEl.className = liq && mark && Math.abs(liq - mark) / mark < 0.05 ? "down" : "";
   const draft = { market: m.id, side, entry, liq: qty && !reduce ? liq : null, lines: [] };
   if (ticket.kind === "limit" && +$("#tkPrice").value) draft.lines.push({ kind: "limit", price: entry, title: `LIMIT ${side > 0 ? "BUY" : "SELL"}${qty ? " " + fsize(qty, m) : ""}` });
+  // The ticket's SL/TP are position-tied on Lighter (size 0): when they fire they close the whole position.
+  // So with a position already open on this side, the outcome is for the position plus this order,
+  // at their average entry; the side check still uses this order's price.
+  const pos = account && account.positions.find((x) => x.market_id === m.id);
+  const held = pos && !reduce && Math.sign(pos.size) === side ? Math.abs(pos.size) : 0;
+  const totQty = (qty || 0) + held;
+  const avgEntry = totQty ? ((qty || 0) * entry + (held ? held * pos.entry : 0)) / totQty : entry;
   for (const [id, isSL] of [["Sl", true], ["Tp", false]]) {
     const trigger = +$("#tk" + id).value;
     const out = $(`#tk${id}Out`);
-    const res = Formulas.sltpOutcome({ isSL, side, entry, trigger, qty, leverage });
+    const check = Formulas.sltpOutcome({ isSL, side, entry, trigger, qty: qty || 1, leverage });
+    const res = Formulas.sltpOutcome({ isSL, side, entry: avgEntry, trigger, qty: totQty || null, leverage });
     if (trigger > 0) draft.lines.push({ kind: isSL ? "sl" : "tp", price: trigger, title: isSL ? "SL" : "TP" });
-    if (!res) { out.textContent = ""; out.className = "sltp-out"; continue; }
-    const wrongSide = res.usd < 0; // e.g. a long's stop above entry would be a gain
+    if (!res || !check) { out.textContent = ""; out.className = "sltp-out"; continue; }
+    const wrongSide = check.usd < 0; // e.g. a long's stop above the price would fire at once
     const beyondLiq = isSL && Formulas.slBeyondLiquidation(side, trigger, liq);
+    const pnl = isSL ? -res.usd : res.usd, roe = isSL ? -res.pct : res.pct; // signed result when it fires
+    const sign = (v) => (v >= 0 ? "+" : "−");
     out.textContent = wrongSide ? t("lato sbagliato") : beyondLiq ? t("oltre la liquidazione")
-      : `${isSL ? "−" : "+"}${fusd(Math.abs(res.usd))} · ROE ${isSL ? "−" : "+"}${Math.abs(res.pct).toFixed(1)}%`;
-    out.className = "sltp-out " + (wrongSide || beyondLiq ? "warn" : isSL ? "down" : "up");
+      : `${sign(pnl)}${fusd(Math.abs(pnl))} · ROE ${sign(roe)}${Math.abs(roe).toFixed(1)}%`;
+    out.className = "sltp-out " + (wrongSide || beyondLiq ? "warn" : pnl >= 0 ? "up" : "down");
     draft.lines[draft.lines.length - 1].title += " " + out.textContent;
   }
-  // native SL/TP go out with this order only: say so when a position is already open
-  const pos = account && account.positions.find((x) => x.market_id === m.id);
   const note = $("#tkSltpNote");
   const sltp = +$("#tkSl").value > 0 || +$("#tkTp").value > 0;
-  note.classList.toggle("hidden", !(pos && sltp && !reduce));
-  if (pos && sltp) note.textContent = t("SL e TP valgono solo per questo ordine ({usd}), non per la posizione già aperta ({pos}).",
-    { usd: qty ? fusd(qty * entry) : "—", pos: `${pos.size > 0 ? "Long" : "Short"} ${fsize(pos.size, m)}` });
+  note.classList.toggle("hidden", !(held && sltp));
+  if (held && sltp) note.textContent = t("SL e TP chiudono tutta la posizione: {pos} già aperta + questo ordine. Il risultato è calcolato sul totale.",
+    { pos: `${pos.size > 0 ? "Long" : "Short"} ${fsize(pos.size, m)}` });
   draft.lines.push(...trailDraft(m, side, entry));
   setTicketDraft(draft);
 }
