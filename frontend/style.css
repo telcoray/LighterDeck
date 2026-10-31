@@ -240,9 +240,8 @@ body.resizing { cursor: row-resize; user-select: none; }
 .qbtn { display: inline-flex; gap: 4px; }
 .qbtn button { height: 22px; padding: 0 8px; border: 1px solid var(--line-2); border-radius: 4px; font-size: 10.5px; color: var(--text-2); font-family: var(--mono); }
 .qbtn button:hover { border-color: var(--red); color: var(--red); }
-/* 100% closes the whole position: tinted red so it stands apart from the partial closes */
-.qbtn button.all { color: var(--red); border-color: color-mix(in srgb, var(--red) 45%, transparent); background: var(--red-soft); font-weight: 600; }
-.qbtn button.all:hover { background: var(--red); border-color: var(--red); color: #fff; }
+/* 100% closes the whole position: same look as the partial closes, but bold and a little brighter */
+.qbtn button.all { color: var(--text); border-color: var(--line-3); font-weight: 700; }
 .xbtn { color: var(--muted); padding: 2px 6px; border-radius: 4px; }
 .xbtn:hover { color: var(--red); background: var(--red-soft); }
 
