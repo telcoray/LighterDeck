@@ -23,12 +23,12 @@ function barStart(tf, ts) {
 const C = { green: "#2bd9a4", red: "#f2546d" };
 
 // ---------- themes: colours live in CSS variables (style.css), charts read them from there ----------
-const THEMES = [
+const THEMES = [ // Classic first, then alphabetical
+  { id: "classic", name: "Classic", note: "i colori di Lighter" },
   { id: "champagne", name: "Champagne", note: "nero caldo, testo sabbia e oro" },
+  { id: "fosforo", name: "Fosforo", note: "sfondo grafite, testo verde da terminale" },
   { id: "ghiaccio", name: "Ghiaccio", note: "blu notte, testo azzurro ghiaccio" },
   { id: "grafite", name: "Grafite", note: "il tema originale, grigi neutri" },
-  { id: "fosforo", name: "Fosforo", note: "sfondo grafite, testo verde da terminale" },
-  { id: "classic", name: "Classic", note: "i colori di Lighter" },
 ];
 const cssVar = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 

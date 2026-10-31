@@ -53,24 +53,24 @@
 }
 /* Classic: Lighter's own palette (sampled from app.lighter.xyz) */
 :root[data-theme="classic"] {
-  --bg: #141318;
-  --surface: #19181e;
-  --raised: #1e1d24;
-  --hover: #1c1b22;
-  --line: #232228;
-  --line-2: #2b2a31;
-  --line-3: #3e3d45;
-  --chart-grid: #1b1a21;
-  --text: #e9e8ed;
-  --text-2: #b8b7bc;
-  --muted: #8f8f94;
-  --faint: #5c5b60;
+  --bg: #131318;
+  --surface: #18181d;
+  --raised: #1f1f24;
+  --hover: #1b1b21;
+  --line: #232329;
+  --line-2: #2a2a30;
+  --line-3: #3d3d44;
+  --chart-grid: #1b1b21;
+  --text: #f3f3f3;
+  --text-2: #c6c6c7;
+  --muted: #a9abae;
+  --faint: #6e7074;
   --green: #26e7a1;
   --green-ink: #05170f;
   --green-soft: rgba(38, 231, 161, .1);
-  --red: #f1515e;
-  --red-soft: rgba(241, 81, 94, .1);
-  --amber: #eca64c;
+  --red: #f05562;
+  --red-soft: rgba(240, 85, 98, .1);
+  --amber: #fdaa35;
   --blue: #6b91cd;
 }
 /* Ghiaccio: cool blue-black with ice-blue text */
