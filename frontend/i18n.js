@@ -258,6 +258,7 @@ const EN = {
   "Fatto": "Done",
   "es. 4": "e.g. 4",
   "Aggregati": "Aggregated",
+  "Trascina per ridimensionare · doppio clic per ripristinare": "Drag to resize · double-click to reset",
   "Fill singoli": "Single fills",
   "{n} fill": "{n} fills",
   "{n} ordini da {f} fill": "{n} orders from {f} fills",

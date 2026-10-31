@@ -1129,6 +1129,37 @@ function clock() {
   $("#sbAge").textContent = lastTick ? t("Prezzi ricevuti {ms} ms fa", { ms: Math.max(0, Date.now() - lastTick) }) : t("In attesa di prezzi");
 }
 
+// ================= resizable bottom panel =================
+const BOTTOM_DEFAULT = 210;
+function setBottomHeight(h) {
+  const room = $("#bottom").parentElement.clientHeight; // 0 while the trade view is hidden
+  if (room) h = Math.min(h, room - 220); // keep room for the charts
+  h = Math.round(Math.max(90, h));
+  $("#bottom").style.setProperty("--bottom-h", h + "px");
+  return h;
+}
+
+function wireBottomSplit() {
+  const bar = $("#bottomSplit");
+  setBottomHeight(load("bottomH", BOTTOM_DEFAULT));
+  bar.onpointerdown = (e) => {
+    e.preventDefault();
+    bar.setPointerCapture(e.pointerId);
+    bar.classList.add("drag");
+    document.body.classList.add("resizing");
+    const bottomEdge = $("#bottom").getBoundingClientRect().bottom;
+    bar.onpointermove = (ev) => setBottomHeight(bottomEdge - ev.clientY);
+    bar.onpointerup = () => {
+      bar.onpointermove = bar.onpointerup = null;
+      bar.classList.remove("drag");
+      document.body.classList.remove("resizing");
+      store("bottomH", Math.round($("#bottom").getBoundingClientRect().height));
+    };
+  };
+  bar.ondblclick = () => store("bottomH", setBottomHeight(BOTTOM_DEFAULT));
+  window.addEventListener("resize", () => setBottomHeight(load("bottomH", BOTTOM_DEFAULT)));
+}
+
 // ================= API key dialog =================
 const walletProviders = new Map(); // uuid -> { info, provider }
 window.addEventListener("eip6963:announceProvider", (e) => {
@@ -1333,6 +1364,7 @@ async function init() {
 
   wire();
   wireKeyDialog();
+  wireBottomSplit();
   applyTheme(load("theme", "champagne"));
   $("#themeBtn").onclick = (e) => { e.stopPropagation(); $("#themeMenu").classList.toggle("hidden"); };
   $("#themeMenu").onclick = (e) => {
