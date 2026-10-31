@@ -979,7 +979,7 @@ function positionStops(p) {
 function sltpCell(p, m) {
   const st = positionStops(p);
   const one = (k) => `<button class="sltp-v ${k}${st[k] ? "" : " none"}" data-psl="${p.market_id}:${k}">${st[k] ? fp(st[k].trigger_price, m) : "—"}</button>`;
-  return `${one("tp")}<span class="sep">/</span>${one("sl")}`;
+  return `${one("tp")}<span class="sltp-sep">/</span>${one("sl")}`;
 }
 
 // TP / SL edited in the row: Enter sends, Esc or clicking away cancels, an empty value removes it
