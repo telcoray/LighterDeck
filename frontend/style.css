@@ -471,6 +471,8 @@ button.pill:hover { border-color: var(--line-3); color: var(--text); }
 .key-find { display: flex; align-items: center; }
 .key-find input { flex: 1; }
 .key-find .ghost { margin: 0 6px 6px 0; }
+/* masked like a password, but a text field, so browsers don't offer to save it */
+.secret { -webkit-text-security: disc; text-security: disc; }
 .key-row { display: grid; grid-template-columns: 1fr 104px; gap: 8px; }
 .key-ok { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; margin-bottom: 12px; border: 1px solid rgba(43,217,164,.35); border-radius: var(--r); background: var(--green-soft); color: var(--green); }
 .key-ok svg { flex: none; margin-top: 1px; }
