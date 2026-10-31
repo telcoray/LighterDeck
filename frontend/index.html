@@ -23,7 +23,7 @@
 </script>
 <style>html.i18n-pending body { visibility: hidden; }</style>
 <link rel="icon" href="favicon.svg?v=1" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=55">
+<link rel="stylesheet" href="style.css?v=56">
 <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
 </head>
 <body>
@@ -155,27 +155,27 @@
           <dt>Posizione</dt><dd id="tkPos">—</dd>
         </dl>
         <label class="fl">Size in
-          <select id="tkUnit"><option value="usd">Valore USD</option><option value="base">Quantità</option><option value="equity_pct">% capitale</option><option value="risk_usd">Rischio $ allo stop</option></select>
+          <select id="tkUnit" autocomplete="off"><option value="usd">Valore USD</option><option value="base">Quantità</option><option value="equity_pct">% capitale</option><option value="risk_usd">Rischio $ allo stop</option></select>
         </label>
-        <div class="field"><label>Size</label><input id="tkSize" type="number" min="0" step="any" value="50"><span class="unit" id="tkSizeUnit">USD</span></div>
+        <div class="field"><label>Size</label><input id="tkSize" autocomplete="off" type="number" min="0" step="any" value="50"><span class="unit" id="tkSizeUnit">USD</span></div>
         <div class="chips" id="tkChips"></div>
-        <div class="field limit-only hidden"><label>Prezzo limite</label><input id="tkPrice" type="number" step="any"><button class="unit link" id="tkMid">Mid</button></div>
+        <div class="field limit-only hidden"><label>Prezzo limite</label><input id="tkPrice" autocomplete="off" type="number" step="any"><button class="unit link" id="tkMid">Mid</button></div>
         <div class="checks">
-          <label><input type="checkbox" id="tkReduce"> Reduce only</label>
-          <label class="limit-only hidden"><input type="checkbox" id="tkPost"> Post only</label>
+          <label><input type="checkbox" id="tkReduce" autocomplete="off"> Reduce only</label>
+          <label class="limit-only hidden"><input type="checkbox" id="tkPost" autocomplete="off"> Post only</label>
         </div>
         <div class="two">
-          <div class="field sm"><label>Stop-loss · prezzo</label><input id="tkSl" type="number" step="any" placeholder="Opzionale"><span class="sltp-out" id="tkSlOut"></span></div>
-          <div class="field sm"><label>Take-profit · prezzo</label><input id="tkTp" type="number" step="any" placeholder="Opzionale"><span class="sltp-out" id="tkTpOut"></span></div>
+          <div class="field sm"><label>Stop-loss · prezzo</label><input id="tkSl" autocomplete="off" type="number" step="any" placeholder="Opzionale"><span class="sltp-out" id="tkSlOut"></span></div>
+          <div class="field sm"><label>Take-profit · prezzo</label><input id="tkTp" autocomplete="off" type="number" step="any" placeholder="Opzionale"><span class="sltp-out" id="tkTpOut"></span></div>
         </div>
         <p class="sltp-note hidden" id="tkSltpNote"></p>
         <div class="checks trail-check">
-          <label title="LighterDeck sposta lo stop dietro al prezzo mentre la posizione guadagna"><input type="checkbox" id="tkTrail"> Trailing stop</label>
+          <label title="LighterDeck sposta lo stop dietro al prezzo mentre la posizione guadagna"><input type="checkbox" id="tkTrail" autocomplete="off"> Trailing stop</label>
         </div>
         <div class="trail-box hidden" id="tkTrailBox"></div>
         <details class="exec market-only">
           <summary>Opzioni di esecuzione</summary>
-          <div class="field sm"><label>Slippage massimo · bps</label><input id="tkSlip" type="number" min="1" step="1" value="50"></div>
+          <div class="field sm"><label>Slippage massimo · bps</label><input id="tkSlip" autocomplete="off" type="number" min="1" step="1" value="50"></div>
         </details>
         <dl class="kv summary">
           <dt>Valore ordine</dt><dd id="tkNotional">—</dd>
@@ -429,9 +429,9 @@
 </div>
 
 <div class="toast hidden" id="toast"></div>
-<script src="i18n.js?v=55"></script>
-<script src="formulas.js?v=55"></script>
-<script src="app.js?v=55"></script>
-<script src="picker.js?v=55"></script>
+<script src="i18n.js?v=56"></script>
+<script src="formulas.js?v=56"></script>
+<script src="app.js?v=56"></script>
+<script src="picker.js?v=56"></script>
 </body>
 </html>

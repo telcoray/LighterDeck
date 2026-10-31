@@ -903,6 +903,7 @@ async function previewTicket() {
   const m = activeMarket();
   if (!info.trading || !m || !(+$("#tkSize").value > 0)) { note.classList.add("hidden"); return; }
   const key = JSON.stringify(ticketBody());
+  if (sideWarnHeld) note.classList.add("hidden"); // while typing SL/TP, even when the order itself hasn't changed
   if (key === previewTicket.key && Date.now() - previewTicket.at < 5000) return;
   previewTicket.key = key;
   previewTicket.at = Date.now();
