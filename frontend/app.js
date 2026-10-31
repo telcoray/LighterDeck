@@ -329,7 +329,15 @@ function setActive(i) {
   renderMarketBar();
   renderTicket();
   renderTicker();
+  renderTitle();
   if (showBook) loadBook();
+}
+
+// browser tab: last price of the selected chart, like Lighter's own tab
+function renderTitle() {
+  const m = activeMarket(), q = m && prices[m.id];
+  const px = q && (q.last || q.mark);
+  document.title = px ? `${fp(px, m)} • ${m.symbol} • LighterDeck` : "LighterDeck";
 }
 
 const activeMarket = () => bySymbol[panelCfg[activeIdx].symbol];
@@ -887,6 +895,7 @@ function connect() {
     panels.forEach((p) => p.tick());
     renderMarketBar();
     renderTicker();
+    renderTitle();
     updateTicketSummary();
     if (accChanged) renderAccount();
     else if (account) renderPositions();
