@@ -841,7 +841,7 @@ function renderPositions() {
     box.innerHTML = `<div class="empty">${info.trading ? t("Nessuna posizione aperta.") : t("Sola lettura: collega un'API key per vedere posizioni e ordini.")}</div>`;
     return;
   }
-  box.innerHTML = `<table class="table"><thead><tr><th>${t("Mercato")}</th><th class="r">Size</th><th class="r">${t("Valore")}</th><th class="r">Entry</th><th class="r">Mark</th><th class="r">${t("Liquidazione")}</th><th class="r">${t("PnL non realizzato")}</th><th>${t("Trailing")}</th><th>${t("Chiudi · un click")}</th></tr></thead><tbody>${
+  box.innerHTML = `<table class="table"><thead><tr><th>${t("Mercato")}</th><th class="r">Size</th><th class="r">${t("Valore")}</th><th class="r">Entry</th><th class="r">Mark</th><th class="r">${t("Liquidazione")}</th><th class="r">${t("PnL non realizzato")}</th><th>${t("Trailing")}</th><th>${t("Chiudi a mercato")}</th></tr></thead><tbody>${
     list.map((p) => {
       const m = byId[p.market_id];
       const mark = prices[p.market_id] ? prices[p.market_id].mark : 0;

@@ -76,7 +76,7 @@ const EN = {
   "Valore": "Value",
   "Liquidazione": "Liquidation",
   "PnL non realizzato": "Unrealized PnL",
-  "Chiudi · un click": "Close · one click",
+  "Chiudi a mercato": "Close at market",
   "Nessun ordine aperto sui mercati in uso.": "No open orders on the markets in use.",
   "Tipo": "Type",
   "Lato": "Side",
