@@ -276,7 +276,7 @@ class LighterAPI:
         return {"asks": levels(data.get("asks", []), False), "bids": levels(data.get("bids", []), True),
                 "ts": time.time()}
 
-    async def trades(self, limit=50):
+    async def trades(self, limit=100):
         if not self.signer:
             return []
         data = await self._get("/api/v1/trades", {
@@ -289,6 +289,7 @@ class LighterAPI:
             maker = t["is_maker_ask"] != is_buyer  # we were the ask and the ask was maker, or vice versa
             out.append({
                 "ts": t["timestamp"], "market_id": t["market_id"], "symbol": m.symbol if m else str(t["market_id"]),
+                "order_id": t["bid_id"] if is_buyer else t["ask_id"],
                 "side": "buy" if is_buyer else "sell",
                 "size": m.disp_size(t["size"]) if m else float(t["size"]),
                 "price": m.disp_price(t["price"]) if m else float(t["price"]),

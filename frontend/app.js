@@ -681,14 +681,49 @@ async function loadTrades() {
   const trades = await api("/trades").catch((e) => { box.innerHTML = `<div class="empty">${esc(e.message)}</div>`; return null; });
   if (!trades) return;
   if (!trades.length) { box.innerHTML = `<div class="empty">${t("Nessun trade recente.")}</div>`; return; }
-  box.innerHTML = `<table class="table"><thead><tr><th>${t("Ora")}</th><th>${t("Mercato")}</th><th>${t("Lato")}</th><th class="r">Size</th><th class="r">${t("Prezzo")}</th><th class="r">${t("Valore")}</th><th>${t("Ruolo")}</th><th class="r">${t("PnL realizzato")}</th></tr></thead><tbody>${
-    trades.map((t) => {
-      const m = byId[t.market_id];
-      return `<tr><td>${new Date(t.ts).toLocaleString(LOCALE, { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" })}</td>
-        <td class="mk">${esc(t.symbol)}</td><td class="${t.side === "buy" ? "up" : "down"}">${t.side === "buy" ? "Buy" : "Sell"}</td>
-        <td class="r">${fsize(t.size, m)}</td><td class="r">${fp(t.price, m)}</td><td class="r">${fusd(t.usd)}</td><td>${t.role}</td>
-        <td class="r ${t.pnl ? cls(t.pnl) : ""}">${t.pnl ? fusd(t.pnl) : "—"}</td></tr>`;
+  loadTrades.last = trades;
+  renderTrades();
+}
+
+// fills of the same order merged into one row: total size, average price, summed value and PnL
+function aggregateTrades(fills) {
+  const byOrder = new Map();
+  for (const f of fills) {
+    const key = `${f.market_id}:${f.side}:${f.order_id ?? f.ts}`;
+    const g = byOrder.get(key);
+    if (!g) { byOrder.set(key, { ...f, fills: 1, first: f.ts, roles: new Set([f.role]) }); continue; }
+    g.fills += 1;
+    g.size += f.size;
+    g.usd += f.usd;
+    g.pnl += f.pnl;
+    g.ts = Math.max(g.ts, f.ts);
+    g.first = Math.min(g.first, f.ts);
+    g.roles.add(f.role);
+  }
+  return [...byOrder.values()].map((g) => ({ ...g, price: g.size ? g.usd / g.size : g.price, role: g.roles.size > 1 ? "maker + taker" : g.role }));
+}
+
+function renderTrades() {
+  const box = $("#btab-trades"), fills = loadTrades.last;
+  if (!fills) return;
+  const split = load("tradesSplit", false);
+  const rows = split ? fills : aggregateTrades(fills);
+  const time = (ts) => new Date(ts).toLocaleString(LOCALE, { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  box.innerHTML = `<div class="btab-bar"><span class="muted">${split ? t("{n} fill", { n: fills.length }) : t("{n} ordini da {f} fill", { n: rows.length, f: fills.length })}</span>
+    <div class="seg" id="tradesMode"><button data-split="0" class="${split ? "" : "active"}">${t("Aggregati")}</button><button data-split="1" class="${split ? "active" : ""}">${t("Fill singoli")}</button></div></div>
+    <table class="table"><thead><tr><th>${t("Ora")}</th><th>${t("Mercato")}</th><th>${t("Lato")}</th><th class="r">Size</th><th class="r">${split ? t("Prezzo") : t("Prezzo medio")}</th><th class="r">${t("Valore")}</th><th>${t("Ruolo")}</th><th class="r">${t("PnL realizzato")}</th></tr></thead><tbody>${
+    rows.map((r) => {
+      const m = byId[r.market_id];
+      const count = !split && r.fills > 1 ? `<span class="fills" title="${t("Primo fill: {t}", { t: time(r.first) })}">${t("{n} fill", { n: r.fills })}</span>` : "";
+      return `<tr><td>${time(r.ts)}</td>
+        <td class="mk">${esc(r.symbol)}${count}</td><td class="${r.side === "buy" ? "up" : "down"}">${r.side === "buy" ? "Buy" : "Sell"}</td>
+        <td class="r main">${fsize(r.size, m)}</td><td class="r">${fp(r.price, m)}</td><td class="r main">${fusd(r.usd)}</td><td>${r.role}</td>
+        <td class="r ${r.pnl ? cls(r.pnl) : ""}">${r.pnl ? fusd(r.pnl) : "—"}</td></tr>`;
     }).join("")}</tbody></table>`;
+  $("#tradesMode").onclick = (e) => {
+    const b = e.target.closest("[data-split]");
+    if (b) { store("tradesSplit", b.dataset.split === "1"); renderTrades(); }
+  };
 }
 
 // ================= calendar =================

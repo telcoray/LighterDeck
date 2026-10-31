@@ -199,6 +199,8 @@ input[type=checkbox] { width: 12px; height: 12px; margin: 0; accent-color: var(-
 .table td.up { color: var(--green); } .table td.down { color: var(--red); }
 /* positions: PnL first, mark and value next, entry plain, liquidation as a warning */
 .table td.main { color: var(--text); }
+.btab-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 14px; border-bottom: 1px solid var(--line); font-size: 11px; }
+.table td.mk .fills { margin-left: 8px; padding: 1px 6px; border: 1px solid var(--line-2); border-radius: 9px; font-family: var(--mono); font-size: 9.5px; color: var(--muted); vertical-align: 1px; }
 .table td.liq { color: var(--amber); }
 .table td.pnl { font-size: 13px; font-weight: 600; }
 .table td.pnl small { display: block; margin-top: 2px; font-size: 10px; font-weight: 400; opacity: .75; }
