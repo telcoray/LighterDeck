@@ -851,10 +851,11 @@ function renderTicketEstimates(m, p, qty, entry) {
     const beyondLiq = isSL && Formulas.slBeyondLiquidation(side, trigger, liq);
     const pnl = isSL ? -res.usd : res.usd, roe = isSL ? -res.pct : res.pct; // signed result when it fires
     const sign = (v) => (v >= 0 ? "+" : "−");
-    out.textContent = beyondLiq ? t("oltre la liquidazione")
-      : `${sign(pnl)}${fusd(Math.abs(pnl))} · ROE ${sign(roe)}${Math.abs(roe).toFixed(1)}%`;
-    out.className = "sltp-out " + (beyondLiq ? "warn" : pnl >= 0 ? "up" : "down");
-    draft.lines[draft.lines.length - 1].title += " " + out.textContent;
+    // the estimated result goes on the chart line only; the field keeps just the liquidation warning
+    out.textContent = beyondLiq ? t("oltre la liquidazione") : "";
+    out.className = "sltp-out" + (beyondLiq ? " warn" : "");
+    draft.lines[draft.lines.length - 1].title += " " + (beyondLiq ? out.textContent
+      : `${sign(pnl)}${fusd(Math.abs(pnl))} · ROE ${sign(roe)}${Math.abs(roe).toFixed(1)}%`);
   }
   draft.lines.push(...trailDraft(m, side, entry));
   setTicketDraft(draft);
