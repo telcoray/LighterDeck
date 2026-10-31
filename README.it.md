@@ -12,11 +12,13 @@ Terminale di trading personale per i perpetual di Lighter (lighter.xyz), con aut
 | --- | --- |
 | Grafici | 1, 2 o 4 grafici (affiancati o sovrapposti), legenda OHLC, volumi, linee di entry, liquidazione, ordini aperti (SL/TP/limit, trascinabili per spostarli) e dello stop gestito che si muove sul grafico, prezzo mark, eventi macro; ognuno si accende o spegne da **Elementi** |
 | Mercati | Prezzi live di tutti i perpetual, mark/index, funding, open interest, order book con spread, preferiti |
-| Ordini | Market e limit, post-only, reduce-only, slippage in bps, size in USD / quantità / % capitale / rischio $ allo stop; prezzo limite, SL, TP e trailing in anteprima sul grafico mentre compili il ticket |
+| Ordini | Market e limit, post-only, reduce-only, slippage in bps, size in USD / quantità / % capitale / rischio $ allo stop; prezzo limite, SL, TP e trailing in anteprima sul grafico mentre compili il ticket; ordini e chiusure totali confermati con un secondo click, senza finestre |
 | Protezione | SL/TP nativi inviati insieme all'entrata (OTO/OTOCO), TP e SL nella tabella posizioni, da aggiungere o modificare lì, chiusura parziale 25/50/75/100%, leva e cross/isolated |
 | Rischio | Limiti per ordine, mercato ed esposizione totale in % del capitale, perdita giornaliera in % del capitale alle 00:00 UTC (posizioni aperte incluse), leva, numero posizioni; stop-loss obbligatorio; blocco inversioni e dati non aggiornati |
 | Automazioni | Stop gestito (iniziale, breakeven, trailing) e trade su eventi macro (orario o breakout del range), con kill switch |
 | Calendario | Eventi economici della settimana (Forex Factory), riunioni Fed ufficiali, aperture delle principali borse |
+| Storico | Trade raggruppati per ordine o come singoli fill, PnL realizzato calcolato da ogni fill |
+| Aspetto | Cinque temi, italiano e inglese, layout che funziona in finestre strette e sul telefono |
 
 ```
 frontend/   pagina web (HTML/CSS/JS, TradingView Lightweight Charts)

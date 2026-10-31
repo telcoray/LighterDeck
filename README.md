@@ -12,12 +12,13 @@ A personal trading terminal for the perpetual futures on [Lighter](https://light
 | --- | --- |
 | Charts | 1, 2 or 4 charts (side by side or stacked), 14 timeframes, OHLC legend, volume, entry, liquidation, open orders (SL/TP/limit, draggable to move them) and the managed stop moving on the chart, mark price, macro events; each one can be turned on or off from **Elements** |
 | Markets | Live prices for every perpetual, mark/index, funding, open interest, order book with spread, market picker with search and categories |
-| Orders | Market and limit, post-only, reduce-only, slippage in bps, size in USD / quantity / % of equity / $ risk to the stop; limit price, SL, TP and trailing previewed on the chart while you fill in the ticket |
+| Orders | Market and limit, post-only, reduce-only, slippage in bps, size in USD / quantity / % of equity / $ risk to the stop; limit price, SL, TP and trailing previewed on the chart while you fill in the ticket; orders and full closes confirmed with a second click, no pop-ups |
 | Protection | Native SL/TP sent together with the entry (OTO/OTOCO), TP and SL shown in the positions table and set or changed from there, partial close 25/50/75/100%, leverage and cross/isolated |
 | Risk | Limits per order, per market and total exposure as a % of equity, daily loss as a % of the equity at 00:00 UTC (open positions included), leverage and number of positions; optional mandatory stop-loss; blocks reversals and stale prices |
 | Automations | Managed stop (initial, breakeven, trailing) and trades on macro events (at the release time or on a range breakout), with a kill switch |
 | Calendar | This week's economic events (Forex Factory), official Fed meetings, opening hours of the main exchanges |
-| Look | Four themes, English and Italian, layout that works in narrow windows and on phones |
+| History | Trades grouped by order or as single fills, realized PnL worked out from each fill |
+| Look | Five themes, English and Italian, layout that works in narrow windows and on phones |
 
 ```
 frontend/   web page (HTML/CSS/JS, TradingView Lightweight Charts)
