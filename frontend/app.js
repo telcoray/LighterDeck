@@ -1428,8 +1428,7 @@ function wire() {
   }));
   $("#tkUnit").onchange = () => {
     renderTicket();
-    const chips = $$("#tkChips button"); // sensible default for the new unit
-    $("#tkSize").value = chips[1] ? chips[1].dataset.v : "";
+    $("#tkSize").value = ""; // the old number means something else in the new unit
     updateTicketSummary();
   };
   ["#tkSize", "#tkPrice"].forEach((s) => ($(s).oninput = updateTicketSummary));
