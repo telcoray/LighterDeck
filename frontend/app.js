@@ -373,6 +373,7 @@ function renderMarketBar() {
 }
 
 function renderTicker() {
+  if (tickerDrag) return; // don't rebuild the row under the pointer
   const box = $("#ticker");
   const active = activeMarket();
   box.innerHTML = favs.filter((s) => bySymbol[s]).map((s) => {
@@ -382,6 +383,52 @@ function renderTicker() {
       ${ico(s, "xs")}<b>${s}</b><span class="num">${p ? fp(p.last || p.mark, m) : "—"}</span>
       <span class="chg ${p ? cls(p.change) : ""}">${p ? fpct(p.change) : ""}</span></button>`;
   }).join("");
+}
+
+// favourites row: drag an item sideways to reorder (a plain click still selects the market)
+let tickerDrag = null, tickerDragEnd = 0;
+function wireTickerDrag() {
+  const box = $("#ticker");
+  box.addEventListener("pointerdown", (e) => {
+    const el = e.target.closest(".tk");
+    if (!el || e.button !== 0) return;
+    tickerDrag = { el, x0: e.clientX, left0: el.offsetLeft, moved: false, id: e.pointerId };
+  });
+  box.addEventListener("pointermove", (e) => {
+    const d = tickerDrag;
+    if (!d || e.pointerId !== d.id) return;
+    if (!d.moved) {
+      if (Math.abs(e.clientX - d.x0) < 5) return;
+      d.moved = true;
+      d.el.classList.add("dragging");
+      document.body.classList.add("reordering");
+      try { box.setPointerCapture(e.pointerId); } catch {}
+    }
+    // where the item's left edge would be, then swap with a neighbour once we pass its middle
+    const left = d.left0 + e.clientX - d.x0;
+    const mid = left + d.el.offsetWidth / 2;
+    const prev = d.el.previousElementSibling, next = d.el.nextElementSibling;
+    if (prev && mid < prev.offsetLeft + prev.offsetWidth / 2) box.insertBefore(d.el, prev);
+    else if (next && mid > next.offsetLeft + next.offsetWidth / 2) box.insertBefore(next, d.el);
+    d.el.style.transform = `translateX(${left - d.el.offsetLeft}px)`;
+  });
+  const finish = (e) => {
+    const d = tickerDrag;
+    if (!d || e.pointerId !== d.id) return;
+    tickerDrag = null;
+    if (!d.moved) return;
+    d.el.classList.remove("dragging");
+    d.el.style.transform = "";
+    document.body.classList.remove("reordering");
+    const order = [...box.querySelectorAll(".tk")].map((b) => b.dataset.sym);
+    favs = [...order, ...favs.filter((s) => !order.includes(s))];
+    store("favs", favs);
+    tickerDragEnd = Date.now(); // the click that follows a drag doesn't select the market
+    renderTicker();
+    if (!$("#picker").classList.contains("hidden")) renderPicker();
+  };
+  box.addEventListener("pointerup", finish);
+  box.addEventListener("pointercancel", finish);
 }
 
 // ================= order book =================
@@ -987,7 +1034,8 @@ function wire() {
   $$("#layouts button").forEach((b) => (b.onclick = () => { layout = b.dataset.layout; store("layout", layout); buildCharts(); }));
   $("#obToggle").onclick = () => toggleBook(!showBook);
   $("#mktSelect").onclick = () => ($("#picker").classList.contains("hidden") ? openPalette() : closePalette());
-  $("#ticker").onclick = (e) => { const b = e.target.closest("[data-sym]"); if (b) setSymbol(b.dataset.sym); };
+  wireTickerDrag();
+  $("#ticker").onclick = (e) => { if (Date.now() - tickerDragEnd < 300) return; const b = e.target.closest("[data-sym]"); if (b) setSymbol(b.dataset.sym); };
 
   // market picker lives in picker.js
   document.addEventListener("keydown", (e) => {

@@ -110,6 +110,8 @@ input[type=checkbox] { width: 12px; height: 12px; margin: 0; accent-color: var(-
 .tk { display: inline-flex; gap: 8px; align-items: baseline; padding: 4px 9px; border-radius: 4px; white-space: nowrap; font-size: 11px; }
 .tk:hover { background: var(--raised); }
 .tk.active { background: var(--raised); box-shadow: inset 0 0 0 1px var(--line-2); }
+.tk.dragging { position: relative; z-index: 2; background: var(--raised); box-shadow: inset 0 0 0 1px var(--line-3), 0 6px 18px rgba(0,0,0,.45); cursor: grabbing; }
+body.reordering { cursor: grabbing; user-select: none; }
 .tk b { font-weight: 500; color: var(--text); }
 .tk .num { color: var(--text-2); }
 .tk .chg { font-family: var(--mono); font-size: 10.5px; }
