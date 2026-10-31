@@ -23,7 +23,7 @@
 </script>
 <style>html.i18n-pending body { visibility: hidden; }</style>
 <link rel="icon" href="favicon.svg?v=1" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=26">
+<link rel="stylesheet" href="style.css?v=28">
 <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
 </head>
 <body>
@@ -339,13 +339,29 @@
 <div class="modal hidden" id="keyModal" role="dialog" aria-labelledby="keyTitle">
   <div class="modal-head"><h3 id="keyTitle">Collega un'API key</h3><button class="xbtn" id="keyClose" title="Chiudi (Esc)">✕</button></div>
   <div id="keyConnected" class="hidden">
-    <p class="key-status"><i class="dot"></i><span id="keyWho"></span></p>
-    <p class="muted" id="keyEnvNote">La chiave è impostata nel file env del server: per cambiarla modifica quel file.</p>
-    <button class="ghost danger" id="keyRemove">Scollega l'API key</button>
+    <div class="key-ok hidden" id="keyOk">
+      <svg viewBox="0 0 20 20" width="20" height="20"><circle cx="10" cy="10" r="9" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M6 10.4l2.6 2.6L14 7.6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <div><b>Collegata con successo</b><span>Lighter ha accettato la chiave: ora puoi fare trading da LighterDeck.</span></div>
+    </div>
+    <dl class="key-facts">
+      <dt>Account</dt><dd id="keyFactAcc">—</dd>
+      <dt>API key</dt><dd id="keyFactIdx">—</dd>
+      <dt>Valore account</dt><dd id="keyFactEq">—</dd>
+      <dt>Salvata in</dt><dd id="keyFactWhere">—</dd>
+    </dl>
+    <p class="key-note" id="keyEnvNote">La chiave è impostata nel file env del server: per cambiarla modifica quel file.</p>
+    <div class="key-actions" id="keyActions">
+      <button class="ghost danger" id="keyRemove">Scollega</button>
+      <button class="ghost" id="keyDone">Fatto</button>
+    </div>
+    <div class="key-confirm hidden" id="keyConfirm">
+      <p>Scollegare l'API key? Le automazioni si spengono e LighterDeck torna in sola lettura.</p>
+      <div class="key-actions"><button class="ghost" id="keyCancel">Annulla</button><button class="ghost danger solid" id="keyConfirmBtn">Scollega</button></div>
+    </div>
   </div>
   <form id="keyForm" autocomplete="off">
     <ol class="key-steps">
-      <li>Su <a href="https://app.lighter.xyz" target="_blank" rel="noopener">app.lighter.xyz</a> apri le impostazioni dell'account e crea una nuova API key.</li>
+      <li><a href="https://app.lighter.xyz/apikeys" target="_blank" rel="noopener">Apri la pagina API keys di Lighter</a> e crea una nuova chiave.</li>
       <li>Copia la chiave privata e il suo indice (da 3 in su: 0–2 sono riservati all'app di Lighter).</li>
       <li>Incollali qui: LighterDeck controlla la chiave con Lighter prima di salvarla.</li>
     </ol>
@@ -356,7 +372,7 @@
     <div class="key-accounts" id="keyAccounts"></div>
     <div class="key-row">
       <div class="field sm"><label>Indice account</label><input id="keyAccount" type="number" min="0" step="1" required></div>
-      <div class="field sm"><label>Indice API key</label><input id="keyIndex" type="number" min="0" max="254" step="1" required></div>
+      <div class="field sm"><label>Indice API key</label><input id="keyIndex" type="number" min="0" max="254" step="1" placeholder="es. 4" required></div>
     </div>
     <div class="field sm"><label>Chiave privata dell'API key</label><input id="keyPrivate" type="password" spellcheck="false" required></div>
     <p class="key-note">La chiave resta solo sul server, in data/credentials.json, e non viene mai rimandata al browser. Un'API key firma ordini e può prelevare solo verso il tuo wallet: non può mandare fondi ad altri indirizzi.</p>
@@ -390,9 +406,9 @@
 </div>
 
 <div class="toast hidden" id="toast"></div>
-<script src="i18n.js?v=26"></script>
-<script src="formulas.js?v=26"></script>
-<script src="app.js?v=26"></script>
-<script src="picker.js?v=26"></script>
+<script src="i18n.js?v=28"></script>
+<script src="formulas.js?v=28"></script>
+<script src="app.js?v=28"></script>
+<script src="picker.js?v=28"></script>
 </body>
 </html>

@@ -624,6 +624,7 @@ function renderAccount() {
   const pill = $("#accountPill");
   pill.innerHTML = info.trading ? `<i class="dot"></i><span>${t("Account #{n}", { n: info.account_index })}</span>` : `<i class="dot off"></i><span>${t("Sola lettura")}</span>`;
   pill.classList.toggle("muted", !info.trading);
+  if (info.trading && !$("#keyModal").classList.contains("hidden")) renderKeyEquity();
   pill.title = info.trading ? t("API key collegata") : t("Collega un'API key");
   renderPositions();
   renderTicket();
@@ -1110,21 +1111,35 @@ async function useWallet(provider) {
   }
 }
 
-function openKeyDialog() {
+function openKeyDialog(justConnected = false) {
   const on = info.trading;
   $("#keyConnected").classList.toggle("hidden", !on);
   $("#keyForm").classList.toggle("hidden", on);
   $("#keyTitle").textContent = on ? t("API key collegata") : t("Collega un'API key");
   if (on) {
-    $("#keyWho").textContent = t("Account #{n}", { n: info.account_index });
+    $("#keyOk").classList.toggle("hidden", justConnected !== true);
+    $("#keyFactAcc").textContent = "#" + info.account_index;
+    $("#keyFactIdx").textContent = info.api_key_index == null ? "—" : "#" + info.api_key_index;
+    $("#keyFactWhere").textContent = info.credentials === "env" ? t("file env del server") : "data/credentials.json";
+    renderKeyEquity();
     $("#keyEnvNote").classList.toggle("hidden", info.credentials !== "env");
     $("#keyRemove").classList.toggle("hidden", info.credentials === "env");
+    showKeyConfirm(false);
   }
   $("#keyError").classList.add("hidden");
   $("#keyAccounts").innerHTML = "";
   $("#keyShade").classList.remove("hidden");
   $("#keyModal").classList.remove("hidden");
   if (!on) $(info.account_index == null ? "#keyAddress" : "#keyIndex").focus();
+}
+
+function renderKeyEquity() {
+  $("#keyFactEq").textContent = account ? fusd(account.total_value) : t("caricamento…");
+}
+
+function showKeyConfirm(show) {
+  $("#keyConfirm").classList.toggle("hidden", !show);
+  $("#keyActions").classList.toggle("hidden", show);
 }
 
 function closeKeyDialog() {
@@ -1148,7 +1163,7 @@ function credentialsChanged(newInfo) {
 }
 
 function wireKeyDialog() {
-  $("#accountPill").onclick = openKeyDialog;
+  $("#accountPill").onclick = () => openKeyDialog();
   $("#keyClose").onclick = closeKeyDialog;
   $("#keyShade").onmousedown = closeKeyDialog;
   document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("#keyModal").classList.contains("hidden")) closeKeyDialog(); });
@@ -1187,9 +1202,9 @@ function wireKeyDialog() {
       const res = await api("/credentials", { method: "POST", body: JSON.stringify({
         account_index: +$("#keyAccount").value, api_key_index: +$("#keyIndex").value, private_key: $("#keyPrivate").value,
       }) });
-      closeKeyDialog();
+      $("#keyPrivate").value = "";
       credentialsChanged(res);
-      toast(t("API key collegata: account #{n}", { n: res.account_index }));
+      openKeyDialog(true);
     } catch (err) {
       keyError(err.message);
     } finally {
@@ -1197,8 +1212,10 @@ function wireKeyDialog() {
       btn.textContent = t("Verifica e collega");
     }
   };
-  $("#keyRemove").onclick = async () => {
-    if (!confirm(t("Scollegare l'API key? Le automazioni verranno disattivate e LighterDeck torna in sola lettura."))) return;
+  $("#keyDone").onclick = closeKeyDialog;
+  $("#keyRemove").onclick = () => showKeyConfirm(true);
+  $("#keyCancel").onclick = () => showKeyConfirm(false);
+  $("#keyConfirmBtn").onclick = async () => {
     try {
       const res = await api("/credentials", { method: "DELETE" });
       closeKeyDialog();

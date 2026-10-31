@@ -95,6 +95,7 @@ async def info():
     return {
         "trading": bool(api.signer), "account_index": config.ACCOUNT_INDEX, "armed": engine.armed,
         "credentials": config.CREDENTIALS_SOURCE if api.signer else None,
+        "api_key_index": config.API_KEY_INDEX if api.signer else None,
         "network": "testnet" if "testnet" in config.LIGHTER_URL else "mainnet",
         "ws_url": config.LIGHTER_WS,
         "limits": {**risk.limits, "hard_cap_usd": config.MAX_NOTIONAL_USD,

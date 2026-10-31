@@ -231,9 +231,8 @@ const EN = {
   "Chiudi (Esc)": "Close (Esc)",
   "La chiave è impostata nel file env del server: per cambiarla modifica quel file.":
     "The key is set in the server env file: edit that file to change it.",
-  "Scollega l'API key": "Disconnect the API key",
-  "Su": "On",
-  "apri le impostazioni dell'account e crea una nuova API key.": "open your account settings and create a new API key.",
+  "Apri la pagina API keys di Lighter": "Open Lighter's API keys page",
+  "e crea una nuova chiave.": "and create a new key.",
   "Copia la chiave privata e il suo indice (da 3 in su: 0–2 sono riservati all'app di Lighter).":
     "Copy the private key and its index (3 or higher: 0–2 are reserved for the Lighter app).",
   "Incollali qui: LighterDeck controlla la chiave con Lighter prima di salvarla.":
@@ -247,9 +246,17 @@ const EN = {
     "The key stays on the server only, in data/credentials.json, and is never sent back to the browser. An API key signs orders and can withdraw only to your own wallet: it cannot send funds to other addresses.",
   "Verifica e collega": "Verify and connect",
   "Verifica in corso…": "Verifying…",
-  "API key collegata: account #{n}": "API key connected: account #{n}",
-  "Scollegare l'API key? Le automazioni verranno disattivate e LighterDeck torna in sola lettura.":
-    "Disconnect the API key? Automations will be turned off and LighterDeck goes back to read-only.",
+  "Scollegare l'API key? Le automazioni si spengono e LighterDeck torna in sola lettura.":
+    "Disconnect the API key? Automations turn off and LighterDeck goes back to read-only.",
+  "Collegata con successo": "Connected successfully",
+  "Lighter ha accettato la chiave: ora puoi fare trading da LighterDeck.": "Lighter accepted the key: you can now trade from LighterDeck.",
+  "Valore account": "Account value",
+  "Salvata in": "Saved in",
+  "file env del server": "server env file",
+  "caricamento…": "loading…",
+  "Scollega": "Disconnect",
+  "Fatto": "Done",
+  "es. 4": "e.g. 4",
   "API key scollegata: sola lettura": "API key disconnected: read-only",
   "Sola lettura · collega un'API key": "Read-only · connect an API key",
   "Prendi l'indirizzo dal wallet del browser (solo lettura, nessuna firma)": "Take the address from your browser wallet (read-only, no signature)",
