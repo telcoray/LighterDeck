@@ -295,6 +295,20 @@ class Panel {
     if (chartEls.mark && q && q.mark) this.markLine = add({ price: q.mark, color: cssVar("--muted"), lineStyle: 3, title: "MARK" });
   }
 
+  // provisional lines from the order ticket, on the selected chart only; faded and dotted to tell them from real orders
+  drawPreview() {
+    for (const l of this.previewLines || []) this.series.removePriceLine(l);
+    this.previewLines = [];
+    const d = ticketDraft, m = this.market;
+    if (!d || !m || d.market !== m.id || this.idx !== activeIdx) return;
+    const colour = { limit: cssVar("--text-2"), sl: C.red, tp: C.green, trail: cssVar("--amber") };
+    const add = (price, color, title, style = 1) => {
+      if (price > 0) this.previewLines.push(this.series.createPriceLine({ price, color: fade(color), lineWidth: 1, lineStyle: style, title }));
+    };
+    for (const l of d.lines) add(l.price, colour[l.kind], l.title, l.dashed ? 3 : 1);
+    if (d.liq) add(d.liq, C.red, t("LIQ stimata"), 3);
+  }
+
   // "TRAIL 1% · 0.84%": distance and current gap between the price and the managed stop
   stopTitle(s) {
     const q = prices[this.market.id], px = q && (q.last || q.mark);
@@ -310,10 +324,11 @@ function savePanels() { store("panels", panelCfg); }
 // ---------- Chart elements menu: which lines and marks every chart draws ----------
 const CHART_ELEMENTS = [
   ["orders", "Linee ordini"], ["stop", "Stop gestito"], ["position", "Linea posizione"],
-  ["liq", "Prezzo di liquidazione"], ["mark", "Linea prezzo mark"], ["events", "Eventi macro"],
+  ["liq", "Prezzo di liquidazione"], ["mark", "Linea prezzo mark"], ["events", "Eventi macro"], ["preview", "Anteprima ticket"],
 ];
-let chartEls = { orders: true, stop: true, position: true, liq: true, mark: false, events: true, ...load("chartEls", {}) };
+let chartEls = { orders: true, stop: true, position: true, liq: true, mark: false, events: true, preview: true, ...load("chartEls", {}) };
 let openOrders = {}; // market id -> open orders on Lighter, shared by the chart lines and the Orders tab
+const fade = (c) => (/^#[0-9a-f]{6}$/i.test(c) ? c + "b0" : c); // hex colour at ~70% for provisional lines
 const orderKind = (o) => (/stop/i.test(o.type) ? "SL" : /take/i.test(o.type) ? "TP" : "LIMIT");
 
 function renderChartEls() {
@@ -327,6 +342,7 @@ function toggleChartEl(k) {
   store("chartEls", chartEls);
   renderChartEls();
   panels.forEach((p) => { p.drawLines(); p.drawMarkers(); });
+  if (k === "preview") updateTicketSummary();
   if (k === "orders" && chartEls.orders) fetchOpenOrders().catch(() => {});
 }
 
@@ -666,17 +682,45 @@ function renderTicketEstimates(m, p, qty, entry) {
   const liqEl = $("#tkLiq");
   liqEl.textContent = liq ? fp(liq, m) : account ? "—" : t("serve l'account");
   liqEl.className = liq && mark && Math.abs(liq - mark) / mark < 0.05 ? "down" : "";
+  const draft = { market: m.id, side, entry, liq: qty && !reduce ? liq : null, lines: [] };
+  if (ticket.kind === "limit" && +$("#tkPrice").value) draft.lines.push({ kind: "limit", price: entry, title: `LIMIT ${side > 0 ? "BUY" : "SELL"}${qty ? " " + fsize(qty, m) : ""}` });
   for (const [id, isSL] of [["Sl", true], ["Tp", false]]) {
     const trigger = +$("#tk" + id).value;
     const out = $(`#tk${id}Out`);
     const res = Formulas.sltpOutcome({ isSL, side, entry, trigger, qty, leverage });
+    if (trigger > 0) draft.lines.push({ kind: isSL ? "sl" : "tp", price: trigger, title: isSL ? "SL" : "TP" });
     if (!res) { out.textContent = ""; out.className = "sltp-out"; continue; }
     const wrongSide = res.usd < 0; // e.g. a long's stop above entry would be a gain
     const beyondLiq = isSL && Formulas.slBeyondLiquidation(side, trigger, liq);
     out.textContent = wrongSide ? t("lato sbagliato") : beyondLiq ? t("oltre la liquidazione")
       : `${isSL ? "−" : "+"}${fusd(Math.abs(res.usd))} · ${isSL ? "−" : "+"}${Math.abs(res.pct).toFixed(1)}%`;
     out.className = "sltp-out " + (wrongSide || beyondLiq ? "warn" : isSL ? "down" : "up");
+    draft.lines[draft.lines.length - 1].title += " " + out.textContent;
   }
+  draft.lines.push(...trailDraft(m, side, entry));
+  setTicketDraft(draft);
+}
+
+// where the ticket's trailing stop would sit right after the fill (ATR needs candles: start and breakeven only)
+function trailDraft(m, side, entry) {
+  const tr = $("#tkTrail").checked && !$("#tkReduce").checked && readTrail($("#tkTrailBox"));
+  if (!tr || !entry) return [];
+  const out = [];
+  const dist = tr.mode === "pct" ? entry * tr.value / 100 : tr.mode === "price" ? tr.value : null;
+  const label = `TRAIL ${trailLabel(trailToStop(tr), m)}`;
+  if (tr.activate_pct) out.push({ kind: "trail", dashed: true, price: entry * (1 + side * tr.activate_pct / 100), title: `${label} · ${t("trailing da qui")}` });
+  else if (dist) out.push({ kind: "trail", price: entry - side * dist, title: label });
+  if (tr.breakeven_at_pct) out.push({ kind: "trail", dashed: true, price: entry * (1 + side * tr.breakeven_at_pct / 100), title: "BE" });
+  return out;
+}
+
+// ticket preview on the chart: provisional lines while the order is being filled in, gone once it is sent
+let ticketDraft = null;
+function setTicketDraft(d) {
+  const sent = previewTicket.sentKey && previewTicket.sentKey === JSON.stringify(ticketBody());
+  // size alone draws nothing: the estimated liquidation comes with a price typed in the ticket
+  ticketDraft = chartEls.preview && !sent && d.lines.length ? d : null;
+  panels.forEach((p) => p.drawPreview());
 }
 
 async function previewTicket() {
@@ -719,6 +763,8 @@ async function executeTicket() {
     const r = await api("/order", { method: "POST", body: JSON.stringify(body) });
     ticketMsg(t("Eseguito: {side} {size} {sym}. Controlla posizioni e ordini per i fill.", { side: ticket.side, size: r.size, sym: m.symbol })
       + (body.trail && !r.armed ? " " + t("Trailing impostato: parte quando attivi Auto.") : ""), "ok");
+    previewTicket.sentKey = JSON.stringify(body);
+    updateTicketSummary();
     loadOrders(true);
   } catch (e) {
     ticketMsg(e.message, "err");
@@ -1314,8 +1360,10 @@ function renderTicketTrail() {
     mountTrailForm($("#tkTrailBox"), load("trail", { mode: "pct", value: 1 }), () => {
       const tr = readTrail($("#tkTrailBox"));
       if (tr) store("trail", tr);
+      updateTicketSummary();
     });
   }
+  updateTicketSummary();
 }
 
 function trailButton(marketId, m) {

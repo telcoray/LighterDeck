@@ -298,6 +298,8 @@ const EN = {
   "Eventi macro": "Macro events",
   "Ordini e stop gestito compaiono con un'API key collegata.": "Orders and the managed stop show once an API key is connected.",
   "trailing da qui": "trailing from here",
+  "Anteprima ticket": "Ticket preview",
+  "LIQ stimata": "Est. LIQ",
   "Prendi l'indirizzo dal wallet del browser (solo lettura, nessuna firma)": "Take the address from your browser wallet (read-only, no signature)",
   "Il wallet non ha condiviso nessun indirizzo": "The wallet didn't share an address",
   "Richiesta rifiutata nel wallet": "Request rejected in the wallet",
