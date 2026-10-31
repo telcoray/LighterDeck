@@ -134,7 +134,8 @@ class Panel {
     this.el.className = "panel";
     this.el.innerHTML = `<div class="chart"></div>
       <div class="legend"><span class="ttl"></span><i class="dot"></i><span class="ohlc"></span></div>
-      <div class="ev-tip hidden"></div>`;
+      <div class="ev-tip hidden"></div>
+      <div class="drag-ok hidden"></div>`;
     this.el.addEventListener("mousedown", () => setActive(this.idx));
     $(".ttl", this.el).addEventListener("click", (e) => { e.stopPropagation(); setActive(this.idx); openPalette(); });
     this.chart = LightweightCharts.createChart($(".chart", this.el), {
@@ -152,6 +153,20 @@ class Panel {
     this.vol = this.chart.addHistogramSeries({ priceScaleId: "vol", priceFormat: { type: "volume" }, lastValueVisible: false, priceLineVisible: false });
     this.chart.priceScale("vol").applyOptions({ scaleMargins: { top: 0.86, bottom: 0 } });
     this.lines = [];
+    this.dragOrders = [];  // open orders on this chart that can be dragged: { line, price, label, order }
+    this.dragPreview = []; // ticket preview lines that can be dragged: { line, price, label, kind, preview }
+    // order, preview and trailing lines near the price stay in view instead of sitting off-screen
+    this.series.applyOptions({ autoscaleInfoProvider: (original) => {
+      const r = original();
+      const last = this.last && this.last.close;
+      if (!r || !r.priceRange || !last) return r;
+      const keep = [...this.dragOrders, ...this.dragPreview].map((d) => d.price)
+        .concat(this.stopLine ? [this.stopLine.options().price] : [])
+        .filter((p) => Math.abs(p - last) / last < 0.15); // a typo far away doesn't squash the chart
+      if (!keep.length) return r;
+      return { ...r, priceRange: { minValue: Math.min(r.priceRange.minValue, ...keep), maxValue: Math.max(r.priceRange.maxValue, ...keep) } };
+    } });
+    this.wireDrag();
     this.data = new Map();
     this.eventBars = new Map();
     this.chart.subscribeCrosshairMove((p) => {
@@ -265,8 +280,10 @@ class Panel {
 
   // price lines picked in the Chart elements menu: position, liquidation, open orders, managed stop, mark
   drawLines() {
+    if (this.drag || this.hold) return; // don't pull a line from under the pointer; redrawn when the drag ends
     for (const l of this.lines) this.series.removePriceLine(l);
     this.lines = [];
+    this.dragOrders = [];
     this.stopLine = this.markLine = null;
     const m = this.market;
     if (!m) return;
@@ -281,8 +298,10 @@ class Panel {
         const kind = orderKind(o);
         // the managed stop's own order is drawn by the stop line below
         if (chartEls.stop && s && s.stop && kind === "SL" && Math.abs(o.trigger_price - s.stop) < tick * 1.5) continue;
-        add({ price: o.trigger_price || o.price, color: kind === "SL" ? C.red : kind === "TP" ? C.green : cssVar("--text-2"),
+        const price = o.trigger_price || o.price;
+        const line = add({ price, color: kind === "SL" ? C.red : kind === "TP" ? C.green : cssVar("--text-2"),
           lineStyle: kind === "LIMIT" ? 0 : 2, title: `${kind} ${fsize(o.remaining, m)}` });
+        this.dragOrders.push({ line, price, label: kind, order: o });
       }
     }
     if (pos && s && chartEls.stop) {
@@ -297,16 +316,107 @@ class Panel {
 
   // provisional lines from the order ticket, on the selected chart only; faded and dotted to tell them from real orders
   drawPreview() {
+    if (this.drag) return;
     for (const l of this.previewLines || []) this.series.removePriceLine(l);
     this.previewLines = [];
+    this.dragPreview = [];
     const d = ticketDraft, m = this.market;
     if (!d || !m || d.market !== m.id || this.idx !== activeIdx) return;
     const colour = { limit: cssVar("--text-2"), sl: C.red, tp: C.green, trail: cssVar("--amber") };
     const add = (price, color, title, style = 1) => {
-      if (price > 0) this.previewLines.push(this.series.createPriceLine({ price, color: fade(color), lineWidth: 1, lineStyle: style, title }));
+      if (!(price > 0)) return null;
+      const line = this.series.createPriceLine({ price, color: fade(color), lineWidth: 1, lineStyle: style, title });
+      this.previewLines.push(line);
+      return line;
     };
-    for (const l of d.lines) add(l.price, colour[l.kind], l.title, l.dashed ? 3 : 1);
+    for (const l of d.lines) {
+      const line = add(l.price, colour[l.kind], l.title, l.dashed ? 3 : 1);
+      if (line && l.kind !== "trail") this.dragPreview.push({ line, price: l.price, label: l.kind.toUpperCase(), kind: l.kind, preview: true });
+    }
     if (d.liq) add(d.liq, C.red, t("LIQ stimata"), 3);
+  }
+
+  // Drag SL/TP/limit lines with the mouse. Ticket preview lines fill the ticket fields; real orders show a
+  // small "Move / Cancel" box by the line and only change on Lighter after Move. The trailing stop isn't draggable.
+  wireDrag() {
+    const box = $(".chart", this.el);
+    const yOf = (e) => e.clientY - box.getBoundingClientRect().top;
+    const near = (y) => { // closest draggable line within 5 px of the pointer
+      let best = null, gap = 6;
+      for (const d of [...this.dragOrders, ...this.dragPreview]) {
+        const ly = this.series.priceToCoordinate(d.price);
+        if (ly !== null && Math.abs(ly - y) < gap) { best = d; gap = Math.abs(ly - y); }
+      }
+      return best;
+    };
+    // capture phase: the chart never sees a press that grabs a line, so it doesn't pan at the same time
+    box.addEventListener("mousedown", (e) => {
+      if (e.button !== 0 || this.hold) return;
+      const d = near(yOf(e));
+      if (!d) return;
+      e.preventDefault();
+      e.stopPropagation();
+      this.drag = { ...d, from: d.price, to: d.price };
+      this.chart.applyOptions({ handleScroll: false, handleScale: false });
+      document.body.classList.add("dragging-line");
+    }, true);
+    box.addEventListener("mousemove", (e) => {
+      if (!this.drag) box.style.cursor = !this.hold && near(yOf(e)) ? "ns-resize" : "";
+    });
+    document.addEventListener("mousemove", (e) => {
+      if (!this.drag) return;
+      const p = this.series.coordinateToPrice(yOf(e));
+      if (p === null || p <= 0) return;
+      const price = +p.toFixed(decimals(this.market));
+      this.drag.to = price;
+      this.drag.line.applyOptions({ price, title: `${this.drag.label} → ${fp(price, this.market)}` });
+    });
+    document.addEventListener("mouseup", (e) => {
+      const d = this.drag;
+      if (!d) return;
+      this.drag = null;
+      this.chart.applyOptions({ handleScroll: true, handleScale: true });
+      document.body.classList.remove("dragging-line");
+      if (d.to === d.from) { this.drawLines(); this.drawPreview(); return; }
+      if (d.preview) {
+        $({ sl: "#tkSl", tp: "#tkTp", limit: "#tkPrice" }[d.kind]).value = d.to;
+        this.drawLines();
+        updateTicketSummary();
+        return;
+      }
+      this.askMove(d, yOf(e));
+    });
+    $(".drag-ok", this.el).addEventListener("click", (e) => {
+      const b = e.target.closest("[data-mv]");
+      if (b) this.endMove(b.dataset.mv === "ok");
+    });
+  }
+
+  askMove(d, y) {
+    const m = this.market;
+    this.hold = d;
+    const chip = $(".drag-ok", this.el);
+    chip.innerHTML = `<span>${esc(d.label)} ${fp(d.from, m)} → <b>${fp(d.to, m)}</b></span>
+      <button data-mv="ok">${t("Sposta")}</button><button data-mv="no">${t("Annulla")}</button>`;
+    chip.style.top = Math.max(4, Math.min(this.el.clientHeight - 40, y - 15)) + "px";
+    chip.classList.remove("hidden");
+  }
+
+  async endMove(ok) {
+    const d = this.hold;
+    if (!d) return;
+    const chip = $(".drag-ok", this.el);
+    if (ok) {
+      chip.querySelectorAll("button").forEach((b) => (b.disabled = true));
+      try {
+        await api("/move_order", { method: "POST", body: JSON.stringify({ market_id: d.order.market_id, order_index: d.order.order_index, price: d.to }) });
+        toast(t("{kind} spostato a {price}", { kind: d.label, price: fp(d.to, this.market) }));
+      } catch (err) { toast(err.message, true); }
+    }
+    this.hold = null;
+    chip.classList.add("hidden");
+    this.drawLines(); // back to where the order really is until the refresh below shows the new level
+    if (ok) loadOrders(true);
   }
 
   // "TRAIL 1% · 0.84%": distance and current gap between the price and the managed stop
@@ -1321,7 +1431,7 @@ function wire() {
   };
 
   // a pending confirm goes away with Esc, a click on anything else, or a change in the ticket
-  document.addEventListener("keydown", (e) => { if (e.key === "Escape") cancelConfirm(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") { cancelConfirm(); panels.forEach((p) => p.hold && p.endMove(false)); } });
   document.addEventListener("mousedown", (e) => {
     if (pendingConfirm && !e.target.closest(`[data-ck="${pendingConfirm.key}"], #armedBtn`)) cancelConfirm();
   });

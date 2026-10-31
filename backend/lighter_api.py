@@ -541,6 +541,16 @@ class LighterAPI:
             api_key_index=config.API_KEY_INDEX,
         ), f"move stop {m.symbol} -> {trigger}")
 
+    async def modify_order(self, market_id, order_index, size, price, trigger=0.0):
+        """Move an open order: new limit/worst price and, for SL/TP, new trigger. Size in display units."""
+        m = self.markets[market_id]
+        await self._send(lambda: self.signer.modify_order(
+            market_index=market_id, order_index=order_index, base_amount=m.size_int(size),
+            price=m.price_int(m.round_price(price)),
+            trigger_price=m.price_int(m.round_price(trigger)) if trigger else 0,
+            api_key_index=config.API_KEY_INDEX,
+        ), f"move {m.symbol} order {order_index} -> {trigger or price}")
+
     async def cancel_order(self, market_id, order_index):
         await self._send(lambda: self.signer.cancel_order(
             market_index=market_id, order_index=order_index, api_key_index=config.API_KEY_INDEX,

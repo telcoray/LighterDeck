@@ -301,6 +301,8 @@ const EN = {
   "Anteprima ticket": "Ticket preview",
   "LIQ stimata": "Est. LIQ",
   "Conferma": "Confirm",
+  "Sposta": "Move",
+  "{kind} spostato a {price}": "{kind} moved to {price}",
   "Chiudi tutto": "Close all",
   "Conferma Auto ON": "Confirm Auto ON",
   "Regola eliminata: un ordine stop già piazzato resta su Lighter.": "Rule deleted: a stop order already placed stays on Lighter.",

@@ -391,6 +391,53 @@ async def close_position(market_id: int, fraction: float = 1.0):
     return {"ok": True}
 
 
+class MoveReq(BaseModel):
+    market_id: int
+    order_index: int
+    price: float  # new level: the trigger of a SL/TP, the price of a limit order
+
+
+@app.post("/api/move_order")
+async def move_order(r: MoveReq):
+    """Drag an order line on the chart: checked here so a drop can't fire or fill the order by mistake."""
+    if not api.signer or r.market_id not in api.markets:
+        raise HTTPException(400, L("Trading non attivo", "Trading is not enabled"))
+    m = api.markets[r.market_id]
+    order = next((o for o in await api.active_orders(r.market_id) if o["order_index"] == r.order_index), None)
+    if not order:
+        raise HTTPException(400, L("Ordine non trovato: forse è già stato eseguito o annullato",
+                                   "Order not found: it may have filled or been cancelled"))
+    managed = (engine.market_stop(r.market_id) or {}).get("state", {})
+    if managed.get("coi") and managed["coi"] == order["client_order_index"]:
+        raise HTTPException(400, L("È lo stop del trailing: cambialo dal bottone Trailing della posizione",
+                                   "This is the trailing stop: change it from the position's Trailing button"))
+    stats = feed.stats.get(r.market_id) or {}
+    price = m.round_price(r.price)
+    if price <= 0:
+        raise HTTPException(400, L("Prezzo non valido", "Invalid price"))
+    if order["trigger_price"]:
+        is_sl = "stop" in order["type"]
+        closes_long = order["is_ask"]  # a reduce-only sell closes a long
+        below = is_sl == closes_long    # a long's SL and a short's TP sit below the price
+        mark = stats.get("mark")
+        if mark and ((price >= mark) if below else (price <= mark)):
+            what = L("Lo stop-loss", "The stop-loss") if is_sl else L("Il take-profit", "The take-profit")
+            raise HTTPException(400, L(f"{what} deve stare {'sotto' if below else 'sopra'} il prezzo mark ({mark:g}), altrimenti scatterebbe subito",
+                                       f"{what} must be {'below' if below else 'above'} the mark price ({mark:g}), or it would trigger at once"))
+        # keep the order's own gap between trigger and worst fill price
+        worst = order["price"] * price / order["trigger_price"] if order["price"] else price
+        await api.modify_order(r.market_id, r.order_index, order["remaining"], worst, price)
+    else:
+        bid, ask = stats.get("bid"), stats.get("ask")
+        if (not order["is_ask"] and ask and price >= ask) or (order["is_ask"] and bid and price <= bid):
+            raise HTTPException(400, L("Il limite attraverserebbe il prezzo e verrebbe eseguito subito",
+                                       "The limit would cross the price and fill at once"))
+        await api.modify_order(r.market_id, r.order_index, order["remaining"], price)
+    _orders_cache.pop(r.market_id, None)
+    engine.note(f"{m.symbol} order {r.order_index} moved to {price:g}")
+    return {"ok": True, "price": price}
+
+
 @app.post("/api/cancel_order")
 async def cancel_order(market_id: int, order_index: int):
     try:

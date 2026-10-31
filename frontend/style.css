@@ -296,6 +296,14 @@ body.resizing { cursor: row-resize; user-select: none; }
 .execute:not(:disabled):hover { filter: brightness(1.08); }
 .execute.connect { background: var(--raised); color: var(--text-2); border: 1px dashed var(--line-3); }
 .execute.connect:hover { filter: none; color: var(--green); border-color: var(--green); }
+/* dragged order line waiting for Move / Cancel */
+.drag-ok { position: absolute; right: 74px; z-index: 6; display: flex; align-items: center; gap: 6px; padding: 4px 5px 4px 10px; background: var(--surface); border: 1px solid var(--line-3); border-radius: 6px; font-size: 11px; color: var(--text-2); box-shadow: 0 8px 24px rgba(0,0,0,.45); }
+.drag-ok span { font-family: var(--mono); white-space: nowrap; }
+.drag-ok b { color: var(--text); font-weight: 600; }
+.drag-ok button { height: 22px; padding: 0 9px; border-radius: 4px; border: 1px solid var(--line-2); color: var(--text-2); }
+.drag-ok button[data-mv="ok"] { border-color: var(--amber); color: var(--amber); }
+.drag-ok button:hover { color: var(--text); background: var(--raised); }
+body.dragging-line, body.dragging-line * { cursor: ns-resize !important; user-select: none; }
 /* waiting for the second click */
 .execute.confirming { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--amber); }
 .qbtn button.confirming, .rule .actions button.confirming { border-color: var(--amber); color: var(--amber); }
