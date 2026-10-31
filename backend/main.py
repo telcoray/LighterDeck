@@ -440,6 +440,51 @@ async def move_order(r: MoveReq):
     return {"ok": True, "price": price}
 
 
+class PositionStopReq(BaseModel):
+    market_id: int
+    kind: str                        # "sl" | "tp"
+    price: float | None = None       # new trigger; empty removes the order
+    order_index: int | None = None   # the position's current SL/TP, if it has one
+
+
+@app.post("/api/position_sltp")
+async def position_sltp(r: PositionStopReq):
+    """Set, move or remove a position's SL/TP from the positions table."""
+    if not api.signer or r.market_id not in api.markets:
+        raise HTTPException(400, L("Trading non attivo", "Trading is not enabled"))
+    if r.order_index is not None:
+        if r.price:
+            return await move_order(MoveReq(market_id=r.market_id, order_index=r.order_index, price=r.price))
+        try:
+            await api.cancel_order(r.market_id, r.order_index)
+        except Exception as e:
+            raise HTTPException(400, str(e))
+        _orders_cache.pop(r.market_id, None)
+        return {"ok": True}
+    pos = engine._position(r.market_id)
+    if not pos:
+        raise HTTPException(400, L("Nessuna posizione", "No position"))
+    m = api.markets[r.market_id]
+    price = m.round_price(r.price or 0)
+    if price <= 0:
+        raise HTTPException(400, L("Prezzo non valido", "Invalid price"))
+    is_sl = r.kind == "sl"
+    below = is_sl == (pos["size"] > 0)  # a long's SL and a short's TP sit below the price
+    mark = feed.mark(r.market_id)
+    if mark and ((price >= mark) if below else (price <= mark)):
+        what = L("Lo stop-loss", "The stop-loss") if is_sl else L("Il take-profit", "The take-profit")
+        raise HTTPException(400, L(f"{what} deve stare {'sotto' if below else 'sopra'} il prezzo mark ({mark:g}), altrimenti scatterebbe subito",
+                                   f"{what} must be {'below' if below else 'above'} the mark price ({mark:g}), or it would trigger at once"))
+    try:
+        # reduce-only trigger order for the position's current size
+        await api.stop_order(r.market_id, pos["size"], price, "sl" if is_sl else "tp")
+    except Exception as e:
+        raise HTTPException(400, str(e))
+    _orders_cache.pop(r.market_id, None)
+    engine.note(f"{m.symbol} {r.kind.upper()} set at {price:g} from the positions table")
+    return {"ok": True, "price": price}
+
+
 @app.post("/api/cancel_order")
 async def cancel_order(market_id: int, order_index: int):
     try:

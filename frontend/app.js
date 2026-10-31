@@ -960,7 +960,66 @@ function renderAccount() {
   panels.forEach((p) => p.drawLines());
 }
 
+// the position's own TP and SL: reduce-only trigger orders that close it, nearest to the price if there
+// are several (the managed trailing stop has its own column)
+function positionStops(p) {
+  const m = byId[p.market_id], s = stops[p.market_id], tick = 10 ** -decimals(m);
+  const mark = prices[p.market_id] ? prices[p.market_id].mark : p.entry;
+  const out = {};
+  for (const o of openOrders[p.market_id] || []) {
+    const kind = orderKind(o);
+    if (kind === "LIMIT" || o.is_ask !== p.size > 0) continue;
+    if (kind === "SL" && s && s.stop && Math.abs(o.trigger_price - s.stop) < tick * 1.5) continue;
+    const k = kind.toLowerCase(), cur = out[k];
+    if (!cur || Math.abs(o.trigger_price - mark) < Math.abs(cur.trigger_price - mark)) out[k] = o;
+  }
+  return out;
+}
+
+function sltpCell(p, m) {
+  const st = positionStops(p);
+  const one = (k) => `<button class="sltp-v ${k}${st[k] ? "" : " none"}" data-psl="${p.market_id}:${k}">${st[k] ? fp(st[k].trigger_price, m) : "—"}</button>`;
+  return `${one("tp")}<span class="sep">/</span>${one("sl")}`;
+}
+
+// TP / SL edited in the row: Enter sends, Esc or clicking away cancels, an empty value removes it
+let posEdit = null;
+function editPositionStop(btn) {
+  const [mid, k] = btn.dataset.psl.split(":");
+  const p = account && account.positions.find((x) => x.market_id === +mid);
+  if (!p) return;
+  const cur = positionStops(p)[k];
+  posEdit = { mid: +mid, k };
+  const input = document.createElement("input");
+  input.className = "sltp-in " + k;
+  input.inputMode = "decimal";
+  input.autocomplete = "off";
+  input.placeholder = k.toUpperCase();
+  input.value = cur ? cur.trigger_price : "";
+  btn.replaceWith(input);
+  input.focus();
+  input.select();
+  const end = () => { posEdit = null; renderPositions(); };
+  input.onkeydown = async (e) => {
+    if (e.key === "Escape") return end();
+    if (e.key !== "Enter") return;
+    const price = +input.value.trim();
+    if ((!price && !cur) || (cur && price === cur.trigger_price)) return end();
+    input.onblur = null;
+    input.disabled = true;
+    try {
+      await api("/position_sltp", { method: "POST", body: JSON.stringify({ market_id: +mid, kind: k, price: price || null, order_index: cur ? cur.order_index : null }) });
+      toast(price ? t("{kind} a {price}", { kind: k.toUpperCase(), price: fp(price, byId[+mid]) }) : t("{kind} rimosso", { kind: k.toUpperCase() }));
+      posEdit = null;
+      await fetchOpenOrders(true).catch(() => {});
+    } catch (err) { toast(err.message, true); }
+    end();
+  };
+  input.onblur = end;
+}
+
 function renderPositions() {
+  if (posEdit) return; // don't rebuild the row under a TP/SL being typed
   const box = $("#btab-positions");
   const list = account ? account.positions : [];
   $("#posCount").textContent = list.length || "";
@@ -968,7 +1027,7 @@ function renderPositions() {
     box.innerHTML = `<div class="empty">${info.trading ? t("Nessuna posizione aperta.") : t("Sola lettura: collega un'API key per vedere posizioni e ordini.")}</div>`;
     return;
   }
-  box.innerHTML = `<table class="table"><thead><tr><th>${t("Mercato")}</th><th class="r">Size</th><th class="r">${t("Valore")}</th><th class="r">Entry</th><th class="r">Mark</th><th class="r">${t("Liquidazione")}</th><th class="r" title="${t("La percentuale è calcolata sul margine iniziale.")}">${t("PnL non realizzato")}</th><th>${t("Trailing")}</th><th>${t("Chiudi a mercato")}</th></tr></thead><tbody>${
+  box.innerHTML = `<table class="table"><thead><tr><th>${t("Mercato")}</th><th class="r">Size</th><th class="r">${t("Valore")}</th><th class="r">Entry</th><th class="r">Mark</th><th class="r">${t("Liquidazione")}</th><th class="r" title="${t("La percentuale è calcolata sul margine iniziale.")}">${t("PnL non realizzato")}</th><th class="r">TP / SL</th><th>${t("Trailing")}</th><th>${t("Chiudi a mercato")}</th></tr></thead><tbody>${
     list.map((p) => {
       const m = byId[p.market_id];
       const mark = prices[p.market_id] ? prices[p.market_id].mark : 0;
@@ -978,6 +1037,7 @@ function renderPositions() {
       return `<tr><td class="mk">${esc(p.symbol)}<small class="${p.size > 0 ? "up" : "down"}">${p.size > 0 ? "Long" : "Short"}${p.leverage ? " · " + p.leverage + "x" : ""}</small></td>
         <td class="r ${p.size > 0 ? "up" : "down"}">${fsize(p.size, m)}</td><td class="r main">${fusd(p.value)}</td><td class="r">${fp(p.entry, m)}</td><td class="r main">${fp(mark, m)}</td>
         <td class="r liq">${fp(p.liq, m)}</td><td class="r pnl ${cls(p.upnl)}">${fusd(p.upnl)}<small>${isFinite(pct) ? fpct(pct) : ""}</small></td>
+        <td class="r sltp">${sltpCell(p, m)}</td>
         <td>${trailButton(p.market_id, m)}</td>
         <td><span class="qbtn">${[25, 50, 75, 100].map((f) => `<button data-close="${p.market_id}" data-f="${f}"${f === 100 ? ` class="all" data-ck="close:${p.market_id}"` : ""}>${f}%</button>`).join("")}</span></td></tr>`;
     }).join("")}</tbody></table>`;
@@ -992,6 +1052,7 @@ async function fetchOpenOrders(fresh = false) {
   openOrders = {};
   for (const o of list) (openOrders[o.market_id] ||= []).push(o);
   panels.forEach((p) => p.drawLines());
+  renderPositions();
   return list;
 }
 
@@ -1407,6 +1468,8 @@ function wire() {
   // bottom tables
   $$("#bottomTabs button").forEach((b) => (b.onclick = () => switchBottom(b.dataset.btab)));
   $("#btab-positions").onclick = async (e) => {
+    const v = e.target.closest("[data-psl]");
+    if (v && info.trading) return editPositionStop(v);
     const b = e.target.closest("[data-close]");
     if (!b) return;
     const mid = +b.dataset.close, f = +b.dataset.f;

@@ -237,6 +237,13 @@ body.resizing { cursor: row-resize; user-select: none; }
 .table td.mk small { display: block; font-size: 10px; margin-top: 2px; }
 .table tbody tr:hover td { background: var(--hover); }
 .empty { padding: 26px 14px; color: var(--muted); }
+.table td.sltp .sep { margin: 0 5px; color: var(--muted); }
+.sltp-v { padding: 2px 4px; border-radius: 4px; font-family: var(--mono); font-size: 11.5px; }
+.sltp-v.tp { color: var(--green); } .sltp-v.sl { color: var(--red); }
+.sltp-v.none { color: var(--muted); }
+.sltp-v:hover { background: var(--raised); color: var(--text); }
+.sltp-in { width: 78px; height: 22px; padding: 0 6px; border: 1px solid var(--line-3); border-radius: 4px; background: var(--surface); color: var(--text); font-family: var(--mono); font-size: 11.5px; text-align: right; }
+.sltp-in.tp:focus { border-color: var(--green); outline: none; } .sltp-in.sl:focus { border-color: var(--red); outline: none; }
 .qbtn { display: inline-flex; gap: 4px; }
 .qbtn button { height: 22px; padding: 0 8px; border: 1px solid var(--line-2); border-radius: 4px; font-size: 10.5px; color: var(--text-2); font-family: var(--mono); }
 .qbtn button:hover { border-color: var(--red); color: var(--red); }
