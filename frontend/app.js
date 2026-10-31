@@ -850,7 +850,7 @@ function renderPositions() {
         <td class="r ${p.size > 0 ? "up" : "down"}">${fsize(p.size, m)}</td><td class="r main">${fusd(p.value)}</td><td class="r">${fp(p.entry, m)}</td><td class="r main">${fp(mark, m)}</td>
         <td class="r liq">${fp(p.liq, m)}</td><td class="r pnl ${cls(p.upnl)}">${fusd(p.upnl)}<small>${isFinite(pct) ? fpct(pct) : ""}</small></td>
         <td>${trailButton(p.market_id, m)}</td>
-        <td><span class="qbtn">${[25, 50, 75, 100].map((f) => `<button data-close="${p.market_id}" data-f="${f}"${f === 100 ? ` data-ck="close:${p.market_id}"` : ""}>${f}%</button>`).join("")}</span></td></tr>`;
+        <td><span class="qbtn">${[25, 50, 75, 100].map((f) => `<button data-close="${p.market_id}" data-f="${f}"${f === 100 ? ` class="all" data-ck="close:${p.market_id}"` : ""}>${f}%</button>`).join("")}</span></td></tr>`;
     }).join("")}</tbody></table>`;
   markConfirm();
 }
