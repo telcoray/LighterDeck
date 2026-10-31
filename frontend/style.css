@@ -496,7 +496,9 @@ kbd { font-family: var(--mono); font-size: 9.5px; border: 1px solid var(--line-2
 
 /* ticket estimates */
 .field.sm { position: relative; }
-.sltp-out { position: absolute; right: 10px; top: 7px; font-family: var(--mono); font-size: 10.5px; pointer-events: none; }
+/* outcome on its own line under the price, so it never runs into the label however narrow the field */
+.sltp-out { padding: 0 10px 7px; margin-top: -3px; font-family: var(--mono); font-size: 10.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; }
+.sltp-out:empty { display: none; }
 .sltp-out.warn { color: var(--amber); }
 
 /* theme switcher */
