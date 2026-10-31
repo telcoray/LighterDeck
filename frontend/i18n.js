@@ -300,7 +300,7 @@ const EN = {
   "Anteprima ticket": "Ticket preview",
   "LIQ stimata": "Est. LIQ",
   "Conferma": "Confirm",
-  "La percentuale è il ROE: PnL sul margine iniziale.": "The percentage is ROE: PnL on the initial margin.",
+  "La percentuale è calcolata sul margine iniziale.": "The percentage is on the initial margin.",
   "Sposta": "Move",
   "{kind} spostato a {price}": "{kind} moved to {price}",
   "Chiudi tutto": "Close all",
