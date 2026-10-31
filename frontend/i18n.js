@@ -258,6 +258,8 @@ const EN = {
   "Fatto": "Done",
   "es. 4": "e.g. 4",
   "Aggregati": "Aggregated",
+  "Categorie precedenti": "Previous categories",
+  "Altre categorie": "More categories",
   "Trascina per ridimensionare · doppio clic per ripristinare": "Drag to resize · double-click to reset",
   "Fill singoli": "Single fills",
   "{n} fill": "{n} fills",

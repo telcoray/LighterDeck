@@ -354,7 +354,15 @@ tr:hover .open-btn { color: var(--green); }
 .pk-sort select { width: auto; padding: 3px 6px; font-size: 11px; }
 .pk-sort button { width: 24px; height: 24px; border: 1px solid var(--line-2); border-radius: 4px; color: var(--text-2); }
 #pkViews button { display: grid; place-items: center; }
-.pk-cats { display: flex; gap: 4px; padding: 8px 12px; border-bottom: 1px solid var(--line); overflow-x: auto; scrollbar-width: none; }
+.pk-cats-wrap { position: relative; border-bottom: 1px solid var(--line); }
+.pk-cats { display: flex; gap: 4px; padding: 8px 12px; overflow-x: auto; scrollbar-width: none; scroll-behavior: smooth; }
+/* arrows over the ends of the category row, with a fade so the cut-off button reads as "more" */
+.pk-arrow { position: absolute; top: 0; bottom: 0; width: 44px; display: flex; align-items: center; color: var(--text-2); z-index: 1; }
+.pk-arrow.left { left: 0; justify-content: flex-start; padding-left: 8px; background: linear-gradient(90deg, var(--surface) 55%, transparent); }
+.pk-arrow.right { right: 0; justify-content: flex-end; padding-right: 8px; background: linear-gradient(270deg, var(--surface) 55%, transparent); }
+.pk-arrow svg { box-sizing: content-box; padding: 5px; border: 1px solid var(--line-2); border-radius: 4px; background: var(--raised); }
+.pk-arrow:hover { color: var(--text); }
+.pk-arrow:hover svg { border-color: var(--line-3); }
 .pk-cats button { flex: none; height: 24px; padding: 0 9px; border-radius: 4px; color: var(--muted); font-size: 11px; }
 .pk-cats button:hover { color: var(--text); }
 .pk-cats button.active { background: var(--raised); color: var(--text); box-shadow: inset 0 0 0 1px var(--line-2); }

@@ -65,6 +65,7 @@ function renderPickerChrome() {
   if (pk.cat && !cats.some(([k]) => k === pk.cat)) pk.cat = "";
   $("#pkCats").innerHTML = `<button data-cat="" class="${pk.cat ? "" : "active"}">${t("Tutte")}</button>` +
     cats.map(([k, label]) => `<button data-cat="${k}" class="${pk.cat === k ? "active" : ""}">${t(label)}</button>`).join("");
+  requestAnimationFrame(updateCatArrows);
   $("#pkRecents").innerHTML = recents.filter((s) => bySymbol[s]).map((s) =>
     `<span class="chip" data-sym="${s}">${ico(s, "sm")}${esc(s)}<button data-unrecent="${s}" title="${t("Rimuovi")}">×</button></span>`).join("");
   $("#pkRecentsRow").classList.toggle("hidden", !recents.some((s) => bySymbol[s]));
@@ -123,6 +124,18 @@ function placePicker() {
   box.style.top = anchor.bottom + 6 + "px";
   box.style.width = narrow ? `calc(100vw - 16px)` : Math.min(940, innerWidth - anchor.left - 16) + "px";
   box.style.maxHeight = innerHeight - anchor.bottom - 20 + "px";
+}
+
+// arrows appear only on the side that has hidden categories
+function updateCatArrows() {
+  const row = $("#pkCats"), end = row.scrollWidth - row.clientWidth;
+  $("#pkCatsLeft").classList.toggle("hidden", row.scrollLeft <= 2);
+  $("#pkCatsRight").classList.toggle("hidden", row.scrollLeft >= end - 2);
+}
+
+function scrollCats(dir) {
+  const row = $("#pkCats");
+  row.scrollLeft += dir * Math.max(120, row.clientWidth * 0.7);
 }
 
 function openPalette() {
@@ -218,7 +231,10 @@ function moveSel(d) {
     renderPicker();
   });
   $("#pkDir").addEventListener("click", () => { pk.sort.dir *= -1; store("pk.sort", pk.sort); renderPicker(); });
+  $("#pkCats").addEventListener("scroll", updateCatArrows);
+  $("#pkCatsLeft").addEventListener("click", () => scrollCats(-1));
+  $("#pkCatsRight").addEventListener("click", () => scrollCats(1));
   $("#pkCats").addEventListener("wheel", (e) => { if (e.deltaY) { e.currentTarget.scrollLeft += e.deltaY; e.preventDefault(); } }, { passive: false });
-  addEventListener("resize", () => { if (!$("#picker").classList.contains("hidden")) placePicker(); });
+  addEventListener("resize", () => { if (!$("#picker").classList.contains("hidden")) { placePicker(); updateCatArrows(); } });
   fillPickerSorts();
 })();
