@@ -210,6 +210,9 @@ class Panel {
     this.data.set(this.last.time, this.last);
     this.series.update(this.last);
     if (!this.hover) this.renderLegend();
+    const s = stops[m.id];
+    if (this.stopLine && s && s.stop) this.stopLine.applyOptions({ title: this.stopTitle(s) });
+    if (this.markLine && p.mark) this.markLine.applyOptions({ price: p.mark });
   }
 
   drawMarkers() {
@@ -221,6 +224,7 @@ class Panel {
       const t = barStart(this.cfg.tf, e.ts);
       bars.set(t, (bars.get(t) || []).concat(e));
     }
+    if (!chartEls.events) bars.clear();
     this.eventBars = bars;
     const markers = [...bars.entries()].sort((a, b) => a[0] - b[0]).map(([time]) => ({
       time, position: "belowBar", shape: "circle", size: 0.4, color: "rgba(232,177,74,.8)",
@@ -259,21 +263,72 @@ class Panel {
     tip.style.top = Math.max(6, y) + "px";
   }
 
+  // price lines picked in the Chart elements menu: position, liquidation, open orders, managed stop, mark
   drawLines() {
     for (const l of this.lines) this.series.removePriceLine(l);
     this.lines = [];
+    this.stopLine = this.markLine = null;
     const m = this.market;
-    const pos = account && m && account.positions.find((p) => p.market_id === m.id);
-    if (!pos) return;
-    const side = pos.size > 0 ? "LONG" : "SHORT";
-    this.lines.push(this.series.createPriceLine({ price: pos.entry, color: "#6aa8ff", lineStyle: 2, lineWidth: 1, title: `${side} ${fsize(pos.size, m)}` }));
-    if (pos.liq) this.lines.push(this.series.createPriceLine({ price: pos.liq, color: C.red, lineStyle: 1, lineWidth: 1, title: "LIQ" }));
+    if (!m) return;
+    const add = (o) => { const l = this.series.createPriceLine({ lineWidth: 1, lineStyle: 0, ...o }); this.lines.push(l); return l; };
+    const pos = account && account.positions.find((p) => p.market_id === m.id);
+    const s = pos && stops[m.id];
+    if (pos && chartEls.position) add({ price: pos.entry, color: cssVar("--blue"), lineStyle: 2, title: `${pos.size > 0 ? "LONG" : "SHORT"} ${fsize(pos.size, m)}` });
+    if (pos && pos.liq && chartEls.liq) add({ price: pos.liq, color: C.red, lineStyle: 1, title: "LIQ" });
+    if (chartEls.orders) {
+      const tick = 10 ** -decimals(m);
+      for (const o of openOrders[m.id] || []) {
+        const kind = orderKind(o);
+        // the managed stop's own order is drawn by the stop line below
+        if (chartEls.stop && s && s.stop && kind === "SL" && Math.abs(o.trigger_price - s.stop) < tick * 1.5) continue;
+        add({ price: o.trigger_price || o.price, color: kind === "SL" ? C.red : kind === "TP" ? C.green : cssVar("--text-2"),
+          lineStyle: kind === "LIMIT" ? 0 : 2, title: `${kind} ${fsize(o.remaining, m)}` });
+      }
+    }
+    if (pos && s && chartEls.stop) {
+      const dir = Math.sign(pos.size), amber = cssVar("--amber");
+      if (s.stop) this.stopLine = add({ price: s.stop, color: amber, lineWidth: 2, title: this.stopTitle(s) });
+      else if (s.trail_activate_pct) add({ price: pos.entry * (1 + dir * s.trail_activate_pct / 100), color: amber, lineStyle: 2, title: t("trailing da qui") });
+      if (s.breakeven_at_pct && (!s.stop || (s.stop - pos.entry) * dir < 0)) add({ price: pos.entry * (1 + dir * s.breakeven_at_pct / 100), color: amber, lineStyle: 3, title: "BE" });
+    }
+    const q = prices[m.id];
+    if (chartEls.mark && q && q.mark) this.markLine = add({ price: q.mark, color: cssVar("--muted"), lineStyle: 3, title: "MARK" });
+  }
+
+  // "TRAIL 1% · 0.84%": distance and current gap between the price and the managed stop
+  stopTitle(s) {
+    const q = prices[this.market.id], px = q && (q.last || q.mark);
+    const gap = px ? ` · ${(Math.abs(px - s.stop) / px * 100).toFixed(2)}%` : "";
+    return `${!info.armed || !s.enabled ? "OFF " : ""}TRAIL ${trailLabel(s, this.market)}${gap}`;
   }
 
   destroy() { this.chart.remove(); this.el.remove(); }
 }
 
 function savePanels() { store("panels", panelCfg); }
+
+// ---------- Chart elements menu: which lines and marks every chart draws ----------
+const CHART_ELEMENTS = [
+  ["orders", "Linee ordini"], ["stop", "Stop gestito"], ["position", "Linea posizione"],
+  ["liq", "Prezzo di liquidazione"], ["mark", "Linea prezzo mark"], ["events", "Eventi macro"],
+];
+let chartEls = { orders: true, stop: true, position: true, liq: true, mark: false, events: true, ...load("chartEls", {}) };
+let openOrders = {}; // market id -> open orders on Lighter, shared by the chart lines and the Orders tab
+const orderKind = (o) => (/stop/i.test(o.type) ? "SL" : /take/i.test(o.type) ? "TP" : "LIMIT");
+
+function renderChartEls() {
+  $("#elMenu").innerHTML = `<div class="caps muted">${t("Elementi del grafico")}</div>` +
+    CHART_ELEMENTS.map(([k, name]) => `<button data-el="${k}" class="${chartEls[k] ? "on" : ""}"><span>${t(name)}</span><i>✓</i></button>`).join("") +
+    (info.trading ? "" : `<p class="hint">${t("Ordini e stop gestito compaiono con un'API key collegata.")}</p>`);
+}
+
+function toggleChartEl(k) {
+  chartEls[k] = !chartEls[k];
+  store("chartEls", chartEls);
+  renderChartEls();
+  panels.forEach((p) => { p.drawLines(); p.drawMarkers(); });
+  if (k === "orders" && chartEls.orders) fetchOpenOrders().catch(() => {});
+}
 
 // ---------- timeframe toolbar + "More" menu ----------
 function setTf(tf) {
@@ -349,6 +404,7 @@ function setSymbol(sym) {
   savePanels();
   panels[activeIdx] && panels[activeIdx].load();
   setActive(activeIdx);
+  if (chartEls.orders && info.trading) fetchOpenOrders().catch(() => {});
 }
 
 // ================= market bar / ticker =================
@@ -663,6 +719,7 @@ async function executeTicket() {
     const r = await api("/order", { method: "POST", body: JSON.stringify(body) });
     ticketMsg(t("Eseguito: {side} {size} {sym}. Controlla posizioni e ordini per i fill.", { side: ticket.side, size: r.size, sym: m.symbol })
       + (body.trail && !r.armed ? " " + t("Trailing impostato: parte quando attivi Auto.") : ""), "ok");
+    loadOrders(true);
   } catch (e) {
     ticketMsg(e.message, "err");
   } finally {
@@ -712,11 +769,21 @@ function renderPositions() {
     }).join("")}</tbody></table>`;
 }
 
-async function loadOrders() {
-  const box = $("#btab-orders");
-  if (!info.trading) { box.innerHTML = `<div class="empty">${t("Sola lettura.")}</div>`; return; }
+// open orders on the markets in use (positions + charts); fresh skips the server's few-second cache
+async function fetchOpenOrders(fresh = false) {
+  if (!info.trading) { openOrders = {}; panels.forEach((p) => p.drawLines()); return []; }
   const ids = new Set([...(account ? account.positions.map((p) => p.market_id) : []), ...panelCfg.map((c) => bySymbol[c.symbol] && bySymbol[c.symbol].id)].filter((x) => x !== undefined));
-  const orders = await api(`/open_orders?market_ids=${[...ids].join(",")}`).catch((e) => { box.innerHTML = `<div class="empty">${esc(e.message)}</div>`; return null; });
+  const list = await api(`/open_orders?market_ids=${[...ids].join(",")}${fresh ? "&fresh=1" : ""}`);
+  openOrders = {};
+  for (const o of list) (openOrders[o.market_id] ||= []).push(o);
+  panels.forEach((p) => p.drawLines());
+  return list;
+}
+
+async function loadOrders(fresh = false) {
+  const box = $("#btab-orders");
+  if (!info.trading) { box.innerHTML = `<div class="empty">${t("Sola lettura.")}</div>`; fetchOpenOrders(); return; }
+  const orders = await fetchOpenOrders(fresh).catch((e) => { box.innerHTML = `<div class="empty">${esc(e.message)}</div>`; return null; });
   if (!orders) return;
   if (!orders.length) { box.innerHTML = `<div class="empty">${t("Nessun ordine aperto sui mercati in uso.")}</div>`; return; }
   box.innerHTML = `<table class="table"><thead><tr><th>${t("Mercato")}</th><th>${t("Tipo")}</th><th>${t("Lato")}</th><th class="r">${t("Prezzo")}</th><th class="r">Trigger</th><th class="r">${t("Size residua")}</th><th>Reduce only</th><th></th></tr></thead><tbody>${
@@ -1041,7 +1108,14 @@ function wire() {
     }
   };
   $("#tfReset").onclick = (e) => { e.stopPropagation(); shownTfs = [...DEFAULT_TFS]; store("tfs", shownTfs); renderTfs(); };
-  document.addEventListener("click", () => toggleTfMenu(false));
+  document.addEventListener("click", () => { toggleTfMenu(false); $("#elMenu").classList.add("hidden"); });
+  $("#elBtn").onclick = (e) => {
+    e.stopPropagation();
+    const menu = $("#elMenu");
+    menu.classList.toggle("hidden");
+    if (!menu.classList.contains("hidden")) renderChartEls();
+  };
+  $("#elMenu").onclick = (e) => { e.stopPropagation(); const b = e.target.closest("[data-el]"); if (b) toggleChartEl(b.dataset.el); };
   $$("#layouts button").forEach((b) => (b.onclick = () => { layout = b.dataset.layout; store("layout", layout); buildCharts(); }));
   $("#obToggle").onclick = () => toggleBook(!showBook);
   $("#mktSelect").onclick = () => ($("#picker").classList.contains("hidden") ? openPalette() : closePalette());
@@ -1112,7 +1186,7 @@ function wire() {
     const b = e.target.closest("[data-cancel]");
     if (!b) return;
     const [mid, oi] = b.dataset.cancel.split(":");
-    try { await api(`/cancel_order?market_id=${mid}&order_index=${oi}`, { method: "POST" }); toast(t("Ordine annullato")); loadOrders(); } catch (err) { toast(err.message, true); }
+    try { await api(`/cancel_order?market_id=${mid}&order_index=${oi}`, { method: "POST" }); toast(t("Ordine annullato")); loadOrders(true); } catch (err) { toast(err.message, true); }
   };
 
   // calendar
@@ -1409,7 +1483,7 @@ function credentialsChanged(newInfo) {
   account = null;
   renderArmed(info.armed);
   renderAccount();
-  loadOrders();
+  loadOrders(true);
 }
 
 function wireKeyDialog() {
@@ -1502,7 +1576,8 @@ function rerenderLanguage() {
   renderEventSelect();
   loadRules();
   renderMarkets();
-  panels.forEach((p) => { p.ttlFor = null; p.renderLegend(); });
+  panels.forEach((p) => { p.ttlFor = null; p.renderLegend(); p.drawLines(); });
+  if (!$("#elMenu").classList.contains("hidden")) renderChartEls();
   fillPickerSorts();
   if (!$("#picker").classList.contains("hidden")) renderPicker();
   if (!$("#btab-orders").classList.contains("hidden")) loadOrders();
@@ -1559,12 +1634,18 @@ async function init() {
   api("/logs").then(addLogs).catch(() => {});
   for (const box of [$("#btab-log"), $("#activityLog")]) if (!box.children.length) box.innerHTML = `<div class="empty">${t("Nessuna attività.")}</div>`;
   connect();
+  if (chartEls.orders) fetchOpenOrders().catch(() => {});
 
   setInterval(clock, 250);
   setInterval(renderSessions, 30 * 1000);
   setInterval(renderEcon, 60 * 1000);
   setInterval(renderBook, 200); // the stream updates ~20x/s; redraw at most 5x/s
-  setInterval(() => { if (!$("#btab-orders").classList.contains("hidden")) loadOrders(); }, 5000);
+  // the Orders tab refreshes every 5 s; with the tab closed the chart lines refresh every 10 s
+  let orderPolls = 0;
+  setInterval(() => {
+    if (!$("#btab-orders").classList.contains("hidden")) loadOrders();
+    else if (chartEls.orders && info.trading && ++orderPolls % 2 === 0) fetchOpenOrders().catch(() => {});
+  }, 5000);
   setInterval(loadCalendar, 10 * 60 * 1000);
   setInterval(() => panels.forEach((p) => p.load()), 15 * 60 * 1000);
 }

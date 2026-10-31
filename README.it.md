@@ -10,7 +10,7 @@ Terminale di trading personale per i perpetual di Lighter (lighter.xyz), con aut
 
 | Area | Cosa c'è |
 | --- | --- |
-| Grafici | 1, 2 o 4 grafici (affiancati o sovrapposti), legenda OHLC, volumi, linee di entry e liquidazione, eventi macro sul grafico |
+| Grafici | 1, 2 o 4 grafici (affiancati o sovrapposti), legenda OHLC, volumi, linee di entry, liquidazione, ordini aperti (SL/TP/limit) e dello stop gestito che si muove sul grafico, prezzo mark, eventi macro; ognuno si accende o spegne da **Elementi** |
 | Mercati | Prezzi live di tutti i perpetual, mark/index, funding, open interest, order book con spread, preferiti |
 | Ordini | Market e limit, post-only, reduce-only, slippage in bps, size in USD / quantità / % capitale / rischio $ allo stop |
 | Protezione | SL/TP nativi inviati insieme all'entrata (OTO/OTOCO), chiusura parziale 25/50/75/100%, leva e cross/isolated |

@@ -484,6 +484,15 @@ kbd { font-family: var(--mono); font-size: 9.5px; border: 1px solid var(--line-2
 .tf-shown button.on { background: var(--raised); border-color: var(--line-2); color: var(--text); }
 .tf-shown button.on i { visibility: visible; color: var(--green); }
 .tf-menu .hint { margin: 10px 0 0; }
+/* Chart elements menu: one row per line or mark, tick when shown */
+.el-menu { left: auto; right: 0; width: 230px; padding: 8px; }
+.el-menu .caps { padding: 2px 8px 6px; }
+.el-menu button { display: flex; align-items: center; justify-content: space-between; width: 100%; height: 32px; padding: 0 8px; border-radius: 6px; color: var(--muted); font-size: 12.5px; }
+.el-menu button:hover { background: var(--raised); color: var(--text); }
+.el-menu button.on { color: var(--text); }
+.el-menu button i { font-style: normal; font-size: 11px; color: var(--green); visibility: hidden; }
+.el-menu button.on i { visibility: visible; }
+.el-menu .hint { margin: 6px 8px 2px; }
 
 /* ticket estimates */
 .field.sm { position: relative; }

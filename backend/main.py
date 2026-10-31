@@ -117,11 +117,19 @@ async def get_calendar():
     return calendar.listing()
 
 
+ORDERS_TTL = 4  # seconds: chart lines and the Orders tab poll together without hammering Lighter
+_orders_cache = {}
+
+
 @app.get("/api/open_orders")
-async def open_orders(market_ids: str = ""):
+async def open_orders(market_ids: str = "", fresh: bool = False):
     out = []
+    now = asyncio.get_running_loop().time()
     for mid in {int(x) for x in market_ids.split(",") if x.strip().isdigit()}:
-        for o in await api.active_orders(mid):
+        hit = _orders_cache.get(mid)
+        if fresh or not hit or now - hit[0] > ORDERS_TTL:
+            hit = _orders_cache[mid] = (now, await api.active_orders(mid))
+        for o in hit[1]:
             out.append(dict(o, symbol=api.markets[mid].symbol if mid in api.markets else str(mid)))
     return out
 
