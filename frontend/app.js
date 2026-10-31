@@ -591,6 +591,42 @@ function toggleBook(v) {
   else if (book.ws) { book.ws.close(); book.market = null; }
 }
 
+// ================= confirm with a second click =================
+// Instead of the browser's confirm() dialog, a button that needs confirming changes its label on the
+// first click (e.g. "Confirm LONG WTI · $10,231") and acts on a second click within 4 seconds.
+// Anything else (Esc, a click elsewhere, editing the ticket, the timeout) puts it back.
+// Buttons carry data-ck="<key>"; tables that redraw call markConfirm() so the state survives.
+let pendingConfirm = null; // { key, text }
+const CONFIRM_MS = 4000;
+
+function askConfirm(key, text) {
+  if (pendingConfirm && pendingConfirm.key === key) { cancelConfirm(); return true; }
+  cancelConfirm();
+  pendingConfirm = { key, text };
+  markConfirm();
+  clearTimeout(askConfirm.timer);
+  askConfirm.timer = setTimeout(cancelConfirm, CONFIRM_MS);
+  return false;
+}
+
+function markConfirm() {
+  if (!pendingConfirm) return;
+  for (const el of $$(`[data-ck="${pendingConfirm.key}"]`)) {
+    if (!el.classList.contains("confirming")) el.dataset.ckText = el.textContent;
+    el.classList.add("confirming");
+    el.textContent = pendingConfirm.text;
+  }
+}
+
+function cancelConfirm() {
+  if (!pendingConfirm) return;
+  for (const el of $$(`[data-ck="${pendingConfirm.key}"]`)) {
+    el.classList.remove("confirming");
+    el.textContent = el.dataset.ckText;
+  }
+  pendingConfirm = null;
+}
+
 // ================= ticket =================
 function renderTicket() {
   const m = activeMarket();
@@ -619,6 +655,8 @@ function renderTicket() {
   const ex = $("#tkExec");
   ex.className = "execute" + (!info.trading ? " connect" : ticket.side === "sell" ? " sell" : "");
   ex.textContent = info.trading ? `${ticket.side === "buy" ? "Buy / Long" : "Sell / Short"} ${m.symbol}` : t("Sola lettura · collega un'API key");
+  ex.dataset.ckText = ex.textContent;
+  markConfirm();
   updateTicketSummary();
 }
 
@@ -756,7 +794,7 @@ async function executeTicket() {
   if (body.trail === null) return ticketMsg(t("Inserisci la distanza del trailing."), "err");
   const label = `${ticket.side === "buy" ? "LONG" : "SHORT"} ${m.symbol} · ${$("#tkNotional").textContent} · ${ticket.kind}`
     + (body.trail ? ` · trailing ${trailLabel(trailToStop(body.trail), m)}` : "");
-  if (!confirm(`${t("Confermi l'ordine?")}\n\n${label}`)) return;
+  if (!askConfirm("order", `${t("Conferma")} ${label}`)) return;
   const btn = $("#tkExec");
   btn.disabled = true;
   try {
@@ -812,8 +850,9 @@ function renderPositions() {
         <td class="r ${p.size > 0 ? "up" : "down"}">${fsize(p.size, m)}</td><td class="r main">${fusd(p.value)}</td><td class="r">${fp(p.entry, m)}</td><td class="r main">${fp(mark, m)}</td>
         <td class="r liq">${fp(p.liq, m)}</td><td class="r pnl ${cls(p.upnl)}">${fusd(p.upnl)}<small>${isFinite(pct) ? fpct(pct) : ""}</small></td>
         <td>${trailButton(p.market_id, m)}</td>
-        <td><span class="qbtn">${[25, 50, 75, 100].map((f) => `<button data-close="${p.market_id}" data-f="${f}">${f}%</button>`).join("")}</span></td></tr>`;
+        <td><span class="qbtn">${[25, 50, 75, 100].map((f) => `<button data-close="${p.market_id}" data-f="${f}"${f === 100 ? ` data-ck="close:${p.market_id}"` : ""}>${f}%</button>`).join("")}</span></td></tr>`;
     }).join("")}</tbody></table>`;
+  markConfirm();
 }
 
 // open orders on the markets in use (positions + charts); fresh skips the server's few-second cache
@@ -1023,7 +1062,7 @@ async function loadRules() {
     const when = r.event_ts ? new Date(r.event_ts * 1000).toLocaleString(LOCALE, { weekday: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) + " · " : "";
     return `<div class="rule"><div class="top"><span>${esc(r.description)}</span><span class="badge ${esc(r.status || "")}">${esc(status)}</span></div>
       <div class="sub">${when}${r.enabled ? t("attiva") : t("in pausa")}${r.note ? " · " + esc(r.note) : ""}</div>
-      <div class="actions"><button data-toggle="${r.id}" data-en="${r.enabled ? 1 : 0}">${r.enabled ? t("Pausa") : t("Riattiva")}</button><button data-del="${r.id}">${t("Elimina")}</button></div></div>`;
+      <div class="actions"><button data-toggle="${r.id}" data-en="${r.enabled ? 1 : 0}">${r.enabled ? t("Pausa") : t("Riattiva")}</button><button data-del="${r.id}" data-ck="del:${r.id}">${t("Elimina")}</button></div></div>`;
   }).join("");
 }
 
@@ -1074,6 +1113,8 @@ function renderArmed(armed) {
   const b = $("#armedBtn");
   b.classList.toggle("on", armed);
   $("span", b).textContent = armed ? "Auto ON" : "Auto OFF";
+  $("span", b).dataset.ck = "armed";
+  markConfirm();
   $("#autoState").textContent = armed ? t("Le automazioni sono attive: il server può inviare ordini.") : t("Interruttore generale spento: nessuna regola invia ordini.");
   // trailing controls say whether they're running
   if (account) renderPositions();
@@ -1240,7 +1281,7 @@ function wire() {
     const b = e.target.closest("[data-close]");
     if (!b) return;
     const mid = +b.dataset.close, f = +b.dataset.f;
-    if (f === 100 && !confirm(t("Chiudere tutta la posizione {sym} a mercato?", { sym: byId[mid].symbol }))) return;
+    if (f === 100 && !askConfirm(`close:${mid}`, t("Chiudi tutto"))) return;
     try { await api(`/close?market_id=${mid}&fraction=${f / 100}`, { method: "POST" }); toast(t("Chiusura {f}% inviata", { f })); } catch (err) { toast(err.message, true); }
   };
   $("#btab-orders").onclick = async (e) => {
@@ -1279,10 +1320,17 @@ function wire() {
     if (tr) { setSymbol(tr.dataset.sym); switchView("trade"); }
   };
 
+  // a pending confirm goes away with Esc, a click on anything else, or a change in the ticket
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") cancelConfirm(); });
+  document.addEventListener("mousedown", (e) => {
+    if (pendingConfirm && !e.target.closest(`[data-ck="${pendingConfirm.key}"], #armedBtn`)) cancelConfirm();
+  });
+  for (const ev of ["input", "change"]) $(".ticket").addEventListener(ev, () => { if (pendingConfirm && pendingConfirm.key === "order") cancelConfirm(); });
+
   // automations
   $("#armedBtn").onclick = async () => {
     const next = !info.armed;
-    if (next && !confirm(t("Attivare le automazioni?\n\nDa ora il server può inviare ordini reali secondo le regole."))) return;
+    if (next && !askConfirm("armed", t("Conferma Auto ON"))) return;
     try { const r = await api(`/armed?armed=${next}`, { method: "POST" }); renderArmed(r.armed); } catch (e) { toast(e.message, true); }
   };
   $("#modeSelect").onchange = (e) => {
@@ -1300,7 +1348,11 @@ function wire() {
   $("#rules").onclick = async (e) => {
     const tog = e.target.closest("[data-toggle]"), d = e.target.closest("[data-del]");
     if (tog) await api(`/rules/${tog.dataset.toggle}`, { method: "PATCH", body: JSON.stringify({ enabled: tog.dataset.en !== "1" }) });
-    if (d && confirm(t("Eliminare la regola?\nUn ordine stop già piazzato resta su Lighter."))) await api(`/rules/${d.dataset.del}`, { method: "DELETE" });
+    if (d && !askConfirm(`del:${d.dataset.del}`, t("Conferma"))) return;
+    if (d) {
+      await api(`/rules/${d.dataset.del}`, { method: "DELETE" });
+      toast(t("Regola eliminata: un ordine stop già piazzato resta su Lighter."));
+    }
     if (tog || d) loadRules();
   };
 }
