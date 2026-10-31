@@ -285,7 +285,12 @@ async def delete_trail(market_id: int):
 
 @app.get("/api/limits")
 async def get_limits():
-    return {"limits": risk.limits, "hard_cap_usd": config.MAX_NOTIONAL_USD, "daily_pnl": await risk.daily_pnl()}
+    risk.convert_usd_limits(engine.account)
+    equity = (engine.account or {}).get("total_value")
+    daily = await risk.daily_pnl()
+    # what each % is worth right now (the daily loss is measured on the equity at 00:00 UTC)
+    return {"limits": risk.limits, "hard_cap_usd": config.MAX_NOTIONAL_USD, "daily_pnl": daily,
+            "equity": equity, "day_start_equity": equity - daily if equity and daily is not None else equity}
 
 
 @app.patch("/api/limits")

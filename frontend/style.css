@@ -272,6 +272,7 @@ body.resizing { cursor: row-resize; user-select: none; }
 .field select { text-align: left; font-family: var(--ui); }
 .field .unit { flex: none; padding-right: 10px; color: var(--muted); font-size: 11px; }
 .field .unit.link { color: var(--green); }
+.field .unit .eq { font-style: normal; font-family: var(--mono); color: var(--faint); }
 .field.sm { flex-direction: column; align-items: stretch; }
 .field.sm label { padding: 7px 10px 0; font-size: 10px; }
 .field.sm input { text-align: left; padding: 3px 10px 8px; }

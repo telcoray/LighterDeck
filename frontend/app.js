@@ -783,7 +783,8 @@ function renderAccount() {
   const u = $("#accUpnl");
   u.textContent = has ? fusd(upnl) : "—";
   u.className = has ? cls(upnl) : "";
-  $("#accLimit").textContent = info.limits ? fusd(info.limits.per_order_usd, 0) : "—";
+  const perOrder = info.limits && info.limits.per_order_pct;
+  $("#accLimit").textContent = perOrder ? `${perOrder}%${has ? " · " + fusd((account.total_value * perOrder) / 100, 0) : ""}` : "—";
   const pill = $("#accountPill");
   pill.innerHTML = info.trading ? `<i class="dot"></i><span>${t("Account #{n}", { n: info.account_index })}</span>` : `<i class="dot off"></i><span>${t("Sola lettura")}</span>`;
   pill.classList.toggle("muted", !info.trading);
@@ -1029,6 +1030,7 @@ async function loadRules() {
 async function loadLimits() {
   const r = await api("/limits").catch(() => null);
   if (!r) return;
+  loadLimits.last = r;
   const f = $("#limitsForm");
   for (const [k, v] of Object.entries(r.limits)) {
     const el = f.elements[k];
@@ -1039,6 +1041,18 @@ async function loadLimits() {
   $("#hardCap").textContent = t("Tetto fisso del server: ${cap} per ordine (MAX_NOTIONAL_USD). Le automazioni rispettano gli stessi limiti.", { cap: r.hard_cap_usd.toLocaleString("en-US") });
   $("#dailyPnl").textContent = info.trading ? (r.daily_pnl === null ? t("PnL di oggi non disponibile") : t("PnL di oggi {pnl}", { pnl: fusd(r.daily_pnl) })) : "";
   info.limits = { ...info.limits, ...r.limits };
+  renderLimitValues();
+  renderAccount();
+}
+
+// next to each % limit: what it is worth in dollars right now
+function renderLimitValues() {
+  const r = loadLimits.last;
+  for (const el of $$("#limitsForm [data-eq]")) {
+    const base = r && (el.dataset.eq === "daily_loss_pct" ? r.day_start_equity : r.equity);
+    const pct = +$("#limitsForm").elements[el.dataset.eq].value;
+    el.textContent = base && pct > 0 ? ` ≈ ${fusd((base * pct) / 100, 0)}` : "";
+  }
 }
 
 let levCross = true;
@@ -1208,6 +1222,7 @@ function wire() {
       $("#levBox").classList.add("hidden");
     } catch (e) { toast(e.message, true); }
   };
+  $("#limitsForm").oninput = renderLimitValues;
   $("#limitsForm").onsubmit = async (e) => {
     e.preventDefault();
     const patch = {};

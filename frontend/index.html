@@ -23,7 +23,7 @@
 </script>
 <style>html.i18n-pending body { visibility: hidden; }</style>
 <link rel="icon" href="favicon.svg?v=1" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=43">
+<link rel="stylesheet" href="style.css?v=44">
 <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
 </head>
 <body>
@@ -303,12 +303,12 @@
           <div class="card-head"><b>Limiti di rischio</b><span class="muted" id="dailyPnl"></span></div>
           <form id="limitsForm" class="form">
             <div class="two">
-              <div class="field"><label>Max per ordine</label><input name="per_order_usd" type="number" step="1"><span class="unit">USD</span></div>
-              <div class="field"><label>Max per mercato</label><input name="per_market_usd" type="number" step="1"><span class="unit">USD</span></div>
+              <div class="field"><label>Max per ordine</label><input name="per_order_pct" type="number" step="0.1" min="0.1"><span class="unit">%<em class="eq" data-eq="per_order_pct"></em></span></div>
+              <div class="field"><label>Max per mercato</label><input name="per_market_pct" type="number" step="0.1" min="0.1"><span class="unit">%<em class="eq" data-eq="per_market_pct"></em></span></div>
             </div>
             <div class="two">
-              <div class="field"><label>Esposizione totale</label><input name="total_exposure_usd" type="number" step="1"><span class="unit">USD</span></div>
-              <div class="field"><label>Perdita giornaliera</label><input name="daily_loss_usd" type="number" step="1"><span class="unit">USD</span></div>
+              <div class="field"><label>Esposizione totale</label><input name="total_exposure_pct" type="number" step="0.1" min="0.1"><span class="unit">%<em class="eq" data-eq="total_exposure_pct"></em></span></div>
+              <div class="field"><label>Perdita giornaliera</label><input name="daily_loss_pct" type="number" step="0.1" min="0.1"><span class="unit">%<em class="eq" data-eq="daily_loss_pct"></em></span></div>
             </div>
             <div class="three">
               <div class="field"><label>Leva max</label><input name="leverage_cap" type="number" step="1"><span class="unit">x</span></div>
@@ -316,6 +316,7 @@
               <div class="field"><label>Slippage</label><input name="slippage_bps_cap" type="number" step="1"><span class="unit">bps</span></div>
             </div>
             <div class="checks"><label><input type="checkbox" name="stop_required"> Stop-loss obbligatorio su ogni nuova posizione</label></div>
+            <p class="hint">Ordini ed esposizione sono in % del capitale attuale, la perdita giornaliera in % del capitale alle 00:00 UTC (posizioni aperte incluse). Accanto vedi quanto valgono adesso.</p>
             <p class="hint" id="hardCap"></p>
             <button type="submit" class="primary">Salva limiti</button>
           </form>
@@ -427,9 +428,9 @@
 </div>
 
 <div class="toast hidden" id="toast"></div>
-<script src="i18n.js?v=43"></script>
-<script src="formulas.js?v=43"></script>
-<script src="app.js?v=43"></script>
-<script src="picker.js?v=43"></script>
+<script src="i18n.js?v=44"></script>
+<script src="formulas.js?v=44"></script>
+<script src="app.js?v=44"></script>
+<script src="picker.js?v=44"></script>
 </body>
 </html>

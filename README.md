@@ -14,7 +14,7 @@ A personal trading terminal for the perpetual futures on [Lighter](https://light
 | Markets | Live prices for every perpetual, mark/index, funding, open interest, order book with spread, market picker with search and categories |
 | Orders | Market and limit, post-only, reduce-only, slippage in bps, size in USD / quantity / % of equity / $ risk to the stop; limit price, SL, TP and trailing previewed on the chart while you fill in the ticket |
 | Protection | Native SL/TP sent together with the entry (OTO/OTOCO), partial close 25/50/75/100%, leverage and cross/isolated |
-| Risk | Limits per order, per market, total exposure, leverage, daily loss and number of positions; optional mandatory stop-loss; blocks reversals and stale prices |
+| Risk | Limits per order, per market and total exposure as a % of equity, daily loss as a % of the equity at 00:00 UTC (open positions included), leverage and number of positions; optional mandatory stop-loss; blocks reversals and stale prices |
 | Automations | Managed stop (initial, breakeven, trailing) and trades on macro events (at the release time or on a range breakout), with a kill switch |
 | Calendar | This week's economic events (Forex Factory), official Fed meetings, opening hours of the main exchanges |
 | Look | Four themes, English and Italian, layout that works in narrow windows and on phones |

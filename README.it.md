@@ -14,7 +14,7 @@ Terminale di trading personale per i perpetual di Lighter (lighter.xyz), con aut
 | Mercati | Prezzi live di tutti i perpetual, mark/index, funding, open interest, order book con spread, preferiti |
 | Ordini | Market e limit, post-only, reduce-only, slippage in bps, size in USD / quantità / % capitale / rischio $ allo stop; prezzo limite, SL, TP e trailing in anteprima sul grafico mentre compili il ticket |
 | Protezione | SL/TP nativi inviati insieme all'entrata (OTO/OTOCO), chiusura parziale 25/50/75/100%, leva e cross/isolated |
-| Rischio | Limiti per ordine, mercato, esposizione totale, leva, perdita giornaliera, numero posizioni; stop-loss obbligatorio; blocco inversioni e dati non aggiornati |
+| Rischio | Limiti per ordine, mercato ed esposizione totale in % del capitale, perdita giornaliera in % del capitale alle 00:00 UTC (posizioni aperte incluse), leva, numero posizioni; stop-loss obbligatorio; blocco inversioni e dati non aggiornati |
 | Automazioni | Stop gestito (iniziale, breakeven, trailing) e trade su eventi macro (orario o breakout del range), con kill switch |
 | Calendario | Eventi economici della settimana (Forex Factory), riunioni Fed ufficiali, aperture delle principali borse |
 
