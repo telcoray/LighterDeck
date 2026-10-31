@@ -141,7 +141,8 @@ async def orderbook(market_id: int):
 
 @app.get("/api/trades")
 async def trades():
-    return await api.trades()
+    positions = {p["market_id"]: p["size"] for p in (engine.account or {}).get("positions", [])}
+    return await api.trades(positions=positions)
 
 
 # ---------- manual trading ----------

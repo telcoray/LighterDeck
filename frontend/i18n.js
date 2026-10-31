@@ -300,6 +300,7 @@ const EN = {
   "trailing da qui": "trailing from here",
   "Anteprima ticket": "Ticket preview",
   "LIQ stimata": "Est. LIQ",
+  "Calcolato da LighterDeck dal prezzo medio di entrata: commissioni e funding esclusi. — per i fill che aprono o aumentano la posizione.": "Worked out by LighterDeck from the average entry price, before fees and funding. — for fills that open or add to the position.",
   "Ordini ed esposizione sono in % del capitale attuale, la perdita giornaliera in % del capitale alle 00:00 UTC (posizioni aperte incluse). Accanto vedi quanto valgono adesso.": "Orders and exposure are a % of current equity, the daily loss a % of equity at 00:00 UTC (open positions included). Next to each one is what it is worth right now.",
   "Prendi l'indirizzo dal wallet del browser (solo lettura, nessuna firma)": "Take the address from your browser wallet (read-only, no signature)",
   "Il wallet non ha condiviso nessun indirizzo": "The wallet didn't share an address",

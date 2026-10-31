@@ -11,6 +11,7 @@ Today every perp has multiplier 1, so both are the same number.
 """
 import asyncio
 import logging
+import math
 import time
 
 import aiohttp
@@ -19,6 +20,30 @@ import candles as candles_mod
 import config
 
 log = logging.getLogger("lighter")
+
+
+def realized_pnl(fills, positions):
+    """Realized PnL of each fill (None for fills that only open or add), in USD, before fees and funding.
+
+    Lighter's fills stopped carrying their PnL, but each still has the position size and entry
+    value (avg entry x size) just before it. The size has no sign, so the direction is found by
+    walking back from the current positions: newest fill first, position before = after - side x size.
+    `fills` are newest first in real units; `positions` maps market id -> signed real size now."""
+    after = dict(positions)
+    out = []
+    for f in fills:
+        side, size, before = f["side"], f["size"], f["before"]
+        signed = after.get(f["market_id"], 0.0) - side * size
+        if abs(abs(signed) - before) > max(1e-9, before * 1e-6):  # chain broken (page edge, fill racing the account)
+            signed = math.copysign(before, signed or -side)
+        after[f["market_id"]] = signed
+        if f["self_trade"] or before <= 0 or signed * side > 0:  # opens or adds to the position
+            out.append(None)
+            continue
+        closed = min(size, before)  # a flip closes the old position, the rest opens a new one
+        entry = f["entry_quote"] / before
+        out.append(round((1 if signed > 0 else -1) * closed * (f["price"] - entry), 6))
+    return out
 
 
 class Market:
@@ -276,26 +301,38 @@ class LighterAPI:
         return {"asks": levels(data.get("asks", []), False), "bids": levels(data.get("bids", []), True),
                 "ts": time.time()}
 
-    async def trades(self, limit=100):
+    async def trades(self, limit=100, positions=None):
+        """Recent fills, newest first. `positions` ({market_id: signed display size}) anchors the
+        realized PnL worked out by realized_pnl()."""
         if not self.signer:
             return []
         data = await self._get("/api/v1/trades", {
             "account_index": config.ACCOUNT_INDEX, "sort_by": "timestamp", "limit": limit,
         }, headers={"authorization": await self._auth_token()})
-        out = []
+        out, fills = [], []
         for t in data.get("trades", []):
             is_buyer = t["bid_account_id"] == config.ACCOUNT_INDEX
             m = self.markets.get(t["market_id"])
             maker = t["is_maker_ask"] != is_buyer  # we were the ask and the ask was maker, or vice versa
+            role = "maker" if maker else "taker"
             out.append({
                 "ts": t["timestamp"], "market_id": t["market_id"], "symbol": m.symbol if m else str(t["market_id"]),
                 "order_id": t["bid_id"] if is_buyer else t["ask_id"],
                 "side": "buy" if is_buyer else "sell",
                 "size": m.disp_size(t["size"]) if m else float(t["size"]),
                 "price": m.disp_price(t["price"]) if m else float(t["price"]),
-                "usd": float(t["usd_amount"]), "role": "maker" if maker else "taker",
-                "pnl": float(t.get("bid_account_pnl" if is_buyer else "ask_account_pnl") or 0),
+                "usd": float(t["usd_amount"]), "role": role,
             })
+            fills.append({
+                "market_id": t["market_id"], "side": 1 if is_buyer else -1, "size": float(t["size"]),
+                "price": float(t["price"]), "before": float(t.get(f"{role}_position_size_before") or 0),
+                "entry_quote": float(t.get(f"{role}_entry_quote_before") or 0),
+                "self_trade": t["bid_account_id"] == t["ask_account_id"],
+            })
+        real_positions = {mid: size / self.markets[mid].multiplier if mid in self.markets else size
+                          for mid, size in (positions or {}).items()}
+        for row, pnl in zip(out, realized_pnl(fills, real_positions)):
+            row["pnl"] = pnl
         return out
 
     async def daily_pnl(self):

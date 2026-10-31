@@ -878,7 +878,7 @@ function renderTrades() {
   const time = (ts) => new Date(ts).toLocaleString(LOCALE, { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" });
   box.innerHTML = `<div class="btab-bar"><span class="muted">${split ? t("{n} fill", { n: fills.length }) : t("{n} ordini da {f} fill", { n: rows.length, f: fills.length })}</span>
     <div class="seg" id="tradesMode"><button data-split="0" class="${split ? "" : "active"}">${t("Aggregati")}</button><button data-split="1" class="${split ? "active" : ""}">${t("Fill singoli")}</button></div></div>
-    <table class="table"><thead><tr><th>${t("Ora")}</th><th>${t("Mercato")}</th><th>${t("Lato")}</th><th class="r">Size</th><th class="r">${split ? t("Prezzo") : t("Prezzo medio")}</th><th class="r">${t("Valore")}</th><th>${t("Ruolo")}</th><th class="r">${t("PnL realizzato")}</th></tr></thead><tbody>${
+    <table class="table"><thead><tr><th>${t("Ora")}</th><th>${t("Mercato")}</th><th>${t("Lato")}</th><th class="r">Size</th><th class="r">${split ? t("Prezzo") : t("Prezzo medio")}</th><th class="r">${t("Valore")}</th><th>${t("Ruolo")}</th><th class="r" title="${t("Calcolato da LighterDeck dal prezzo medio di entrata: commissioni e funding esclusi. — per i fill che aprono o aumentano la posizione.")}">${t("PnL realizzato")}</th></tr></thead><tbody>${
     rows.map((r) => {
       const m = byId[r.market_id];
       const count = !split && r.fills > 1 ? `<span class="fills" title="${t("Primo fill: {t}", { t: time(r.first) })}">${t("{n} fill", { n: r.fills })}</span>` : "";
