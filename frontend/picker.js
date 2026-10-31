@@ -49,8 +49,10 @@ function pickerRows() {
     const va = val(a), vb = val(b);
     return (va > vb ? 1 : va < vb ? -1 : 0) * pk.sort.dir;
   });
-  // a search ranks exact and prefix matches first
-  if (q) list.sort((a, b) => (b.symbol === q) - (a.symbol === q) || b.symbol.startsWith(q) - a.symbol.startsWith(q));
+  // favourites go on top in every tab and category (the sort is stable, so each group keeps its order);
+  // a search ranks exact and prefix matches before them
+  const fav = (m) => favs.includes(m.symbol);
+  list.sort((a, b) => (q ? (b.symbol === q) - (a.symbol === q) || b.symbol.startsWith(q) - a.symbol.startsWith(q) : 0) || fav(b) - fav(a));
   return list;
 }
 
