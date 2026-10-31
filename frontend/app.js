@@ -28,6 +28,7 @@ const THEMES = [
   { id: "ghiaccio", name: "Ghiaccio", note: "blu notte, testo azzurro ghiaccio" },
   { id: "grafite", name: "Grafite", note: "il tema originale, grigi neutri" },
   { id: "fosforo", name: "Fosforo", note: "sfondo grafite, testo verde da terminale" },
+  { id: "classic", name: "Classic", note: "i colori di Lighter" },
 ];
 const cssVar = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 

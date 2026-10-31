@@ -258,6 +258,7 @@ const EN = {
   "Fatto": "Done",
   "es. 4": "e.g. 4",
   "Aggregati": "Aggregated",
+  "i colori di Lighter": "Lighter's own colours",
   "Categorie precedenti": "Previous categories",
   "Altre categorie": "More categories",
   "Trascina per ridimensionare · doppio clic per ripristinare": "Drag to resize · double-click to reset",

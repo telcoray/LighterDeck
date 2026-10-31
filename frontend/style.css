@@ -51,6 +51,28 @@
   --faint: #34795e;
   --line-3: #294c3e;
 }
+/* Classic: Lighter's own palette (sampled from app.lighter.xyz) */
+:root[data-theme="classic"] {
+  --bg: #141318;
+  --surface: #19181e;
+  --raised: #1e1d24;
+  --hover: #1c1b22;
+  --line: #232228;
+  --line-2: #2b2a31;
+  --line-3: #3e3d45;
+  --chart-grid: #1b1a21;
+  --text: #e9e8ed;
+  --text-2: #b8b7bc;
+  --muted: #8f8f94;
+  --faint: #5c5b60;
+  --green: #26e7a1;
+  --green-ink: #05170f;
+  --green-soft: rgba(38, 231, 161, .1);
+  --red: #f1515e;
+  --red-soft: rgba(241, 81, 94, .1);
+  --amber: #eca64c;
+  --blue: #6b91cd;
+}
 /* Ghiaccio: cool blue-black with ice-blue text */
 :root[data-theme="ghiaccio"] {
   --bg: #07090c;
