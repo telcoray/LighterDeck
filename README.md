@@ -76,6 +76,8 @@ systemctl daemon-reload && systemctl enable --now lighterdeck
 - **Managed stop** (per market): initial stop at -X% from entry, breakeven once profit reaches
   +Y%, trailing Z% from the best price (active from +W%). The stop is never loosened.
   On Lighter it is a real reduce-only stop-loss order, so it stays in place even if the server goes down.
+  The trailing distance can be a %, a fixed $ amount or a multiple of ATR(14) on 15-minute candles.
+  Turn it on straight from the order ticket (**Trailing stop**) or from the **Trailing** button on an open position.
 - **Event trade**: long/short N seconds after the event, or a breakout of the range of the
   preceding minutes. The entry goes out with native SL/TP; trailing and breakeven then tighten the stop.
   Every automatic entry goes through the same risk checks as manual orders.

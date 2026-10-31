@@ -19,6 +19,8 @@ STATE_FILE = config.DATA_DIR / "state.json"
 TICK_SECONDS = 3
 MIN_STOP_STEP_PCT = 0.05   # don't send a modify for moves smaller than this
 VERIFY_EVERY = 60          # re-check that each stop order still exists
+ATR_TF, ATR_LEN, ATR_TTL = "15m", 14, 300  # trailing by volatility: ATR(14) on 15m candles, refreshed every 5 min
+STOP_FIELDS = ("initial_stop_pct", "breakeven_at_pct", "trail_pct", "trail_price", "trail_atr", "trail_activate_pct")
 
 
 class Engine:
@@ -29,6 +31,7 @@ class Engine:
         self.account = None
         self.logs = deque(maxlen=300)
         self.log_seq = 0
+        self._atr_cache = {}  # market_id -> (fetched_at, atr)
         self._load()
 
     # ---------- persistence ----------
@@ -90,6 +93,37 @@ class Engine:
         self.rules.pop(rule_id, None)
         self.save()
 
+    # ---------- one managed stop per market, set from the ticket or the position row ----------
+    def market_stop(self, market_id):
+        return next((r for r in self.rules.values() if r["type"] == "managed_stop" and r["market_id"] == market_id), None)
+
+    def set_market_stop(self, market_id, fields):
+        """Replace the market's managed stops with these settings (None removes them). The tracking
+        state and the stop order already on Lighter carry over, so the order is modified, not doubled."""
+        old = [r for r in self.rules.values() if r["type"] == "managed_stop" and r["market_id"] == market_id]
+        state = next((dict(r["state"]) for r in old if r.get("state", {}).get("coi")), {})
+        for r in old:
+            self.rules.pop(r["id"], None)
+        if fields is None:
+            self.save()
+            if old:
+                self.note(f"{self.api.markets[market_id].symbol} managed stop removed (the stop already placed stays on Lighter)")
+            return None
+        rule = self.add_rule({"type": "managed_stop", "market_id": market_id, "auto_remove": True,
+                              **{k: v for k, v in fields.items() if k in STOP_FIELDS and v}})
+        if state:
+            state["stop"] = None  # new settings: recompute the level, keep modifying the same order
+            rule["state"] = state
+            self.save()
+        return rule
+
+    def market_stops(self):
+        """Managed stop per market for the UI: settings plus the level currently on Lighter."""
+        return {r["market_id"]: {"id": r["id"], "enabled": r.get("enabled", True), "stop": r["state"].get("stop"),
+                                 "best": r["state"].get("best"), "note": r.get("note"),
+                                 **{k: r[k] for k in STOP_FIELDS if r.get(k)}}
+                for r in self.rules.values() if r["type"] == "managed_stop"}
+
     def describe(self, r):
         sym = self.api.markets[r["market_id"]].symbol
         if r["type"] == "managed_stop":
@@ -98,8 +132,10 @@ class Engine:
                 parts.append(f"SL {r['initial_stop_pct']}%")
             if r.get("breakeven_at_pct"):
                 parts.append(f"BE at +{r['breakeven_at_pct']}%")
-            if r.get("trail_pct"):
-                parts.append(f"trail {r['trail_pct']}% from +{r.get('trail_activate_pct', 0)}%")
+            trail = (f"{r['trail_pct']}%" if r.get("trail_pct") else f"${r['trail_price']:g}" if r.get("trail_price")
+                     else f"{r['trail_atr']:g}x ATR" if r.get("trail_atr") else None)
+            if trail:
+                parts.append(f"trail {trail} from +{r.get('trail_activate_pct', 0)}%")
             return f"{sym} managed stop: " + ", ".join(parts or ["(empty)"])
         return f"{sym} {r['mode']} on {r['event_title']} ${r['size_usd']}"
 
@@ -143,6 +179,28 @@ class Engine:
         return None
 
     # ---------- managed stop ----------
+    async def _atr(self, market_id):
+        at, value = self._atr_cache.get(market_id, (0, None))
+        if time.time() - at < ATR_TTL and value:
+            return value
+        bars = (await self.api.candles(market_id, ATR_TF, ATR_LEN + 2))[-(ATR_LEN + 1):]
+        ranges = [max(b["high"], a["close"]) - min(b["low"], a["close"]) for a, b in zip(bars, bars[1:])]
+        if not ranges:
+            raise RuntimeError("no candles for ATR")
+        value = sum(ranges) / len(ranges)
+        self._atr_cache[market_id] = (time.time(), value)
+        return value
+
+    async def _trail_distance(self, r, best):
+        """Price distance the trailing stop keeps from the best price: a %, a fixed amount or N x ATR."""
+        if r.get("trail_pct"):
+            return best * r["trail_pct"] / 100
+        if r.get("trail_price"):
+            return r["trail_price"]
+        if r.get("trail_atr"):
+            return r["trail_atr"] * await self._atr(r["market_id"])
+        return None
+
     async def _managed_stop(self, r):
         st = r["state"]
         mid = r["market_id"]
@@ -170,8 +228,10 @@ class Engine:
             candidates.append(entry * (1 - side * r["initial_stop_pct"] / 100))
         if r.get("breakeven_at_pct") and best_profit >= r["breakeven_at_pct"]:
             candidates.append(entry * (1 + side * r.get("breakeven_offset_pct", 0.05) / 100))
-        if r.get("trail_pct") and best_profit >= r.get("trail_activate_pct", 0):
-            candidates.append(st["best"] * (1 - side * r["trail_pct"] / 100))
+        if best_profit >= r.get("trail_activate_pct", 0):
+            dist = await self._trail_distance(r, st["best"])
+            if dist:
+                candidates.append(st["best"] - side * dist)
         if not candidates:
             return False
         desired = max(candidates) if side > 0 else min(candidates)

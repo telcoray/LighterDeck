@@ -46,7 +46,7 @@ async def broadcast_loop():
         sent = engine.log_seq
         msg = json.dumps({
             "type": "tick", "prices": feed.stats, "account": engine.account,
-            "armed": engine.armed, "logs": new_logs,
+            "armed": engine.armed, "logs": new_logs, "stops": engine.market_stops(),
         })
         for ws in list(clients):
             try:
@@ -137,6 +137,30 @@ async def trades():
 
 
 # ---------- manual trading ----------
+class TrailReq(BaseModel):
+    mode: str = "pct"                 # "pct" | "price" | "atr"
+    value: float                      # % of the best price, price distance, or ATR multiple
+    activate_pct: float = 0           # start trailing once the position is this much in profit
+    breakeven_at_pct: float | None = None
+
+
+TRAIL_RANGES = {"pct": (0.05, 50), "price": (1e-9, 1e12), "atr": (0.1, 20)}
+
+
+def trail_fields(t: TrailReq):
+    """Validated managed-stop settings from the UI's trailing options."""
+    if t.mode not in TRAIL_RANGES:
+        raise Blocked(L("Tipo di trailing sconosciuto", "Unknown trailing type"))
+    lo, hi = TRAIL_RANGES[t.mode]
+    if not lo <= t.value <= hi:
+        raise Blocked(L(f"Distanza del trailing fuori dai limiti ({lo:g}–{hi:g})", f"Trailing distance out of range ({lo:g}–{hi:g})")
+                      if t.mode != "price" else L("La distanza del trailing deve essere maggiore di zero",
+                                                    "The trailing distance must be above zero"))
+    if not 0 <= t.activate_pct <= 100 or (t.breakeven_at_pct is not None and not 0 < t.breakeven_at_pct <= 100):
+        raise Blocked(L("Attivazione e breakeven vanno tra 0 e 100%", "Activation and breakeven must be between 0 and 100%"))
+    return {f"trail_{t.mode}": t.value, "trail_activate_pct": t.activate_pct, "breakeven_at_pct": t.breakeven_at_pct}
+
+
 class OrderReq(BaseModel):
     market_id: int
     side: str                   # "buy" | "sell"
@@ -149,6 +173,7 @@ class OrderReq(BaseModel):
     sl_price: float | None = None
     tp_price: float | None = None
     slippage_bps: float | None = None
+    trail: TrailReq | None = None     # managed stop to start once the order fills
 
 
 async def plan_order(o: OrderReq):
@@ -183,8 +208,10 @@ async def plan_order(o: OrderReq):
         raise Blocked(L("Size sotto la precisione del mercato", "Size is below market precision"))
     slip_bps = o.slippage_bps if o.slippage_bps is not None else risk.limits["slippage_bps_cap"]
     worst = ref if o.kind == "limit" else ref * (1 + side * slip_bps / 10000)
-    if o.reduce_only and (o.sl_price or o.tp_price):
+    if o.reduce_only and (o.sl_price or o.tp_price or o.trail):
         raise Blocked(L("Le chiusure reduce-only non possono avere SL/TP", "Reduce-only closes cannot attach SL/TP"))
+    if o.trail:
+        trail_fields(o.trail)
     mark = feed.mark(o.market_id) if o.kind == "market" else None
     await risk.review(acc, o.market_id, side, size, ref, o.sl_price, o.tp_price, slip_bps, o.reduce_only, mark)
     return {"size": size, "side": side, "ref": ref, "worst": m.round_price(worst), "notional": size * ref,
@@ -223,7 +250,29 @@ async def place_order(o: OrderReq):
         raise HTTPException(400, str(e))
     engine.note(f"manual {o.kind} {o.side} {plan['size']} {m.symbol} @ ~{plan['ref']}"
                 + (f" SL {o.sl_price}" if o.sl_price else "") + (f" TP {o.tp_price}" if o.tp_price else ""), "warning")
-    return {"ok": True, "size": plan["size"]}
+    if o.trail:
+        rule = engine.set_market_stop(o.market_id, trail_fields(o.trail))
+        engine.note(f"{engine.describe(rule)} (from the ticket)", "warning")
+    return {"ok": True, "size": plan["size"], "armed": engine.armed}
+
+
+# ---------- trailing stop on an open position ----------
+@app.put("/api/trail/{market_id}")
+async def set_trail(market_id: int, t: TrailReq):
+    if market_id not in api.markets:
+        raise HTTPException(400, L("Mercato sconosciuto", "Unknown market"))
+    try:
+        rule = engine.set_market_stop(market_id, trail_fields(t))
+    except Blocked as e:
+        raise HTTPException(400, str(e))
+    engine.note(f"{engine.describe(rule)} (from the position)", "warning")
+    return {"stops": engine.market_stops(), "armed": engine.armed}
+
+
+@app.delete("/api/trail/{market_id}")
+async def delete_trail(market_id: int):
+    engine.set_market_stop(market_id, None)
+    return {"stops": engine.market_stops()}
 
 
 @app.get("/api/limits")

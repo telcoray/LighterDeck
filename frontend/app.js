@@ -558,6 +558,7 @@ function ticketBody() {
   };
   if (+$("#tkSl").value) body.sl_price = +$("#tkSl").value;
   if (+$("#tkTp").value) body.tp_price = +$("#tkTp").value;
+  if ($("#tkTrail").checked && !body.reduce_only) body.trail = readTrail($("#tkTrailBox"));
   if (ticket.kind === "limit") {
     body.price = +$("#tkPrice").value;
     body.post_only = $("#tkPost").checked;
@@ -652,13 +653,16 @@ async function executeTicket() {
   if (!m || !(size > 0)) return ticketMsg(t("Inserisci una size valida."), "err");
   const body = ticketBody();
   if (ticket.kind === "limit" && !body.price) return ticketMsg(t("Inserisci il prezzo limite."), "err");
-  const label = `${ticket.side === "buy" ? "LONG" : "SHORT"} ${m.symbol} · ${$("#tkNotional").textContent} · ${ticket.kind}`;
+  if (body.trail === null) return ticketMsg(t("Inserisci la distanza del trailing."), "err");
+  const label = `${ticket.side === "buy" ? "LONG" : "SHORT"} ${m.symbol} · ${$("#tkNotional").textContent} · ${ticket.kind}`
+    + (body.trail ? ` · trailing ${trailLabel(trailToStop(body.trail), m)}` : "");
   if (!confirm(`${t("Confermi l'ordine?")}\n\n${label}`)) return;
   const btn = $("#tkExec");
   btn.disabled = true;
   try {
     const r = await api("/order", { method: "POST", body: JSON.stringify(body) });
-    ticketMsg(t("Eseguito: {side} {size} {sym}. Controlla posizioni e ordini per i fill.", { side: ticket.side, size: r.size, sym: m.symbol }), "ok");
+    ticketMsg(t("Eseguito: {side} {size} {sym}. Controlla posizioni e ordini per i fill.", { side: ticket.side, size: r.size, sym: m.symbol })
+      + (body.trail && !r.armed ? " " + t("Trailing impostato: parte quando attivi Auto.") : ""), "ok");
   } catch (e) {
     ticketMsg(e.message, "err");
   } finally {
@@ -695,7 +699,7 @@ function renderPositions() {
     box.innerHTML = `<div class="empty">${info.trading ? t("Nessuna posizione aperta.") : t("Sola lettura: collega un'API key per vedere posizioni e ordini.")}</div>`;
     return;
   }
-  box.innerHTML = `<table class="table"><thead><tr><th>${t("Mercato")}</th><th class="r">Size</th><th class="r">${t("Valore")}</th><th class="r">Entry</th><th class="r">Mark</th><th class="r">${t("Liquidazione")}</th><th class="r">${t("PnL non realizzato")}</th><th>${t("Chiudi · un click")}</th></tr></thead><tbody>${
+  box.innerHTML = `<table class="table"><thead><tr><th>${t("Mercato")}</th><th class="r">Size</th><th class="r">${t("Valore")}</th><th class="r">Entry</th><th class="r">Mark</th><th class="r">${t("Liquidazione")}</th><th class="r">${t("PnL non realizzato")}</th><th>${t("Trailing")}</th><th>${t("Chiudi · un click")}</th></tr></thead><tbody>${
     list.map((p) => {
       const m = byId[p.market_id];
       const mark = prices[p.market_id] ? prices[p.market_id].mark : 0;
@@ -703,6 +707,7 @@ function renderPositions() {
       return `<tr><td class="mk">${esc(p.symbol)}<small class="${p.size > 0 ? "up" : "down"}">${p.size > 0 ? "Long" : "Short"}${p.leverage ? " · " + p.leverage + "x" : ""}</small></td>
         <td class="r ${p.size > 0 ? "up" : "down"}">${fsize(p.size, m)}</td><td class="r main">${fusd(p.value)}</td><td class="r">${fp(p.entry, m)}</td><td class="r main">${fp(mark, m)}</td>
         <td class="r liq">${fp(p.liq, m)}</td><td class="r pnl ${cls(p.upnl)}">${fusd(p.upnl)}<small>${isFinite(pct) ? fpct(pct) : ""}</small></td>
+        <td>${trailButton(p.market_id, m)}</td>
         <td><span class="qbtn">${[25, 50, 75, 100].map((f) => `<button data-close="${p.market_id}" data-f="${f}">${f}%</button>`).join("")}</span></td></tr>`;
     }).join("")}</tbody></table>`;
 }
@@ -943,6 +948,9 @@ function renderArmed(armed) {
   b.classList.toggle("on", armed);
   $("span", b).textContent = armed ? "Auto ON" : "Auto OFF";
   $("#autoState").textContent = armed ? t("Le automazioni sono attive: il server può inviare ordini.") : t("Interruttore generale spento: nessuna regola invia ordini.");
+  // trailing controls say whether they're running
+  if (account) renderPositions();
+  if ($("#tkTrailBox").children.length) trailHint($("#tkTrailBox"));
 }
 
 // ================= activity log =================
@@ -973,7 +981,9 @@ function connect() {
     if (msg.type !== "tick") return;
     prices = msg.prices;
     lastTick = Date.now();
-    const accChanged = JSON.stringify(msg.account) !== JSON.stringify(account);
+    const stopsChanged = JSON.stringify(msg.stops || {}) !== JSON.stringify(stops);
+    stops = msg.stops || {};
+    const accChanged = stopsChanged || JSON.stringify(msg.account) !== JSON.stringify(account);
     account = msg.account;
     panels.forEach((p) => p.tick());
     renderMarketBar();
@@ -1176,6 +1186,122 @@ function clock() {
   const d = new Date();
   $("#sbClock").textContent = d.toISOString().slice(11, 19) + " UTC";
   $("#sbAge").textContent = lastTick ? t("Prezzi ricevuti {ms} ms fa", { ms: Math.max(0, Date.now() - lastTick) }) : t("In attesa di prezzi");
+}
+
+// ================= trailing stop (ticket + open positions) =================
+// The server keeps one managed stop per market; it trails while automations are ON (Auto).
+let stops = {};
+const TRAIL_UNITS = [["pct", "%"], ["price", "$"], ["atr", "× ATR"]];
+
+function trailToStop(tr) { // ticket/editor values -> the server's field names
+  return { [`trail_${tr.mode}`]: tr.value, trail_activate_pct: tr.activate_pct, breakeven_at_pct: tr.breakeven_at_pct };
+}
+
+function trailLabel(s, m) {
+  return s.trail_pct ? `${s.trail_pct}%` : s.trail_price ? `$${fp(s.trail_price, m)}` : s.trail_atr ? `${s.trail_atr}× ATR` : "BE";
+}
+
+function trailForm(v) {
+  const unit = TRAIL_UNITS.map(([k, u]) => `<option value="${k}" ${v.mode === k ? "selected" : ""}>${u}</option>`).join("");
+  return `<div class="trail-dist"><div class="field sm"><label>${t("Distanza dal prezzo migliore")}</label><input data-tr="value" type="number" min="0" step="any" value="${v.value ?? ""}" placeholder="${v.mode === "atr" ? "1.5" : v.mode === "price" ? "" : "1"}"></div>
+      <select data-tr="mode">${unit}</select></div>
+    <div class="two"><div class="field sm"><label>${t("Parte da +% profitto")}</label><input data-tr="activate_pct" type="number" min="0" step="any" value="${v.activate_pct || ""}" placeholder="0"></div>
+      <div class="field sm"><label>${t("Breakeven a +%")}</label><input data-tr="breakeven_at_pct" type="number" min="0" step="any" value="${v.breakeven_at_pct ?? ""}" placeholder="${t("Opzionale")}"></div></div>
+    <p class="trail-hint" data-tr="hint"></p>`;
+}
+
+function trailHint(box) {
+  const mode = box.querySelector('[data-tr="mode"]').value;
+  const parts = [mode === "atr" ? t("ATR(14) su candele da 15 minuti: la distanza si adatta alla volatilità.") : mode === "price" ? t("Distanza fissa in dollari dal prezzo migliore.") : t("Distanza in % dal prezzo migliore raggiunto.")];
+  parts.push(t("Lo stop si muove solo a tuo favore."));
+  const hint = box.querySelector('[data-tr="hint"]');
+  hint.textContent = parts.join(" ") + (info.armed ? "" : " " + t("Auto è OFF: il trailing parte quando lo attivi."));
+  hint.classList.toggle("warn", !info.armed);
+}
+
+function readTrail(box) {
+  const val = (k) => box.querySelector(`[data-tr="${k}"]`).value;
+  const tr = { mode: val("mode"), value: +val("value"), activate_pct: +val("activate_pct") || 0 };
+  if (+val("breakeven_at_pct") > 0) tr.breakeven_at_pct = +val("breakeven_at_pct");
+  return tr.value > 0 ? tr : null;
+}
+
+function mountTrailForm(box, values, onChange) {
+  box.innerHTML = trailForm(values);
+  trailHint(box);
+  box.oninput = box.onchange = () => { trailHint(box); onChange && onChange(); };
+}
+
+function renderTicketTrail() {
+  const on = $("#tkTrail").checked && !$("#tkReduce").checked;
+  $("#tkTrail").closest(".checks").classList.toggle("hidden", $("#tkReduce").checked);
+  $("#tkTrailBox").classList.toggle("hidden", !on);
+  if (on && !$("#tkTrailBox").children.length) {
+    mountTrailForm($("#tkTrailBox"), load("trail", { mode: "pct", value: 1 }), () => {
+      const tr = readTrail($("#tkTrailBox"));
+      if (tr) store("trail", tr);
+    });
+  }
+}
+
+function trailButton(marketId, m) {
+  const s = stops[marketId];
+  if (!s) return `<button class="trail-btn" data-trail="${marketId}">+ ${t("Trailing")}</button>`;
+  const paused = !info.armed || !s.enabled;
+  const title = paused ? t("Auto è OFF: il trailing è fermo") : t("Stop gestito attivo");
+  return `<button class="trail-btn on${paused ? " paused" : ""}" data-trail="${marketId}" title="${title}">${trailLabel(s, m)}${s.stop ? " · " + fp(s.stop, m) : ""}</button>`;
+}
+
+function openTrailPop(marketId, anchor) {
+  const m = byId[marketId], s = stops[marketId];
+  const pop = $("#trailPop");
+  pop.dataset.market = marketId;
+  $("#trailPopTitle").textContent = t("Trailing stop · {sym}", { sym: m.symbol });
+  const v = s ? { mode: s.trail_pct ? "pct" : s.trail_price ? "price" : "atr", value: s.trail_pct || s.trail_price || s.trail_atr,
+    activate_pct: s.trail_activate_pct, breakeven_at_pct: s.breakeven_at_pct } : load("trail", { mode: "pct", value: 1 });
+  $("#trailPopBody").innerHTML = `<div class="trail-box"></div>`;
+  mountTrailForm($("#trailPopBody .trail-box"), v);
+  $("#trailPopRemove").classList.toggle("hidden", !s);
+  $("#trailPopError").classList.add("hidden");
+  pop.classList.remove("hidden");
+  // open above the button, kept inside the window
+  const r = anchor.getBoundingClientRect(), w = pop.offsetWidth, h = pop.offsetHeight;
+  pop.style.left = Math.max(12, Math.min(r.right - w, innerWidth - w - 12)) + "px";
+  pop.style.top = Math.max(12, r.top - h - 8 < 12 ? r.bottom + 8 : r.top - h - 8) + "px";
+  pop.querySelector('[data-tr="value"]').focus();
+}
+
+function closeTrailPop() { $("#trailPop").classList.add("hidden"); }
+
+function wireTrail() {
+  $("#tkTrail").onchange = renderTicketTrail;
+  $("#tkReduce").addEventListener("change", renderTicketTrail);
+  $("#btab-positions").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-trail]");
+    if (b) { e.stopPropagation(); openTrailPop(+b.dataset.trail, b); }
+  });
+  $("#trailPopClose").onclick = $("#trailPopCancel").onclick = closeTrailPop;
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeTrailPop(); });
+  document.addEventListener("mousedown", (e) => { if (!e.target.closest("#trailPop, [data-trail]")) closeTrailPop(); });
+  const done = (res) => { stops = res.stops; closeTrailPop(); renderPositions(); };
+  const fail = (err) => { $("#trailPopError").textContent = err.message; $("#trailPopError").classList.remove("hidden"); };
+  $("#trailPopSave").onclick = async () => {
+    const id = $("#trailPop").dataset.market, tr = readTrail($("#trailPopBody .trail-box"));
+    if (!tr) return fail(new Error(t("Inserisci la distanza del trailing.")));
+    try {
+      const res = await api(`/trail/${id}`, { method: "PUT", body: JSON.stringify(tr) });
+      store("trail", tr);
+      done(res);
+      toast(res.armed ? t("Trailing attivo su {sym}", { sym: byId[id].symbol }) : t("Trailing salvato: parte quando attivi Auto."));
+    } catch (err) { fail(err); }
+  };
+  $("#trailPopRemove").onclick = async () => {
+    const id = $("#trailPop").dataset.market;
+    try {
+      done(await api(`/trail/${id}`, { method: "DELETE" }));
+      toast(t("Trailing rimosso: lo stop già piazzato resta su Lighter."));
+    } catch (err) { fail(err); }
+  };
 }
 
 // ================= resizable bottom panel =================
@@ -1414,6 +1540,7 @@ async function init() {
   wire();
   wireKeyDialog();
   wireBottomSplit();
+  wireTrail();
   applyTheme(load("theme", "champagne"));
   $("#themeBtn").onclick = (e) => { e.stopPropagation(); $("#themeMenu").classList.toggle("hidden"); };
   $("#themeMenu").onclick = (e) => {

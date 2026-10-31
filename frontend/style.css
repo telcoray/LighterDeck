@@ -504,6 +504,23 @@ kbd { font-family: var(--mono); font-size: 9.5px; border: 1px solid var(--line-2
 .theme-menu button .check { margin-left: auto; color: var(--green); visibility: hidden; }
 .theme-menu button.active .check { visibility: visible; }
 
+/* trailing stop: ticket options and the position editor */
+.trail-check { margin: -2px 0 8px; }
+.trail-box { margin: -2px 0 12px; padding: 10px; border: 1px solid var(--line-2); border-radius: var(--r); background: var(--surface); }
+.trail-box .field { margin-bottom: 6px; }
+.trail-dist { display: grid; grid-template-columns: 1fr 92px; gap: 6px; }
+.trail-dist select { height: 100%; border-radius: var(--r); font-size: 11px; }
+.trail-hint { margin: 2px 0 0; color: var(--muted); font-size: 10.5px; line-height: 1.45; }
+.trail-hint.warn { color: var(--amber); }
+.trail-pop { position: fixed; z-index: 20; width: min(330px, calc(100vw - 24px)); padding: 12px 14px 14px; background: var(--surface); border: 1px solid var(--line-2); border-radius: 10px; box-shadow: 0 28px 70px rgba(0,0,0,.55); }
+.trail-pop .trail-box { margin: 0 0 10px; padding: 0; border: 0; background: none; }
+.trail-btn { height: 24px; padding: 0 9px; border: 1px dashed var(--line-3); border-radius: 4px; color: var(--muted); font-family: var(--mono); font-size: 10.5px; white-space: nowrap; }
+.trail-btn:hover { color: var(--text); border-color: var(--text-2); }
+.trail-btn.on { border-style: solid; border-color: rgba(43,217,164,.4); color: var(--green); background: var(--green-soft); }
+.trail-btn.on.paused { border-color: rgba(232,177,74,.45); color: var(--amber); background: none; }
+.ghost.solid-green { border-color: var(--green); color: var(--green-ink); background: var(--green); font-weight: 600; }
+.ghost.solid-green:hover { filter: brightness(1.08); color: var(--green-ink); }
+
 /* API key dialog */
 button.pill { cursor: pointer; }
 button.pill:hover { border-color: var(--line-3); color: var(--text); }

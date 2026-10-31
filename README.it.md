@@ -74,6 +74,8 @@ systemctl daemon-reload && systemctl enable --now lighterdeck
 - **Stop gestito** (per mercato): stop iniziale a -X% dall'entry, breakeven quando il profitto
   raggiunge +Y%, trailing a Z% dal massimo raggiunto (attivo da +W%). Lo stop non viene mai allargato.
   Su Lighter è un vero ordine stop-loss reduce-only, quindi resta attivo anche se il server cade.
+  La distanza del trailing può essere in %, in $ fissi o un multiplo dell'ATR(14) su candele da 15 minuti.
+  Si attiva direttamente dal ticket (**Trailing stop**) o dal bottone **Trailing** di una posizione aperta.
 - **Trade su evento**: long/short N secondi dopo l'evento, oppure breakout del range
   dei minuti precedenti. L'entrata parte con SL/TP nativi; trailing e breakeven poi stringono lo stop.
   Ogni entrata automatica passa dagli stessi controlli di rischio degli ordini manuali.
