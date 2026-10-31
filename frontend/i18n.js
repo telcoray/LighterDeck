@@ -252,6 +252,9 @@ const EN = {
     "Disconnect the API key? Automations will be turned off and LighterDeck goes back to read-only.",
   "API key scollegata: sola lettura": "API key disconnected: read-only",
   "Sola lettura · collega un'API key": "Read-only · connect an API key",
+  "Prendi l'indirizzo dal wallet del browser (solo lettura, nessuna firma)": "Take the address from your browser wallet (read-only, no signature)",
+  "Il wallet non ha condiviso nessun indirizzo": "The wallet didn't share an address",
+  "Richiesta rifiutata nel wallet": "Request rejected in the wallet",
 };
 
 function t(text, vars) {

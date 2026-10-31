@@ -1085,6 +1085,31 @@ function clock() {
 }
 
 // ================= API key dialog =================
+const walletProviders = new Map(); // uuid -> { info, provider }
+window.addEventListener("eip6963:announceProvider", (e) => {
+  walletProviders.set(e.detail.info.uuid, e.detail);
+  $("#keyWallet").classList.remove("hidden");
+});
+window.dispatchEvent(new Event("eip6963:requestProvider"));
+setTimeout(() => { // older wallets only inject window.ethereum
+  if (!walletProviders.size && window.ethereum) {
+    walletProviders.set("injected", { info: { name: "Browser wallet" }, provider: window.ethereum });
+    $("#keyWallet").classList.remove("hidden");
+  }
+}, 500);
+
+async function useWallet(provider) {
+  keyError("");
+  try {
+    const [address] = await provider.request({ method: "eth_requestAccounts" });
+    if (!address) return keyError(t("Il wallet non ha condiviso nessun indirizzo"));
+    $("#keyAddress").value = address;
+    $("#keyFind").click();
+  } catch (e) {
+    keyError(e.code === 4001 ? t("Richiesta rifiutata nel wallet") : e.message);
+  }
+}
+
 function openKeyDialog() {
   const on = info.trading;
   $("#keyConnected").classList.toggle("hidden", !on);
@@ -1127,6 +1152,20 @@ function wireKeyDialog() {
   $("#keyClose").onclick = closeKeyDialog;
   $("#keyShade").onmousedown = closeKeyDialog;
   document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("#keyModal").classList.contains("hidden")) closeKeyDialog(); });
+  // browser wallets (EIP-6963, with window.ethereum as fallback): only the address is read
+  $("#keyWallet").onclick = () => {
+    const list = [...walletProviders.values()];
+    if (list.length === 1) return useWallet(list[0].provider);
+    $("#keyWallets").innerHTML = list.map((w, i) =>
+      `<button type="button" class="chip" data-wallet="${i}">${w.info.icon ? `<img src="${esc(w.info.icon)}" alt="">` : ""}${esc(w.info.name)}</button>`).join("");
+    $("#keyWallets").classList.toggle("hidden");
+  };
+  $("#keyWallets").onclick = (e) => {
+    const b = e.target.closest("[data-wallet]");
+    if (!b) return;
+    $("#keyWallets").classList.add("hidden");
+    useWallet([...walletProviders.values()][+b.dataset.wallet].provider);
+  };
   $("#keyFind").onclick = async () => {
     keyError("");
     $("#keyAccounts").innerHTML = "";

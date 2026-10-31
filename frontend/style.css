@@ -472,6 +472,8 @@ button.pill:hover { border-color: var(--line-3); color: var(--text); }
 .key-find input { flex: 1; }
 .key-find .ghost { margin: 0 6px 6px 0; }
 .key-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.key-wallets { display: flex; flex-wrap: wrap; gap: 6px; margin: -2px 0 8px; }
+.key-wallets img { width: 14px; height: 14px; border-radius: 3px; }
 .key-accounts { display: flex; flex-wrap: wrap; gap: 6px; margin: -2px 0 8px; }
 .key-accounts:empty { display: none; }
 .key-note { color: var(--muted); font-size: 11px; line-height: 1.5; margin: 2px 0 10px; }
