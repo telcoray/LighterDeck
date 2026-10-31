@@ -190,7 +190,7 @@ const EN = {
   "Tetto fisso del server: ${cap} per ordine (MAX_NOTIONAL_USD). Le automazioni rispettano gli stessi limiti.":
     "Server hard cap: ${cap} per order (MAX_NOTIONAL_USD). Automations follow the same limits.",
   "PnL di oggi non disponibile": "Today's PnL unavailable",
-  "PnL realizzato oggi {pnl}": "Realized PnL today {pnl}",
+  "PnL di oggi {pnl}": "Today's PnL {pnl}",
   "Le automazioni sono attive: il server può inviare ordini.": "Automations are on: the server can send orders.",
   "Interruttore generale spento: nessuna regola invia ordini.": "Master switch off: no rule sends orders.",
   "Attivare le automazioni?\n\nDa ora il server può inviare ordini reali secondo le regole.":

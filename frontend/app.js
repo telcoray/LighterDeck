@@ -1037,7 +1037,7 @@ async function loadLimits() {
     else el.value = v;
   }
   $("#hardCap").textContent = t("Tetto fisso del server: ${cap} per ordine (MAX_NOTIONAL_USD). Le automazioni rispettano gli stessi limiti.", { cap: r.hard_cap_usd.toLocaleString("en-US") });
-  $("#dailyPnl").textContent = info.trading ? (r.daily_pnl === null ? t("PnL di oggi non disponibile") : t("PnL realizzato oggi {pnl}", { pnl: fusd(r.daily_pnl) })) : "";
+  $("#dailyPnl").textContent = info.trading ? (r.daily_pnl === null ? t("PnL di oggi non disponibile") : t("PnL di oggi {pnl}", { pnl: fusd(r.daily_pnl) })) : "";
   info.limits = { ...info.limits, ...r.limits };
 }
 

@@ -139,8 +139,8 @@ def rule_daily_loss(p, L):
         return tr("Non riesco a verificare il PnL di oggi: nuove posizioni bloccate per sicurezza",
                   "Today's PnL can't be checked: new positions blocked to be safe")
     if p.daily_pnl <= -L["daily_loss_usd"]:
-        return tr(f"Raggiunta la perdita massima di oggi ({p.daily_pnl:,.2f} USD)",
-                  f"Daily loss limit reached ({p.daily_pnl:,.2f} USD)")
+        return tr(f"Raggiunta la perdita massima di oggi: {p.daily_pnl:,.2f} USD su -{L['daily_loss_usd']:,.0f} (posizioni aperte incluse)",
+                  f"Daily loss limit reached: {p.daily_pnl:,.2f} USD of -{L['daily_loss_usd']:,.0f} (open positions included)")
 
 
 def rule_market_exposure(p, L):
@@ -224,7 +224,7 @@ class RiskGuard:
         if time.time() - at < DAILY_PNL_TTL:
             return value
         try:
-            value = await self.api.daily_realized_pnl()
+            value = await self.api.daily_pnl()
         except Exception:
             value = None
         self._pnl_cache = (value, time.time())

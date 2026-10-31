@@ -298,26 +298,24 @@ class LighterAPI:
             })
         return out
 
-    async def daily_realized_pnl(self):
-        """Realized PnL of fills since 00:00 UTC. None when any closing fill lacks a PnL value."""
+    async def daily_pnl(self):
+        """PnL since 00:00 UTC, closed trades and open positions together (fees and funding included).
+
+        Read from Lighter's account PnL series: hourly points plus a live last point. Fills no longer
+        carry their own PnL, so they can't be summed. None when the midnight point is missing."""
         if not self.signer:
             return 0.0
-        midnight = int(time.time() // 86400 * 86400) * 1000
-        data = await self._get("/api/v1/trades", {
-            "account_index": config.ACCOUNT_INDEX, "sort_by": "timestamp", "limit": 100,
+        now = int(time.time())
+        midnight = now // 86400 * 86400
+        data = await self._get("/api/v1/pnl", {
+            "by": "index", "value": config.ACCOUNT_INDEX, "resolution": "1h",
+            "start_timestamp": midnight, "end_timestamp": now, "count_back": 0,
         }, headers={"authorization": await self._auth_token()})
-        total = 0.0
-        for t in data.get("trades", []):
-            if t["timestamp"] < midnight:
-                break
-            for side in ("ask", "bid"):
-                if t[f"{side}_account_id"] != config.ACCOUNT_INDEX:
-                    continue
-                v = t.get(f"{side}_account_pnl")
-                if v in (None, ""):
-                    return None
-                total += float(v)
-        return total
+        points = data.get("pnl") or []
+        start = next((p for p in points if p["timestamp"] == midnight), None)
+        if start is None:
+            return None
+        return float(points[-1]["trade_pnl"]) - float(start["trade_pnl"])
 
     async def _auth_token(self):
         token, exp = self._auth
