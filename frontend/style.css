@@ -303,6 +303,10 @@ body.resizing { cursor: row-resize; user-select: none; }
 .field label { flex: none; padding-left: 10px; color: var(--muted); font-size: 11px; }
 .field input, .field select { border: 0; background: transparent; text-align: right; font-family: var(--mono); padding: 9px 10px; min-width: 0; }
 .field select { text-align: left; font-family: var(--ui); }
+/* every dropdown opens its list in the theme's colours, like the calendar's market menu
+   (a transparent select lets the browser fall back to its own default list colours) */
+.field select { background-color: var(--bg); }
+select option, select optgroup { background-color: var(--surface); color: var(--text); }
 .field .unit { flex: none; padding-right: 10px; color: var(--muted); font-size: 11px; }
 .field .unit.link { color: var(--green); }
 .field .unit .eq { font-style: normal; font-family: var(--mono); color: var(--faint); }
