@@ -2,7 +2,9 @@
 
 # LighterDeck
 
-A personal trading terminal for the perpetual futures on [Lighter](https://lighter.xyz), with server-side automations.
+A trading terminal for the perpetual futures on [Lighter](https://lighter.xyz), with server-side automations.
+
+**Try it read-only at [lighterdeck.xyz](https://lighterdeck.xyz)**: charts, the calendar per market and funding, no account needed. To trade, run your own copy with your API key (below).
 
 [Leggi in italiano](README.it.md) · The interface is available in English and Italian (button in the top bar).
 
@@ -23,7 +25,8 @@ A personal trading terminal for the perpetual futures on [Lighter](https://light
 ```
 frontend/   web page (HTML/CSS/JS, TradingView Lightweight Charts)
 backend/    FastAPI: Lighter data, calendar, risk checks, order signing (official SDK), automation engine
-deploy/     systemd service + example configuration
+deploy/     systemd services, nginx site for the public instance, example configuration
+tools/      link preview card (og.png)
 ```
 
 ## Run it locally

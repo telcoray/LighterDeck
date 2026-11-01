@@ -2,7 +2,9 @@
 
 # LighterDeck
 
-Terminale di trading personale per i perpetual di Lighter (lighter.xyz), con automazioni lato server.
+Terminale di trading per i perpetual di Lighter (lighter.xyz), con automazioni lato server.
+
+**Provalo in sola lettura su [lighterdeck.xyz](https://lighterdeck.xyz)**: grafici, calendario per mercato e funding, senza account. Per fare trading avvia una tua copia con la tua API key (sotto).
 
 [Read in English](README.md)
 
@@ -23,7 +25,8 @@ Terminale di trading personale per i perpetual di Lighter (lighter.xyz), con aut
 ```
 frontend/   pagina web (HTML/CSS/JS, TradingView Lightweight Charts)
 backend/    FastAPI: dati Lighter, calendario, rischio, firma ordini (SDK ufficiale), motore automazioni
-deploy/     servizio systemd + esempio di configurazione
+deploy/     servizi systemd, sito nginx per l'istanza pubblica, esempio di configurazione
+tools/      immagine di anteprima dei link (og.png)
 ```
 
 ## In locale (sola lettura)
