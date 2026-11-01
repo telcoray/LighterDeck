@@ -85,7 +85,7 @@ async def auth(request: Request, call_next):
             check_token(request.headers.get("x-token"))
         except HTTPException as e:
             return JSONResponse({"detail": e.detail}, status_code=e.status_code)
-        if config.PUBLIC_MODE and request.method != "GET":
+        if config.PUBLIC_MODE and request.method not in ("GET", "HEAD"):
             return JSONResponse({"detail": L("Questa è la versione pubblica in sola lettura di LighterDeck",
                                              "This is the public read-only version of LighterDeck")}, status_code=403)
     response = await call_next(request)
