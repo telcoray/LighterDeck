@@ -232,10 +232,11 @@ class Panel {
 
   drawMarkers() {
     const now = Date.now() / 1000;
-    // one discreet dot per bar that had high-impact news
+    // one discreet dot per bar that had high-impact news for this market
     const bars = new Map();
+    const sym = this.market && this.market.symbol;
     for (const e of events) {
-      if (e.impact !== "High" || e.ts > now) continue;
+      if (!sym || !eventFor(e, sym) || impactFor(e, sym) !== "High" || e.ts > now) continue;
       const t = barStart(this.cfg.tf, e.ts);
       bars.set(t, (bars.get(t) || []).concat(e));
     }
@@ -264,7 +265,7 @@ class Panel {
     const move = before ? ((after - before) / before) * 100 : null;
     tip.innerHTML = evs.sort((a, b) => a.ts - b.ts).map((e) => `
         <div class="ev">
-          <div class="ev-t"><span class="imp ${e.impact}"></span>${esc(e.country)} · ${esc(e.title)}${e.source && e.source !== "ff" ? `<span class="src">${esc(e.source)}</span>` : ""}</div>
+          <div class="ev-t"><span class="imp ${impactFor(e, m.symbol)}"></span>${esc(e.country)} · ${esc(e.title)}${e.source && e.source !== "ff" ? `<span class="src">${esc(e.source)}</span>` : ""}</div>
           <div class="ev-s">${new Date(e.ts * 1000).toLocaleString(LOCALE, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}${e.forecast || e.previous ? " · " + t("prev. {f} · prec. {p}", { f: esc(e.forecast || "—"), p: esc(e.previous || "—") }) : ""}</div>
         </div>`).join("") +
       (move !== null ? `<div class="ev-move">${t("Candela {tf}: {move} · chiusura {close}", { tf: tfLabel(this.cfg.tf), move: `<b class="${cls(move)}">${fpct(move)}</b>`, close: fp(after, m) })}</div>` : "");
@@ -513,6 +514,7 @@ function setActive(i) {
   renderTicker();
   renderTitle();
   if (showBook) loadBook();
+  renderEcon(); // the calendar follows the selected market
 }
 
 // browser tab: last price of the selected chart, like Lighter's own tab
@@ -1194,6 +1196,21 @@ function renderTrades() {
 }
 
 // ================= calendar =================
+// Which events move a market: its own kind of asset (oil reports for WTI) and the currencies it is
+// priced in (EUR and USD for EURUSD, USD for everything quoted in dollars).
+const MARKET_ASSETS = { WTI: ["oil"], BRENTOIL: ["oil"], NATGAS: ["natgas"] };
+const CURRENCIES = ["USD", "EUR", "GBP", "JPY", "CHF", "CAD", "AUD", "NZD", "CNY", "HKD", "KRW"];
+function marketFocus(sym) {
+  const fx = sym.length === 6 && CURRENCIES.includes(sym.slice(0, 3)) && CURRENCIES.includes(sym.slice(3));
+  return { assets: MARKET_ASSETS[sym] || [], ccy: fx ? [sym.slice(0, 3), sym.slice(3)] : ["USD"] };
+}
+const eventFor = (e, sym) => {
+  const f = marketFocus(sym);
+  return e.assets && e.assets.length ? e.assets.some((a) => f.assets.includes(a)) : f.ccy.includes(e.country);
+};
+// a weekly oil report is "Low" for the dollar but high-impact for the oil markets it is about
+const impactFor = (e, sym) => (e.assets && sym && e.assets.some((a) => marketFocus(sym).assets.includes(a)) ? "High" : e.impact);
+
 const SESSIONS = [
   { name: "Stati Uniti", ex: "NYSE", tz: "America/New_York", open: [9, 30], close: [16, 0] },
   { name: "Regno Unito", ex: "LSE", tz: "Europe/London", open: [8, 0], close: [16, 30] },
@@ -1252,10 +1269,16 @@ function renderSessions() {
 }
 
 function renderEcon() {
-  const f = load("econf", "hm");
+  const f = load("econf", "mkt");
+  const m = activeMarket(), sym = f === "mkt" && m ? m.symbol : null;
+  $("#econMkt").textContent = m ? m.symbol : t("Mercato");
   $$("#econFilter button").forEach((b) => b.classList.toggle("active", b.dataset.f === f));
   const now = Date.now() / 1000;
-  const list = events.filter((e) => e.ts > now - 3 * 3600 && (f === "h" ? e.impact === "High" : f === "usd" ? e.country === "USD" && e.impact !== "Holiday" : e.impact === "High" || e.impact === "Medium")).slice(0, 40);
+  const keep = (e) => {
+    if (sym) return eventFor(e, sym) && ["High", "Medium"].includes(impactFor(e, sym));
+    return f === "h" ? e.impact === "High" : f === "usd" ? e.country === "USD" && e.impact !== "Holiday" : e.impact === "High" || e.impact === "Medium";
+  };
+  const list = events.filter((e) => e.ts > now - 3 * 3600 && keep(e)).slice(0, 40);
   let lastDay = "";
   $("#econList").innerHTML = list.map((e) => {
     const d = new Date(e.ts * 1000);
@@ -1264,7 +1287,7 @@ function renderEcon() {
     lastDay = day;
     const left = e.ts - now;
     return `${head}<div class="cal-row${left < 0 ? " past" : ""}">
-      <div style="min-width:0"><div class="t"><span class="imp ${e.impact}"></span>${esc(e.country)} · ${esc(e.title)}${e.source && e.source !== "ff" ? `<span class="src">${esc(e.source)}</span>` : ""}</div>
+      <div style="min-width:0"><div class="t"><span class="imp ${impactFor(e, sym)}"></span>${esc(e.country)} · ${esc(e.title)}${e.source && e.source !== "ff" ? `<span class="src">${esc(e.source)}</span>` : ""}</div>
       <div class="s">${t("prev. {f} · prec. {p}", { f: esc(e.forecast || "—"), p: esc(e.previous || "—") })}</div></div>
       <div class="w ${left > 0 && left < 3600 ? "soon" : ""}">${d.toLocaleTimeString(LOCALE, { hour: "2-digit", minute: "2-digit" })}<div class="s">${left > 0 ? t("tra {d}", { d: dur(left * 1000) }) : ""}</div></div>
     </div>`;
@@ -1295,13 +1318,16 @@ function renderMarkets() {
 }
 
 // ================= automations =================
+// events of the market chosen in the event-trade form, high impact for it first among those of the same day
 function renderEventSelect() {
   const sel = $("#eventSelect");
   const keep = sel.value;
   const now = Date.now() / 1000;
-  sel.innerHTML = events.filter((e) => e.ts > now && e.impact !== "Holiday").map((e) =>
-    `<option value="${e.id}">${new Date(e.ts * 1000).toLocaleString(LOCALE, { weekday: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })} · ${e.country} ${esc(e.title)} (${e.impact})</option>`).join("");
-  if (keep) sel.value = keep;
+  const m = byId[+$("#eventForm").elements.market_id.value];
+  const sym = m && m.symbol;
+  sel.innerHTML = events.filter((e) => e.ts > now && e.impact !== "Holiday" && (!sym || eventFor(e, sym))).map((e) =>
+    `<option value="${e.id}">${new Date(e.ts * 1000).toLocaleString(LOCALE, { weekday: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })} · ${e.country} ${esc(e.title)} (${impactFor(e, sym)})</option>`).join("");
+  if (keep && [...sel.options].some((o) => o.value === keep)) sel.value = keep;
 }
 
 function formToRule(form) {
@@ -1567,6 +1593,7 @@ function wire() {
     $$(".ctab").forEach((c) => c.classList.toggle("hidden", c.id !== "ctab-" + b.dataset.ctab));
   }));
   $("#econFilter").onclick = (e) => { const b = e.target.closest("[data-f]"); if (b) { store("econf", b.dataset.f); renderEcon(); } };
+  $("#eventForm").elements.market_id.addEventListener("change", renderEventSelect);
   $("#calTz").textContent = Intl.DateTimeFormat().resolvedOptions().timeZone.split("/").pop().replace("_", " ") + " · " + utcOffset();
 
   // markets page
@@ -1992,6 +2019,7 @@ async function init() {
   panelCfg = panelCfg.map((c) => (bySymbol[c.symbol] ? c : { ...c, symbol: "BTC" }));
   const opts = markets.map((m) => `<option value="${m.id}">${m.symbol}</option>`).join("");
   $$(".marketSelect").forEach((s) => (s.innerHTML = opts));
+  renderEventSelect();
   const net = info.network === "testnet" ? "Testnet" : "Mainnet";
   $("#netBadge").textContent = net;
   $("#sbNet").textContent = net;

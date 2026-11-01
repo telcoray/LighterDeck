@@ -306,6 +306,7 @@ const EN = {
   "Anteprima ticket": "Ticket preview",
   "LIQ stimata": "Est. LIQ",
   "Conferma": "Confirm",
+  "Eventi che muovono il mercato selezionato": "Events that move the selected market",
   "Dettagli funding": "Funding details",
   "Funding {sym}": "{sym} funding",
   "Tasso attuale · 1h": "Current rate · 1h",

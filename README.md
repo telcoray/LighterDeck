@@ -16,7 +16,7 @@ A personal trading terminal for the perpetual futures on [Lighter](https://light
 | Protection | Native SL/TP sent together with the entry (OTO/OTOCO), TP and SL shown in the positions table and set or changed from there, partial close 25/50/75/100%, leverage and cross/isolated |
 | Risk (optional) | Off by default, each one switched on by itself: limits per order, per market and total exposure as a % of equity, daily loss as a % of the equity at 00:00 UTC (open positions included), leverage, number of positions, mandatory stop-loss, no reversals |
 | Automations | Managed stop (initial, breakeven, trailing) and trades on macro events (at the release time or on a range breakout), with a kill switch |
-| Calendar | This week's economic events (Forex Factory), official Fed meetings, opening hours of the main exchanges |
+| Calendar | This week's economic events (Forex Factory), official BEA releases and Fed meetings, energy reports (EIA crude and gas storage with EIA's holiday schedule, API bulletin, Baker Hughes rig count), opening hours of the main exchanges; the calendar, the chart dots and event trades follow the selected market (oil reports for WTI and Brent, both currencies for a forex pair) |
 | History | Trades grouped by order or as single fills, realized PnL worked out from each fill |
 | Look | Five themes, English and Italian, layout that works in narrow windows and on phones |
 

@@ -132,7 +132,7 @@ async def funding(market_id: int, days: int = 7):
 
 @app.get("/api/calendar")
 async def get_calendar():
-    return calendar.listing()
+    return calendar.listing(days_back=35)  # past weeks too, for the event dots on the charts
 
 
 ORDERS_TTL = 4  # seconds: chart lines and the Orders tab poll together without hammering Lighter

@@ -16,7 +16,7 @@ Terminale di trading personale per i perpetual di Lighter (lighter.xyz), con aut
 | Protezione | SL/TP nativi inviati insieme all'entrata (OTO/OTOCO), TP e SL nella tabella posizioni, da aggiungere o modificare lì, chiusura parziale 25/50/75/100%, leva e cross/isolated |
 | Rischio (facoltativo) | Spenti di default, ognuno si attiva da solo: limiti per ordine, mercato ed esposizione totale in % del capitale, perdita giornaliera in % del capitale alle 00:00 UTC (posizioni aperte incluse), leva, numero posizioni, stop-loss obbligatorio, niente inversioni |
 | Automazioni | Stop gestito (iniziale, breakeven, trailing) e trade su eventi macro (orario o breakout del range), con kill switch |
-| Calendario | Eventi economici della settimana (Forex Factory), riunioni Fed ufficiali, aperture delle principali borse |
+| Calendario | Eventi economici della settimana (Forex Factory), rilasci BEA e riunioni Fed ufficiali, report sull'energia (scorte EIA di greggio e gas con il calendario festività EIA, bollettino API, rig count Baker Hughes), aperture delle principali borse; calendario, punti sul grafico e trade su evento seguono il mercato selezionato (report sul petrolio per WTI e Brent, entrambe le valute per una coppia forex) |
 | Storico | Trade raggruppati per ordine o come singoli fill, PnL realizzato calcolato da ogni fill |
 | Aspetto | Cinque temi, italiano e inglese, layout che funziona in finestre strette e sul telefono |
 
