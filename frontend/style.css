@@ -376,6 +376,41 @@ body.dragging-line, body.dragging-line * { cursor: ns-resize !important; user-se
 .ev-form-row .primary { margin-top: 0; height: 30px; }
 .ev-form-row button[type="button"] { border: 1px solid var(--line-2); border-radius: 6px; color: var(--text-2); }
 .ev-del { margin-left: 6px; color: var(--muted); font-size: 10px; }
+.econ-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 4px; font-size: 10.5px; }
+/* calendar page */
+.cal-page .page-head .search { width: min(280px, 100%); }
+.ev-add-btn { height: 30px; padding: 0 12px; border: 1px dashed var(--line-3); border-radius: 6px; color: var(--text-2); font-size: 11.5px; white-space: nowrap; }
+.ev-add-btn:hover { color: var(--text); border-style: solid; }
+.cal-page .ev-form { max-width: 520px; margin: 0 0 16px; }
+.cp-layout { display: grid; grid-template-columns: 230px minmax(0, 1fr); gap: 28px; align-items: start; }
+.cp-filters { position: sticky; top: 0; display: flex; flex-direction: column; gap: 16px; }
+.cp-block { display: flex; flex-direction: column; gap: 7px; }
+.cp-block .chipsel { margin: 0; }
+.cp-select { height: 30px; padding: 0 8px; border: 1px solid var(--line-2); border-radius: 6px; background: var(--surface); font-size: 11.5px; }
+.cp-select:disabled { opacity: .45; }
+.cp-count { font-size: 11px; margin-bottom: 4px; }
+.cp-row { display: grid; grid-template-columns: 74px 14px minmax(0, 1fr) auto; gap: 4px 12px; align-items: baseline; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.cp-row.past { opacity: .5; }
+.cp-row .tm { font-family: var(--mono); font-size: 12px; color: var(--text); font-variant-numeric: tabular-nums; }
+.cp-row .tm small { display: block; margin-top: 3px; font-size: 10px; color: var(--muted); }
+.cp-row .tm.soon { color: var(--amber); }
+.cp-row .ti { min-width: 0; }
+.cp-row .ti b { font-weight: 500; color: var(--text); font-size: 12.5px; }
+.cp-row .ti .s { margin-top: 4px; color: var(--muted); font-size: 10.5px; font-family: var(--mono); }
+.cp-row .kind { margin-left: 8px; font-size: 9.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.cp-row .mk { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; max-width: 260px; }
+.cp-row .mk button { padding: 1px 7px; border: 1px solid var(--line-2); border-radius: 9px; font-family: var(--mono); font-size: 10px; color: var(--text-2); }
+.cp-row .mk button:hover { color: var(--text); border-color: var(--line-3); }
+.cp-row .mk .ev-del { border: 0; }
+.cp-day { padding: 18px 0 2px; color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .08em; }
+.cp-day:first-child { padding-top: 4px; }
+@media (max-width: 860px) {
+  .cp-layout { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  .cp-filters { position: static; }
+  .cp-sessions { display: none; }
+  .cp-row { grid-template-columns: 60px 12px minmax(0, 1fr); }
+  .cp-row .mk { grid-column: 3; justify-content: flex-start; max-width: none; }
+}
 .ev-del:hover, .ev-del.confirming { color: var(--red); }
 
 /* ---------- pages (markets / automations / activity) ---------- */

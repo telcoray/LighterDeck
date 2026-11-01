@@ -1282,23 +1282,22 @@ function renderSessions() {
   const rows = SESSIONS.map((s) => ({ s, st: sessionStatus(s, now) }))
     .sort((a, b) => (b.st.open - a.st.open) || (a.st.at - b.st.at));
   const local = (t) => new Date(t).toLocaleString(LOCALE, { weekday: "short", hour: "2-digit", minute: "2-digit" });
-  $("#ctab-sessions").innerHTML = rows.map(({ s, st }) => `<div class="cal-row">
+  const html = rows.map(({ s, st }) => `<div class="cal-row">
       <div><div class="t">${t(s.name)}</div><div class="s">${s.ex} · ${st.open ? t("chiude") : t("apre")} ${st.at ? local(st.at) : ""}</div></div>
       <div class="w ${st.open ? "open" : st.at - now < 3600000 ? "soon" : ""}">${st.open ? t("aperto · {d}", { d: dur(st.at - now) }) : t("tra {d}", { d: dur(st.at - now) })}</div>
     </div>`).join("");
+  $("#ctab-sessions").innerHTML = html;
+  $("#cpSessions").innerHTML = html;
 }
 
+// Trade sidebar: the next events that move the selected market; the Calendar page has everything
 function renderEcon() {
-  const f = load("econf", "mkt");
-  const m = activeMarket(), sym = f === "mkt" && m ? m.symbol : null;
-  $("#econMkt").textContent = m ? m.symbol : t("Mercato");
-  $$("#econFilter button").forEach((b) => b.classList.toggle("active", b.dataset.f === f));
+  const m = activeMarket(), sym = m ? m.symbol : null;
+  $("#econMkt").textContent = sym ? t("Prossimi eventi per {sym}", { sym }) : "";
   const now = Date.now() / 1000;
-  const keep = (e) => {
-    if (sym) return eventFor(e, sym) && ["High", "Medium"].includes(impactFor(e, sym));
-    return f === "h" ? e.impact === "High" : f === "usd" ? e.country === "USD" && e.impact !== "Holiday" : e.impact === "High" || e.impact === "Medium";
-  };
-  const list = events.filter((e) => e.ts > now - 3 * 3600 && keep(e)).slice(0, 40);
+  const keep = (e) => sym && eventFor(e, sym) && ["High", "Medium"].includes(impactFor(e, sym));
+  const list = events.filter((e) => e.ts > now - 3 * 3600 && keep(e)).slice(0, 12);
+  renderCalPage();
   let lastDay = "";
   $("#econList").innerHTML = list.map((e) => {
     const d = new Date(e.ts * 1000);
@@ -1312,6 +1311,73 @@ function renderEcon() {
       <div class="w ${left > 0 && left < 3600 ? "soon" : ""}">${eventTime(e, d)}<div class="s">${left > 0 ? t("tra {d}", { d: dur(left * 1000) }) : ""}${e.source === "custom" ? ` <button class="ev-del" data-delev="${e.id}" data-ck="delev:${e.id}" title="${t("Elimina")}">✕</button>` : ""}</div></div>
     </div>`;
   }).join("") || `<div class="empty">${t("Nessun evento.")}</div>`;
+  markConfirm();
+}
+
+// ---------- Calendar page ----------
+// what kind of event it is, for the filters
+const evType = (e) => (e.source === "custom" ? "mine" : e.source === "Deribit" ? "crypto" : e.source === "Nasdaq" ? "earnings"
+  : e.assets && e.assets.some((a) => a === "oil" || a === "natgas") ? "energy" : "macro");
+const TYPE_LABEL = { macro: "Macro", energy: "Energia", earnings: "Trimestrali", crypto: "Crypto", mine: "Tuoi" };
+// impact anywhere: the highest it has for any market (an oil report is high for WTI)
+function impactAny(e) {
+  if (!e.assets || !e.assets.length) return e.impact;
+  const levels = e.impact_by ? Object.values(e.impact_by) : ["High"];
+  return levels.sort((a, b) => IMPACT_RANK[b] - IMPACT_RANK[a])[0] || e.impact;
+}
+// the markets an event moves, as chips: its own symbols, or the currency for a country's release
+function evMarkets(e) {
+  if (!e.assets || !e.assets.length) return e.country ? [e.country] : [];
+  const out = [];
+  for (const a of e.assets) {
+    if (a.startsWith("sym:") || a.startsWith("stock:")) out.push(a.split(":")[1]);
+    else if (a === "oil") out.push("WTI", "BRENTOIL");
+    else if (a === "natgas") out.push("NATGAS");
+    else if (a === "index") out.push(...["US500", "US100", "SPY", "QQQ"].filter((x) => bySymbol[x]));
+  }
+  return [...new Set(out)];
+}
+const cp = { scope: "all", types: ["macro", "energy", "earnings", "crypto", "mine"], impacts: ["High", "Medium"], range: "7", ...load("cp", {}) };
+function saveCp() { store("cp", { scope: cp.scope, types: cp.types, impacts: cp.impacts, range: cp.range, market: cp.market }); }
+
+function renderCalPage() {
+  if ($("#view-cal").classList.contains("hidden")) return;
+  const now = Date.now() / 1000, q = $("#cpSearch").value.trim().toLowerCase();
+  const sym = cp.scope === "mkt" ? cp.market || (activeMarket() && activeMarket().symbol) : null;
+  $$("#cpScope button").forEach((b) => b.classList.toggle("active", b.dataset.scope === cp.scope));
+  $$("#cpTypes button").forEach((b) => b.classList.toggle("active", cp.types.includes(b.dataset.type)));
+  $$("#cpImpacts button").forEach((b) => b.classList.toggle("active", cp.impacts.includes(b.dataset.imp)));
+  $$("#cpRange button").forEach((b) => b.classList.toggle("active", b.dataset.range === cp.range));
+  const sel = $("#cpMarket");
+  sel.disabled = cp.scope !== "mkt";
+  if (sel.value !== sym && sym) sel.value = sym;
+  const endOfToday = new Date().setHours(24, 0, 0, 0) / 1000;
+  const inRange = (e) => cp.range === "past" ? e.ts < now
+    : e.ts >= now - 3 * 3600 && (cp.range === "all" || e.ts < (cp.range === "today" ? endOfToday : now + +cp.range * 86400));
+  const list = events.filter((e) => {
+    if (!inRange(e) || !cp.types.includes(evType(e))) return false;
+    const imp = sym ? impactFor(e, sym) : impactAny(e);
+    if (!cp.impacts.includes(imp === "Holiday" ? "Low" : imp)) return false;
+    if (sym && !eventFor(e, sym)) return false;
+    return !q || `${e.title} ${e.country} ${e.name || ""} ${evMarkets(e).join(" ")}`.toLowerCase().includes(q);
+  });
+  if (cp.range === "past") list.reverse();
+  $("#cpCount").textContent = t("{n} eventi", { n: list.length }) + (sym ? " · " + t("che muovono {sym}", { sym }) : "");
+  let lastDay = "";
+  $("#cpList").innerHTML = list.map((e) => {
+    const d = new Date(e.ts * 1000), left = e.ts - now;
+    const day = d.toLocaleDateString(LOCALE, { weekday: "long", day: "numeric", month: "long" });
+    const head = day !== lastDay ? `<div class="cp-day">${day}</div>` : "";
+    lastDay = day;
+    const imp = sym ? impactFor(e, sym) : impactAny(e);
+    const chips = evMarkets(e).map((s) => (bySymbol[s] ? `<button data-cpsym="${s}">${s}</button>` : `<span class="muted">${esc(s)}</span>`)).join("");
+    return `${head}<div class="cp-row${left < 0 ? " past" : ""}">
+      <div class="tm${left > 0 && left < 3600 ? " soon" : ""}">${eventTime(e, d)}<small>${left > 0 ? t("tra {d}", { d: dur(left * 1000) }) : ""}</small></div>
+      <span class="imp ${imp}"></span>
+      <div class="ti"><b>${evLabel(e)}</b><span class="kind">${t(TYPE_LABEL[evType(e)])}</span><div class="s">${eventDetail(e)}</div></div>
+      <div class="mk">${chips}${e.source === "custom" ? `<button class="ev-del" data-delev="${e.id}" data-ck="delev:${e.id}" title="${t("Elimina")}">✕</button>` : ""}</div>
+    </div>`;
+  }).join("") || `<div class="empty">${t("Nessun evento con questi filtri.")}</div>`;
   markConfirm();
 }
 
@@ -1490,6 +1556,7 @@ function switchView(v) {
   $$("#views button").forEach((b) => b.classList.toggle("active", b.dataset.view === v));
   $$(".view").forEach((s) => s.classList.toggle("hidden", s.id !== "view-" + v));
   if (v === "markets") renderMarkets();
+  if (v === "cal") renderCalPage();
   if (v === "auto") { loadRules(); loadLimits(); }
   store("view", v);
 }
@@ -1610,11 +1677,29 @@ function wire() {
   };
 
   // calendar
+  $("#econOpen").onclick = () => { cp.scope = "mkt"; cp.market = activeMarket() && activeMarket().symbol; saveCp(); switchView("cal"); };
+  $("#cpFilters").onclick = (e) => {
+    const b = e.target.closest("button");
+    if (!b) return;
+    const flip = (arr, v) => (arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v]);
+    if (b.dataset.scope) cp.scope = b.dataset.scope;
+    if (b.dataset.type) cp.types = flip(cp.types, b.dataset.type);
+    if (b.dataset.imp) cp.impacts = flip(cp.impacts, b.dataset.imp);
+    if (b.dataset.range) cp.range = b.dataset.range;
+    saveCp();
+    renderCalPage();
+  };
+  $("#cpMarket").onchange = (e) => { cp.market = e.target.value; saveCp(); renderCalPage(); };
+  $("#cpSearch").oninput = renderCalPage;
+  $("#cpList").onclick = (e) => {
+    const s = e.target.closest("[data-cpsym]");
+    if (s) { cp.scope = "mkt"; cp.market = s.dataset.cpsym; saveCp(); renderCalPage(); }
+  };
+  $("#cpTz").textContent = Intl.DateTimeFormat().resolvedOptions().timeZone.split("/").pop().replace("_", " ") + " · " + utcOffset();
   $$("#calTabs button").forEach((b) => (b.onclick = () => {
     $$("#calTabs button").forEach((x) => x.classList.toggle("active", x === b));
     $$(".ctab").forEach((c) => c.classList.toggle("hidden", c.id !== "ctab-" + b.dataset.ctab));
   }));
-  $("#econFilter").onclick = (e) => { const b = e.target.closest("[data-f]"); if (b) { store("econf", b.dataset.f); renderEcon(); } };
   $("#eventForm").elements.market_id.addEventListener("change", renderEventSelect);
   // your own events: anything no feed covers (a token unlock, a network upgrade, a listing)
   $("#evAddBtn").onclick = () => {
@@ -1622,7 +1707,7 @@ function wire() {
     f.classList.toggle("hidden");
     if (f.classList.contains("hidden")) return;
     f.reset();
-    const m = activeMarket();
+    const m = cp.scope === "mkt" && cp.market ? bySymbol[cp.market] : activeMarket();
     f.elements.markets.value = m ? m.symbol : "";
     f.elements.title.focus();
   };
@@ -1640,12 +1725,14 @@ function wire() {
       loadCalendar();
     } catch (err) { toast(err.message, true); }
   };
-  $("#econList").onclick = async (e) => {
+  const deleteEvent = async (e) => {
     const b = e.target.closest("[data-delev]");
     if (!b || !askConfirm(`delev:${b.dataset.delev}`, t("Elimina"))) return;
     try { await api(`/custom_events/${b.dataset.delev}`, { method: "DELETE" }); toast(t("Evento eliminato")); loadCalendar(); }
     catch (err) { toast(err.message, true); }
   };
+  $("#econList").addEventListener("click", deleteEvent);
+  $("#cpList").addEventListener("click", deleteEvent);
   $("#calTz").textContent = Intl.DateTimeFormat().resolvedOptions().timeZone.split("/").pop().replace("_", " ") + " · " + utcOffset();
 
   // markets page
@@ -2071,6 +2158,7 @@ async function init() {
   panelCfg = panelCfg.map((c) => (bySymbol[c.symbol] ? c : { ...c, symbol: "BTC" }));
   const opts = markets.map((m) => `<option value="${m.id}">${m.symbol}</option>`).join("");
   $$(".marketSelect").forEach((s) => (s.innerHTML = opts));
+  $("#cpMarket").innerHTML = markets.map((m) => `<option value="${m.symbol}">${m.symbol}</option>`).join("");
   renderEventSelect();
   const net = info.network === "testnet" ? "Testnet" : "Mainnet";
   $("#netBadge").textContent = net;

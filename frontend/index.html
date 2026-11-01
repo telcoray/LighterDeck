@@ -23,7 +23,7 @@
 </script>
 <style>html.i18n-pending body { visibility: hidden; }</style>
 <link rel="icon" href="favicon.svg?v=1" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=70">
+<link rel="stylesheet" href="style.css?v=72">
 <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
 </head>
 <body>
@@ -37,6 +37,7 @@
   <nav class="views" id="views">
     <button data-view="trade" class="active">Trade</button>
     <button data-view="markets">Mercati</button>
+    <button data-view="cal">Calendario</button>
     <button data-view="auto">Automazioni</button>
     <button data-view="activity">Attività</button>
   </nav>
@@ -222,26 +223,54 @@
         </nav>
         <div id="ctab-sessions" class="ctab"></div>
         <div id="ctab-econ" class="ctab hidden">
-          <div class="chipsel" id="econFilter">
-            <button data-f="mkt" class="active" title="Eventi che muovono il mercato selezionato"><span id="econMkt">Mercato</span></button>
-            <button data-f="hm">Alto + medio</button>
-            <button data-f="h">Solo alto</button>
-            <button data-f="usd">Solo USD</button>
-            <button class="ev-add" id="evAddBtn" title="Aggiungi un evento tuo">+ Evento</button>
-          </div>
-          <form class="ev-form hidden" id="evForm" autocomplete="off">
-            <input name="title" maxlength="80" required placeholder="Titolo, es. Sblocco token ARB">
+          <div class="econ-head"><span class="muted" id="econMkt"></span><button class="link" id="econOpen">Calendario completo →</button></div>
+          <div id="econList"></div>
+        </div>
+      </section>
+    </aside>
+  </div>
+</section>
+
+<!-- ============ CALENDAR VIEW ============ -->
+<section class="view hidden" id="view-cal">
+  <div class="page cal-page">
+    <div class="page-head">
+      <h1>Calendario</h1><span class="muted" id="cpTz"></span>
+      <div class="grow"></div>
+      <input id="cpSearch" class="search" placeholder="Cerca evento o mercato…" autocomplete="off">
+      <button class="ev-add-btn" id="evAddBtn">+ Evento</button>
+    </div>
+    <form class="ev-form hidden" id="evForm" autocomplete="off">
+      <input name="title" maxlength="80" required placeholder="Titolo, es. Sblocco token ARB">
             <div class="ev-form-row">
               <input name="when" type="datetime-local" required>
               <select name="impact"><option value="High">Alto</option><option value="Medium">Medio</option><option value="Low">Basso</option></select>
             </div>
             <input name="markets" required placeholder="Mercati, es. ETH, ARB">
             <div class="ev-form-row"><button type="button" id="evCancel">Annulla</button><button type="submit" class="primary">Aggiungi</button></div>
-          </form>
-          <div id="econList"></div>
+    </form>
+    <div class="cp-layout">
+      <aside class="cp-filters" id="cpFilters">
+        <div class="cp-block"><div class="caps muted">Mercato</div>
+          <div class="chipsel" id="cpScope"><button data-scope="all">Tutti</button><button data-scope="mkt">Uno</button></div>
+          <select id="cpMarket" class="cp-select"></select>
         </div>
-      </section>
-    </aside>
+        <div class="cp-block"><div class="caps muted">Tipo</div>
+          <div class="chipsel" id="cpTypes"><button data-type="macro">Macro</button><button data-type="energy">Energia</button><button data-type="earnings">Trimestrali</button><button data-type="crypto">Crypto</button><button data-type="mine">Tuoi</button></div>
+        </div>
+        <div class="cp-block"><div class="caps muted">Impatto</div>
+          <div class="chipsel" id="cpImpacts"><button data-imp="High">Alto</button><button data-imp="Medium">Medio</button><button data-imp="Low">Basso</button></div>
+        </div>
+        <div class="cp-block"><div class="caps muted">Periodo</div>
+          <div class="chipsel" id="cpRange"><button data-range="past">Passati</button><button data-range="today">Oggi</button><button data-range="7">7 giorni</button><button data-range="30">30 giorni</button><button data-range="all">Tutti</button></div>
+        </div>
+        <div class="cp-block cp-sessions"><div class="caps muted">Aperture mercati</div><div id="cpSessions"></div></div>
+      </aside>
+      <div class="cp-main">
+        <div class="cp-count muted" id="cpCount"></div>
+        <div id="cpList"></div>
+      </div>
+    </div>
   </div>
 </section>
 
@@ -458,9 +487,9 @@
 </div>
 
 <div class="toast hidden" id="toast"></div>
-<script src="i18n.js?v=70"></script>
-<script src="formulas.js?v=70"></script>
-<script src="app.js?v=70"></script>
-<script src="picker.js?v=70"></script>
+<script src="i18n.js?v=72"></script>
+<script src="formulas.js?v=72"></script>
+<script src="app.js?v=72"></script>
+<script src="picker.js?v=72"></script>
 </body>
 </html>
