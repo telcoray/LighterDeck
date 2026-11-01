@@ -10,8 +10,8 @@ const LANGS = [
   { id: "en", name: "English", short: "EN" },
 ];
 let LANG = (() => {
-  // first visit: follow the browser (Italian only for Italian browsers)
-  const guess = (navigator.language || "").toLowerCase().startsWith("it") ? "it" : "en";
+  // first visit: English; Italian is one click away in the top bar
+  const guess = "en";
   try { return JSON.parse(localStorage.getItem("ld.lang")) || guess; } catch { return guess; }
 })();
 let LOCALE = LANG === "en" ? "en-GB" : "it-IT";

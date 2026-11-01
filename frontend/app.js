@@ -2200,7 +2200,7 @@ async function init() {
   wireKeyDialog();
   wireBottomSplit();
   wireTrail();
-  applyTheme(load("theme", "champagne"));
+  applyTheme(load("theme", "fosforo")); // first visit: Phosphor
   $("#themeBtn").onclick = (e) => { e.stopPropagation(); $("#themeMenu").classList.toggle("hidden"); };
   $("#themeMenu").onclick = (e) => {
     e.stopPropagation();

@@ -9,12 +9,12 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script>
   // apply the saved theme before the page paints (no flash of the default colours)
-  try { document.documentElement.dataset.theme = JSON.parse(localStorage.getItem("ld.theme")) || "champagne"; }
-  catch (e) { document.documentElement.dataset.theme = "champagne"; }
+  try { document.documentElement.dataset.theme = JSON.parse(localStorage.getItem("ld.theme")) || "fosforo"; }
+  catch (e) { document.documentElement.dataset.theme = "fosforo"; }
   // English: keep the page hidden until i18n.js has swapped the Italian source text
   // (translateDom removes the class; the timeout is a safety net if a script fails)
   try {
-    var lang = JSON.parse(localStorage.getItem("ld.lang")) || ((navigator.language || "").toLowerCase().startsWith("it") ? "it" : "en");
+    var lang = JSON.parse(localStorage.getItem("ld.lang")) || "en";
     if (lang === "en") {
       document.documentElement.classList.add("i18n-pending");
       setTimeout(() => document.documentElement.classList.remove("i18n-pending"), 1500);
@@ -23,14 +23,14 @@
 </script>
 <style>html.i18n-pending body { visibility: hidden; }</style>
 <link rel="icon" href="favicon.svg?v=1" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=78">
+<link rel="stylesheet" href="style.css?v=79">
 <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
 </head>
 <body>
 
 <!-- ============ public site: welcome bar ============ -->
 <div class="pubbar hidden" id="pubBar">
-  <span class="pub-text"><span class="pub-long"><b>LighterDeck</b> · Terminale per i perpetual di Lighter. Questa è la versione in sola lettura: grafici, calendario per mercato e funding. Il trading online arriva presto.</span><span class="pub-short">Sola lettura · trading in arrivo</span></span>
+  <span class="pub-text"><span class="pub-long"><b>LighterDeck</b> · <span>Terminale per i perpetual di Lighter. Questa è la versione in sola lettura: grafici, calendario per mercato e funding. Il trading online arriva presto.</span></span><span class="pub-short">Sola lettura · trading in arrivo</span></span>
   <a id="pubGithub" target="_blank" rel="noopener"><span class="pub-long">Codice su GitHub</span><span class="pub-short">GitHub</span></a>
   <a id="pubReferral" target="_blank" rel="noopener">Apri un account su Lighter</a>
   <button class="xbtn" id="pubClose" aria-label="Chiudi">✕</button>
@@ -508,9 +508,9 @@
 </div>
 
 <div class="toast hidden" id="toast"></div>
-<script src="i18n.js?v=78"></script>
-<script src="formulas.js?v=78"></script>
-<script src="app.js?v=78"></script>
-<script src="picker.js?v=78"></script>
+<script src="i18n.js?v=79"></script>
+<script src="formulas.js?v=79"></script>
+<script src="app.js?v=79"></script>
+<script src="picker.js?v=79"></script>
 </body>
 </html>
