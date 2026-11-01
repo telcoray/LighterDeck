@@ -308,6 +308,11 @@ body.resizing { cursor: row-resize; user-select: none; }
 .card-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 12px; }
 .card-head b { font-weight: 500; font-size: 12px; }
 .card-head .muted { font-size: 10.5px; }
+/* a card title that opens its own page */
+.card-link { display: inline-flex; align-items: baseline; gap: 6px; margin: -3px -6px; padding: 3px 6px; border-radius: 5px; color: var(--text); }
+.card-link .arr { color: var(--muted); font-size: 11px; transition: transform .15s, color .15s; }
+.card-link:hover { background: var(--raised); }
+.card-link:hover .arr { color: var(--green); transform: translateX(2px); }
 .ticket-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
 .ticket-head b { font-weight: 500; }
 .ticket-head .muted { font-size: 10.5px; border: 1px solid var(--line-2); padding: 2px 7px; border-radius: 4px; }

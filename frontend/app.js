@@ -1698,6 +1698,7 @@ function wire() {
   };
 
   // calendar
+  $("#calOpen").onclick = () => switchView("cal");
   $("#econOpen").onclick = () => { cp.scope = "mkt"; cp.market = activeMarket() && activeMarket().symbol; saveCp(); switchView("cal"); };
   $("#cpFilters").onclick = (e) => {
     const b = e.target.closest("button");
