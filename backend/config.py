@@ -33,7 +33,16 @@ DATA_DIR = Path(_env("DATA_DIR", str(Path(__file__).resolve().parent.parent / "d
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 CREDENTIALS_FILE = DATA_DIR / "credentials.json"
 
-if CREDENTIALS_SOURCE is None and CREDENTIALS_FILE.exists():
+# Public read-only site (lighterdeck.xyz): never loads a key, refuses every write, and the UI
+# shows the welcome bar. The personal deck runs without it, behind the SSH tunnel.
+PUBLIC_MODE = _env("PUBLIC_MODE", "").lower() in ("1", "true", "yes")
+REFERRAL_URL = _env("REFERRAL_URL", "https://app.lighter.xyz")  # "open a Lighter account" link
+GITHUB_URL = "https://github.com/telcoray/LighterDeck"
+BLOCKED_COUNTRIES = {"US", "GB", "CA"}  # where Lighter isn't available
+if PUBLIC_MODE:
+    ACCOUNT_INDEX = API_KEY_INDEX = API_PRIVATE_KEY = CREDENTIALS_SOURCE = None
+
+if CREDENTIALS_SOURCE is None and CREDENTIALS_FILE.exists() and not PUBLIC_MODE:
     _saved = json.loads(CREDENTIALS_FILE.read_text())
     ACCOUNT_INDEX, API_KEY_INDEX, API_PRIVATE_KEY = _saved["account_index"], _saved["api_key_index"], _saved["private_key"]
     CREDENTIALS_SOURCE = "ui"

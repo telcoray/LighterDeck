@@ -292,7 +292,7 @@ class Calendar:
                 self.events = {e["id"]: e for e in json.loads(CACHE.read_text())}
             except Exception:
                 log.warning("calendar cache unreadable, starting empty")
-        if CUSTOM_FILE.exists():
+        if CUSTOM_FILE.exists() and not config.PUBLIC_MODE:  # the public site keeps visitors' events in their browser
             try:
                 self.custom = {e["id"]: e for e in json.loads(CUSTOM_FILE.read_text())}
             except Exception:

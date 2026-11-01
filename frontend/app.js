@@ -835,7 +835,9 @@ function renderTicket() {
   $$("#kindSel button").forEach((b) => b.classList.toggle("active", b.dataset.kind === ticket.kind));
   const ex = $("#tkExec");
   ex.className = "execute" + (!info.trading ? " connect" : ticket.side === "sell" ? " sell" : "");
-  ex.textContent = info.trading ? `${ticket.side === "buy" ? "Buy / Long" : "Sell / Short"} ${m.symbol}` : t("Sola lettura · collega un'API key");
+  ex.textContent = info.trading ? `${ticket.side === "buy" ? "Buy / Long" : "Sell / Short"} ${m.symbol}`
+    : info.public ? t("Trading online in arrivo") : t("Sola lettura · collega un'API key");
+  ex.disabled = !!info.public;
   ex.dataset.ckText = ex.textContent;
   markConfirm();
   updateTicketSummary();
@@ -1381,8 +1383,26 @@ function renderCalPage() {
   markConfirm();
 }
 
+// ---------- public site ----------
+// lighterdeck.xyz runs read-only: a welcome bar, a residence check, and your own events kept in this browser
+function applyPublic() {
+  document.body.classList.toggle("public", !!info.public);
+  if (!info.public) return;
+  if (info.blocked_country) { $("#geoPage").classList.remove("hidden"); return; }
+  $("#pubGithub").href = info.github_url;
+  $("#pubReferral").href = info.referral_url;
+  $("#pubBar").classList.toggle("hidden", !!load("pubbarClosed", false));
+  $("#pubClose").onclick = () => { store("pubbarClosed", true); $("#pubBar").classList.add("hidden"); };
+  if (!load("residence", false)) { $("#resVeil").classList.remove("hidden"); $("#resModal").classList.remove("hidden"); }
+  $("#resYes").onclick = () => { store("residence", true); $("#resVeil").classList.add("hidden"); $("#resModal").classList.add("hidden"); };
+  $("#resNo").onclick = () => { $("#resVeil").classList.add("hidden"); $("#resModal").classList.add("hidden"); $("#geoPage").classList.remove("hidden"); };
+  $("#accountPill").title = t("Versione pubblica in sola lettura");
+}
+const myEvents = () => (info && info.public ? load("myEvents", []) : []);
+
 async function loadCalendar() {
   events = await api("/calendar").catch(() => events);
+  events = [...events.filter((e) => !String(e.id).startsWith("my")), ...myEvents()].sort((a, b) => a.ts - b.ts);
   renderEcon();
   renderEventSelect();
   panels.forEach((p) => p.drawMarkers());
@@ -1719,7 +1739,12 @@ function wire() {
     const body = { title: f.elements.title.value, ts, impact: f.elements.impact.value,
       markets: f.elements.markets.value.split(/[\s,]+/).filter(Boolean).map((s) => s.toUpperCase()) };
     try {
-      await api("/custom_events", { method: "POST", body: JSON.stringify(body) });
+      if (info.public) { // the public site keeps your events in this browser only
+        if (!body.title.trim() || !body.markets.length || body.markets.some((s) => !bySymbol[s]) || !ts) throw new Error(t("Controlla titolo, data e mercati."));
+        const assets = body.markets.map((s) => `sym:${s}`);
+        store("myEvents", [...myEvents(), { id: "my" + Date.now().toString(36), title: body.title.trim().slice(0, 80), country: "", ts, impact: body.impact,
+          source: "custom", assets, impact_by: Object.fromEntries(assets.map((a) => [a, body.impact])), markets: body.markets }]);
+      } else await api("/custom_events", { method: "POST", body: JSON.stringify(body) });
       f.classList.add("hidden");
       toast(t("Evento aggiunto"));
       loadCalendar();
@@ -1728,7 +1753,12 @@ function wire() {
   const deleteEvent = async (e) => {
     const b = e.target.closest("[data-delev]");
     if (!b || !askConfirm(`delev:${b.dataset.delev}`, t("Elimina"))) return;
-    try { await api(`/custom_events/${b.dataset.delev}`, { method: "DELETE" }); toast(t("Evento eliminato")); loadCalendar(); }
+    try {
+      if (info.public) store("myEvents", myEvents().filter((x) => x.id !== b.dataset.delev));
+      else await api(`/custom_events/${b.dataset.delev}`, { method: "DELETE" });
+      toast(t("Evento eliminato"));
+      loadCalendar();
+    }
     catch (err) { toast(err.message, true); }
   };
   $("#econList").addEventListener("click", deleteEvent);
@@ -2038,7 +2068,7 @@ function credentialsChanged(newInfo) {
 }
 
 function wireKeyDialog() {
-  $("#accountPill").onclick = () => openKeyDialog();
+  $("#accountPill").onclick = () => !info.public && openKeyDialog();
   $("#keyClose").onclick = closeKeyDialog;
   $("#keyShade").onmousedown = closeKeyDialog;
   document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("#keyModal").classList.contains("hidden")) closeKeyDialog(); });
@@ -2153,6 +2183,7 @@ async function init() {
     return;
   }
   markets = info.markets;
+  applyPublic();
   bySymbol = Object.fromEntries(markets.map((m) => [m.symbol, m]));
   byId = Object.fromEntries(markets.map((m) => [m.id, m]));
   panelCfg = panelCfg.map((c) => (bySymbol[c.symbol] ? c : { ...c, symbol: "BTC" }));

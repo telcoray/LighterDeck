@@ -241,11 +241,15 @@ class LighterAPI:
 
     async def candles(self, market_id, resolution, count=500):
         """OHLCV bars; merged timeframes (3m, 2h, 8h, 3d, 1w, 1M) are built from smaller ones."""
-        if resolution in candles_mod.NATIVE:
-            return await self._native_candles(market_id, resolution, count)
-        src, bucket = candles_mod.DERIVED[resolution]  # KeyError -> unknown timeframe
         key = (market_id, resolution, count)
         hit = self._candle_cache.get(key)
+        if resolution in candles_mod.NATIVE:  # a few seconds: the live bar comes from the price stream
+            if hit and time.time() - hit[0] < 5:
+                return hit[1]
+            bars = await self._native_candles(market_id, resolution, count)
+            self._candle_cache[key] = (time.time(), bars)
+            return bars
+        src, bucket = candles_mod.DERIVED[resolution]  # KeyError -> unknown timeframe
         if hit and time.time() - hit[0] < 30:
             return hit[1]
         _, need = candles_mod.source_needed(resolution, count)

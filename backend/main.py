@@ -85,6 +85,9 @@ async def auth(request: Request, call_next):
             check_token(request.headers.get("x-token"))
         except HTTPException as e:
             return JSONResponse({"detail": e.detail}, status_code=e.status_code)
+        if config.PUBLIC_MODE and request.method != "GET":
+            return JSONResponse({"detail": L("Questa è la versione pubblica in sola lettura di LighterDeck",
+                                             "This is the public read-only version of LighterDeck")}, status_code=403)
     response = await call_next(request)
     # always revalidate the UI files, so an update shows up on the next reload
     response.headers.setdefault("Cache-Control", "no-cache")
@@ -93,8 +96,12 @@ async def auth(request: Request, call_next):
 
 # ---------- read ----------
 @app.get("/api/info")
-async def info():
+async def info(request: Request):
     return {
+        "public": config.PUBLIC_MODE,
+        "referral_url": config.REFERRAL_URL, "github_url": config.GITHUB_URL,
+        # Cloudflare's visitor country, so the public site can show the page for excluded countries
+        "blocked_country": config.PUBLIC_MODE and request.headers.get("cf-ipcountry", "") in config.BLOCKED_COUNTRIES,
         "trading": bool(api.signer), "account_index": config.ACCOUNT_INDEX, "armed": engine.armed,
         "credentials": config.CREDENTIALS_SOURCE if api.signer else None,
         "api_key_index": config.API_KEY_INDEX if api.signer else None,
@@ -183,9 +190,17 @@ async def open_orders(market_ids: str = "", fresh: bool = False):
     return out
 
 
+_book_cache = {}  # market -> (fetched at, book): many visitors, one request a second to Lighter
+
+
 @app.get("/api/orderbook")
 async def orderbook(market_id: int):
-    return await api.orderbook(market_id)
+    hit = _book_cache.get(market_id)
+    if hit and time.time() - hit[0] < 1:
+        return hit[1]
+    book = await api.orderbook(market_id)
+    _book_cache[market_id] = (time.time(), book)
+    return book
 
 
 @app.get("/api/trades")

@@ -23,10 +23,18 @@
 </script>
 <style>html.i18n-pending body { visibility: hidden; }</style>
 <link rel="icon" href="favicon.svg?v=1" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=73">
+<link rel="stylesheet" href="style.css?v=78">
 <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
 </head>
 <body>
+
+<!-- ============ public site: welcome bar ============ -->
+<div class="pubbar hidden" id="pubBar">
+  <span class="pub-text"><span class="pub-long"><b>LighterDeck</b> · Terminale per i perpetual di Lighter. Questa è la versione in sola lettura: grafici, calendario per mercato e funding. Il trading online arriva presto.</span><span class="pub-short">Sola lettura · trading in arrivo</span></span>
+  <a id="pubGithub" target="_blank" rel="noopener"><span class="pub-long">Codice su GitHub</span><span class="pub-short">GitHub</span></a>
+  <a id="pubReferral" target="_blank" rel="noopener">Apri un account su Lighter</a>
+  <button class="xbtn" id="pubClose" aria-label="Chiudi">✕</button>
+</div>
 
 <!-- ============ top bar ============ -->
 <header class="topbar">
@@ -413,6 +421,19 @@
 
 <!-- API key -->
 <div class="picker-shade hidden" id="keyShade"></div>
+<div class="modal-veil hidden" id="resVeil"></div>
+<div class="modal hidden" id="resModal" role="dialog" aria-labelledby="resTitle">
+  <div class="modal-head"><h3 id="resTitle">Prima di entrare</h3></div>
+  <p class="res-text">Come Lighter, LighterDeck non è disponibile per chi risiede negli Stati Uniti, nel Regno Unito o in Canada.</p>
+  <div class="res-actions"><button class="res-no" id="resNo">Ci risiedo</button><button class="primary" id="resYes">Non risiedo lì</button></div>
+</div>
+<div class="geo-page hidden" id="geoPage">
+  <div class="geo-card">
+    <img src="logo.svg?v=1" alt="" width="34" height="34">
+    <h2>LighterDeck non è disponibile nel tuo paese</h2>
+    <p>Come Lighter, LighterDeck non è disponibile per chi risiede negli Stati Uniti, nel Regno Unito o in Canada.</p>
+  </div>
+</div>
 <div class="modal hidden" id="keyModal" role="dialog" aria-labelledby="keyTitle">
   <div class="modal-head"><h3 id="keyTitle">Collega un'API key</h3><button class="xbtn" id="keyClose" title="Chiudi (Esc)">✕</button></div>
   <div id="keyConnected" class="hidden">
@@ -487,9 +508,9 @@
 </div>
 
 <div class="toast hidden" id="toast"></div>
-<script src="i18n.js?v=73"></script>
-<script src="formulas.js?v=73"></script>
-<script src="app.js?v=73"></script>
-<script src="picker.js?v=73"></script>
+<script src="i18n.js?v=78"></script>
+<script src="formulas.js?v=78"></script>
+<script src="app.js?v=78"></script>
+<script src="picker.js?v=78"></script>
 </body>
 </html>

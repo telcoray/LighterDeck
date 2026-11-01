@@ -62,6 +62,15 @@ cp /opt/lighterdeck/deploy/lighterdeck.service /etc/systemd/system/
 systemctl daemon-reload && systemctl enable --now lighterdeck
 ```
 
+## Public read-only site
+
+With `PUBLIC_MODE=1` in the env file the deck runs as a public site (lighterdeck.xyz): it never loads
+an API key, refuses every write request, hides automations and positions, and greets first-time
+visitors with a thin bar (link to this repository and to open a Lighter account, `REFERRAL_URL`)
+and a residence check. Visitors from the United States, the United Kingdom and Canada, where Lighter
+isn't available, see a page that says so (country from Cloudflare's `CF-IPCountry` header). Your own
+calendar events stay in each visitor's browser. Run it as a separate instance from your personal deck.
+
 ## Security
 
 - A Lighter API key can open and close positions and withdraw to **your own** wallet, but it
