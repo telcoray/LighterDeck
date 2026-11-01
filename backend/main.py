@@ -60,6 +60,7 @@ async def broadcast_loop():
 async def lifespan(app):
     await api.start()
     feed.multipliers = {mid: m.multiplier for mid, m in api.markets.items()}
+    calendar.stock_symbols = lambda: {m.symbol for m in api.markets.values() if "STOCK" in m.categories}
     tasks = [asyncio.create_task(t) for t in (feed.run(), calendar.run(), engine.run(), broadcast_loop())]
     yield
     for t in tasks:

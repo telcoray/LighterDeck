@@ -10,8 +10,14 @@ Sources, merged:
   with the holiday exceptions from EIA's own schedule pages; the API bulletin the evening
   before the EIA crude report; the Baker Hughes rig count (Friday 13:00).
 
-Events that move one kind of asset rather than a currency carry `assets` (e.g. ["oil"]);
-the UI matches them to markets (WTI, BRENTOIL -> oil, NATGAS -> natgas).
+- Earnings: Nasdaq's public earnings calendar, one request per weekday, kept for the stocks
+  listed on Lighter and for US companies worth $300B or more (they move the indices). Nasdaq
+  only says "before the open" or "after the close", so those times are approximate.
+
+Events that move one kind of asset rather than a currency carry `assets` (e.g. ["oil"],
+["stock:NVDA", "index"]) and, when the impact differs per asset, `impact_by`; the UI matches
+them to markets (WTI, BRENTOIL -> oil, NATGAS -> natgas, a stock -> its own earnings,
+ETF/index markets -> the largest companies' earnings).
 
 Rules react to the event *time* and to price action around it, not to the released number.
 """
@@ -38,6 +44,12 @@ BEA_ICS = "https://www.bea.gov/news/schedule/ics/online-calendar-subscription.ic
 FOMC_PAGE = "https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm"
 EIA_WPSR_SCHEDULE = "https://www.eia.gov/petroleum/supply/weekly/schedule.php"
 EIA_NGS_SCHEDULE = "https://ir.eia.gov/ngs/schedule.html"
+NASDAQ_EARNINGS = "https://api.nasdaq.com/api/calendar/earnings?date={}"
+EARNINGS_AHEAD_DAYS = 45
+INDEX_MOVER_CAP = 300e9   # market cap from which a company's earnings matter for the indices
+INDEX_HIGH_CAP = 1e12
+# Nasdaq gives only the session; these are the usual release times, marked as approximate
+EARNINGS_TIMES = {"time-pre-market": ((8, 0), "before the open"), "time-after-hours": ((16, 5), "after the close")}
 CACHE = config.DATA_DIR / "calendar.json"
 REFRESH_SECONDS = 30 * 60          # the weekly feed asks for gentle polling
 OFFICIAL_REFRESH_SECONDS = 12 * 3600
@@ -215,10 +227,40 @@ def energy_events(start, end, wpsr_html=None, ngs_html=None):
     return out
 
 
+def _money(text):
+    try:
+        return float(re.sub(r"[^\d.]", "", text or "") or 0)
+    except ValueError:
+        return 0.0
+
+
+def parse_earnings(day, data, stocks):
+    """Earnings rows of one day: the stocks on Lighter, plus the largest companies for the indices."""
+    out = []
+    for r in ((data or {}).get("data") or {}).get("rows") or []:
+        sym, cap = r.get("symbol", ""), _money(r.get("marketCap"))
+        if sym not in stocks and cap < INDEX_MOVER_CAP:
+            continue
+        hm, when = EARNINGS_TIMES.get(r.get("time"), ((12, 0), "time not given"))
+        e = _make(f"{sym} earnings", "USD", _at(day, hm), "Low", "Nasdaq",
+                  r.get("epsForecast", ""), r.get("lastYearEPS", ""))
+        e["assets"], e["impact_by"] = [], {}
+        if sym in stocks:
+            e["assets"].append(f"stock:{sym}")
+            e["impact_by"][f"stock:{sym}"] = "High"
+        if cap >= INDEX_MOVER_CAP:
+            e["assets"].append("index")
+            e["impact_by"]["index"] = "High" if cap >= INDEX_HIGH_CAP else "Medium"
+        e["when"], e["name"], e["approx"] = when, r.get("name", ""), True
+        out.append(e)
+    return out
+
+
 class Calendar:
     def __init__(self):
         self.events = {}  # id -> event
         self._official_at = 0
+        self.stock_symbols = lambda: set()  # set by main once the markets are loaded
         if CACHE.exists():
             try:
                 self.events = {e["id"]: e for e in json.loads(CACHE.read_text())}
@@ -232,8 +274,16 @@ class Calendar:
         now = time.time()
         rows = [e for e in self.events.values() if e["ts"] >= now - days_back * 86400]
         # an official release already listed by the weekly feed (same minute) is a duplicate
-        weekly = {e["ts"] // 60 for e in rows if e.get("source", "ff") == "ff" and e["country"] == "USD"}
-        rows = [e for e in rows if e.get("source", "ff") == "ff" or e["ts"] // 60 not in weekly]
+        ff = [e for e in rows if e.get("source", "ff") == "ff" and e["country"] == "USD"]
+        weekly, weekly_titles = {e["ts"] // 60 for e in ff}, {(e["ts"] // 60, e["title"]) for e in ff}
+
+        def duplicate(e):
+            if e.get("source", "ff") == "ff":
+                return False
+            if _assets(e["title"]):  # an energy report: the same report in the weekly feed
+                return (e["ts"] // 60, e["title"]) in weekly_titles
+            return "approx" not in e and e["ts"] // 60 in weekly  # official US releases
+        rows = [e for e in rows if not duplicate(e)]
         for e in rows:  # also tags events cached before tags existed
             if _assets(e["title"]):
                 e["assets"] = _assets(e["title"])
@@ -273,6 +323,13 @@ class Calendar:
                 today = datetime.now(EASTERN).date()
                 found += energy_events(today - timedelta(days=35), today + timedelta(days=OFFICIAL_HORIZON_DAYS),
                                        await self._fetch(s, EIA_WPSR_SCHEDULE), await self._fetch(s, EIA_NGS_SCHEDULE))
+                stocks = self.stock_symbols()
+                if stocks:
+                    for n in range(-35, EARNINGS_AHEAD_DAYS + 1):
+                        day = today + timedelta(days=n)
+                        if day.weekday() < 5:
+                            found += parse_earnings(day, await self._fetch(s, NASDAQ_EARNINGS.format(day), as_json=True), stocks)
+                            await asyncio.sleep(0.3)  # one gentle request at a time
                 if bea and fomc:
                     self._official_at = time.time()
                 for e in found:
