@@ -265,7 +265,7 @@ class Panel {
     const move = before ? ((after - before) / before) * 100 : null;
     tip.innerHTML = evs.sort((a, b) => a.ts - b.ts).map((e) => `
         <div class="ev">
-          <div class="ev-t"><span class="imp ${impactFor(e, m.symbol)}"></span>${esc(e.country)} · ${esc(e.title)}${e.source && e.source !== "ff" ? `<span class="src">${esc(e.source)}</span>` : ""}</div>
+          <div class="ev-t"><span class="imp ${impactFor(e, m.symbol)}"></span>${evLabel(e)}</div>
           <div class="ev-s">${new Date(e.ts * 1000).toLocaleString(LOCALE, { weekday: "short", day: "numeric", month: "short", ...(e.approx ? {} : { hour: "2-digit", minute: "2-digit" }) })}${e.forecast || e.previous || e.when ? " · " + eventDetail(e) : ""}</div>
         </div>`).join("") +
       (move !== null ? `<div class="ev-move">${t("Candela {tf}: {move} · chiusura {close}", { tf: tfLabel(this.cfg.tf), move: `<b class="${cls(move)}">${fpct(move)}</b>`, close: fp(after, m) })}</div>` : "");
@@ -1204,7 +1204,7 @@ const CURRENCIES = ["USD", "EUR", "GBP", "JPY", "CHF", "CAD", "AUD", "NZD", "CNY
 function marketFocus(sym) {
   const fx = sym.length === 6 && CURRENCIES.includes(sym.slice(0, 3)) && CURRENCIES.includes(sym.slice(3));
   const cats = (bySymbol[sym] && bySymbol[sym].categories) || [];
-  const assets = [...(MARKET_ASSETS[sym] || []), ...(cats.includes("STOCK") ? [`stock:${sym}`] : []), ...(cats.includes("ETF") ? ["index"] : [])];
+  const assets = [`sym:${sym}`, ...(MARKET_ASSETS[sym] || []), ...(cats.includes("STOCK") ? [`stock:${sym}`] : []), ...(cats.includes("ETF") ? ["index"] : [])];
   return { assets, ccy: fx ? [sym.slice(0, 3), sym.slice(3)] : ["USD"] };
 }
 const eventFor = (e, sym) => {
@@ -1221,8 +1221,13 @@ function impactFor(e, sym) {
 }
 // earnings come with the session only ("before the open"): the time shown is the usual one
 const WHEN = { "before the open": "prima dell'apertura", "after the close": "dopo la chiusura", "time not given": "orario non comunicato" };
+// "USD · CPI m/m" for a country's release, the title alone for crypto and your own events
+const evLabel = (e) => `${e.country ? esc(e.country) + " · " : ""}${esc(e.title)}${e.source && e.source !== "ff" ? `<span class="src">${esc(SOURCES[e.source] ? t(SOURCES[e.source]) : e.source)}</span>` : ""}`;
+const SOURCES = { custom: "tuo" };
 const eventTime = (e, d) => (e.when === "time not given" ? "—" : (e.approx ? "≈ " : "") + d.toLocaleTimeString(LOCALE, { hour: "2-digit", minute: "2-digit" }));
-const eventDetail = (e) => (e.source === "Nasdaq"
+const eventDetail = (e) => (e.source === "custom" ? esc((e.markets || []).join(", "))
+  : e.source === "Deribit" ? t("scadenza opzioni BTC ed ETH")
+  : e.source === "Nasdaq"
   ? `${t(WHEN[e.when] || e.when)} · ${t("stima EPS {f} · anno scorso {p}", { f: esc(e.forecast || "—"), p: esc(e.previous || "—") })}`
   : t("prev. {f} · prec. {p}", { f: esc(e.forecast || "—"), p: esc(e.previous || "—") }));
 
@@ -1302,11 +1307,12 @@ function renderEcon() {
     lastDay = day;
     const left = e.ts - now;
     return `${head}<div class="cal-row${left < 0 ? " past" : ""}">
-      <div style="min-width:0"><div class="t"><span class="imp ${impactFor(e, sym)}"></span>${esc(e.country)} · ${esc(e.title)}${e.source && e.source !== "ff" ? `<span class="src">${esc(e.source)}</span>` : ""}</div>
+      <div style="min-width:0"><div class="t"><span class="imp ${impactFor(e, sym)}"></span>${evLabel(e)}</div>
       <div class="s">${eventDetail(e)}</div></div>
-      <div class="w ${left > 0 && left < 3600 ? "soon" : ""}">${eventTime(e, d)}<div class="s">${left > 0 ? t("tra {d}", { d: dur(left * 1000) }) : ""}</div></div>
+      <div class="w ${left > 0 && left < 3600 ? "soon" : ""}">${eventTime(e, d)}<div class="s">${left > 0 ? t("tra {d}", { d: dur(left * 1000) }) : ""}${e.source === "custom" ? ` <button class="ev-del" data-delev="${e.id}" data-ck="delev:${e.id}" title="${t("Elimina")}">✕</button>` : ""}</div></div>
     </div>`;
   }).join("") || `<div class="empty">${t("Nessun evento.")}</div>`;
+  markConfirm();
 }
 
 async function loadCalendar() {
@@ -1342,7 +1348,7 @@ function renderEventSelect() {
   const sym = m && m.symbol;
   // an event trade fires at the event's time: earnings without a time can't be used
   sel.innerHTML = events.filter((e) => e.ts > now && e.impact !== "Holiday" && e.when !== "time not given" && (!sym || eventFor(e, sym))).map((e) =>
-    `<option value="${e.id}">${new Date(e.ts * 1000).toLocaleString(LOCALE, { weekday: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })} · ${e.country} ${esc(e.title)} (${impactFor(e, sym)})${e.approx ? " · " + t("orario indicativo") : ""}</option>`).join("");
+    `<option value="${e.id}">${new Date(e.ts * 1000).toLocaleString(LOCALE, { weekday: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })} · ${e.country ? e.country + " " : ""}${esc(e.title)} (${impactFor(e, sym)})${e.approx ? " · " + t("orario indicativo") : ""}</option>`).join("");
   if (keep && [...sel.options].some((o) => o.value === keep)) sel.value = keep;
 }
 
@@ -1610,6 +1616,36 @@ function wire() {
   }));
   $("#econFilter").onclick = (e) => { const b = e.target.closest("[data-f]"); if (b) { store("econf", b.dataset.f); renderEcon(); } };
   $("#eventForm").elements.market_id.addEventListener("change", renderEventSelect);
+  // your own events: anything no feed covers (a token unlock, a network upgrade, a listing)
+  $("#evAddBtn").onclick = () => {
+    const f = $("#evForm");
+    f.classList.toggle("hidden");
+    if (f.classList.contains("hidden")) return;
+    f.reset();
+    const m = activeMarket();
+    f.elements.markets.value = m ? m.symbol : "";
+    f.elements.title.focus();
+  };
+  $("#evCancel").onclick = () => $("#evForm").classList.add("hidden");
+  $("#evForm").onsubmit = async (e) => {
+    e.preventDefault();
+    const f = e.target;
+    const ts = Math.floor(new Date(f.elements.when.value).getTime() / 1000);
+    const body = { title: f.elements.title.value, ts, impact: f.elements.impact.value,
+      markets: f.elements.markets.value.split(/[\s,]+/).filter(Boolean).map((s) => s.toUpperCase()) };
+    try {
+      await api("/custom_events", { method: "POST", body: JSON.stringify(body) });
+      f.classList.add("hidden");
+      toast(t("Evento aggiunto"));
+      loadCalendar();
+    } catch (err) { toast(err.message, true); }
+  };
+  $("#econList").onclick = async (e) => {
+    const b = e.target.closest("[data-delev]");
+    if (!b || !askConfirm(`delev:${b.dataset.delev}`, t("Elimina"))) return;
+    try { await api(`/custom_events/${b.dataset.delev}`, { method: "DELETE" }); toast(t("Evento eliminato")); loadCalendar(); }
+    catch (err) { toast(err.message, true); }
+  };
   $("#calTz").textContent = Intl.DateTimeFormat().resolvedOptions().timeZone.split("/").pop().replace("_", " ") + " · " + utcOffset();
 
   // markets page

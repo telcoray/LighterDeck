@@ -14,6 +14,10 @@ Sources, merged:
   listed on Lighter and for US companies worth $300B or more (they move the indices). Nasdaq
   only says "before the open" or "after the close", so those times are approximate.
 
+- Crypto: Deribit's monthly and quarterly BTC/ETH option expiries (last Friday, 08:00 UTC).
+  Token unlocks and network upgrades have no free, reliable feed: those go in as the user's own
+  events (data/custom_events.json), which can name any market.
+
 Events that move one kind of asset rather than a currency carry `assets` (e.g. ["oil"],
 ["stock:NVDA", "index"]) and, when the impact differs per asset, `impact_by`; the UI matches
 them to markets (WTI, BRENTOIL -> oil, NATGAS -> natgas, a stock -> its own earnings,
@@ -51,6 +55,8 @@ INDEX_HIGH_CAP = 1e12
 # Nasdaq gives only the session; these are the usual release times, marked as approximate
 EARNINGS_TIMES = {"time-pre-market": ((8, 0), "before the open"), "time-after-hours": ((16, 5), "after the close")}
 CACHE = config.DATA_DIR / "calendar.json"
+CUSTOM_FILE = config.DATA_DIR / "custom_events.json"
+IMPACTS = ("High", "Medium", "Low")
 REFRESH_SECONDS = 30 * 60          # the weekly feed asks for gentle polling
 OFFICIAL_REFRESH_SECONDS = 12 * 3600
 OFFICIAL_HORIZON_DAYS = 120
@@ -256,33 +262,77 @@ def parse_earnings(day, data, stocks):
     return out
 
 
+def option_expiries(start, end):
+    """Deribit BTC/ETH options: monthly on the last Friday at 08:00 UTC, quarterly in Mar/Jun/Sep/Dec."""
+    out = []
+    y, m = start.year, start.month
+    while (y, m) <= (end.year, end.month):
+        last = datetime(y + (m == 12), m % 12 + 1, 1).date() - timedelta(days=1)
+        fri = last - timedelta(days=(last.weekday() - 4) % 7)
+        if start <= fri <= end:
+            quarterly = m in (3, 6, 9, 12)
+            ts = datetime(fri.year, fri.month, fri.day, 8, 0, tzinfo=timezone.utc).timestamp()
+            e = _make(f"Deribit BTC & ETH options expiry ({'quarterly' if quarterly else 'monthly'})", "", ts,
+                      "Low", "Deribit")
+            e["assets"] = ["sym:BTC", "sym:ETH"]
+            e["impact_by"] = {a: "High" if quarterly else "Medium" for a in e["assets"]}
+            out.append(e)
+        y, m = y + (m == 12), m % 12 + 1
+    return out
+
+
 class Calendar:
     def __init__(self):
         self.events = {}  # id -> event
         self._official_at = 0
         self.stock_symbols = lambda: set()  # set by main once the markets are loaded
+        self.custom = {}  # the user's own events, kept apart from the feeds and never pruned
         if CACHE.exists():
             try:
                 self.events = {e["id"]: e for e in json.loads(CACHE.read_text())}
             except Exception:
                 log.warning("calendar cache unreadable, starting empty")
+        if CUSTOM_FILE.exists():
+            try:
+                self.custom = {e["id"]: e for e in json.loads(CUSTOM_FILE.read_text())}
+            except Exception:
+                log.warning("custom events unreadable, starting empty")
 
     def get(self, event_id):
-        return self.events.get(event_id)
+        return self.events.get(event_id) or self.custom.get(event_id)
+
+    def add_custom(self, title, ts, markets, impact):
+        """An event of the user's own: a token unlock, an upgrade, anything no feed covers."""
+        title = (title or "").strip()
+        if not 1 <= len(title) <= 80:
+            raise ValueError("title")
+        if impact not in IMPACTS:
+            raise ValueError("impact")
+        markets = sorted({m.strip().upper() for m in markets if m.strip()})
+        e = _make(title, "", ts, impact, "custom")
+        e["assets"] = [f"sym:{m}" for m in markets]
+        e["impact_by"] = {a: impact for a in e["assets"]}
+        e["markets"] = markets
+        self.custom[e["id"]] = e
+        CUSTOM_FILE.write_text(json.dumps(list(self.custom.values()), indent=1))
+        return e
+
+    def delete_custom(self, event_id):
+        if self.custom.pop(event_id, None) is None:
+            raise KeyError(event_id)
+        CUSTOM_FILE.write_text(json.dumps(list(self.custom.values()), indent=1))
 
     def listing(self, days_back=1):
         now = time.time()
-        rows = [e for e in self.events.values() if e["ts"] >= now - days_back * 86400]
+        rows = [e for e in [*self.events.values(), *self.custom.values()] if e["ts"] >= now - days_back * 86400]
         # an official release already listed by the weekly feed (same minute) is a duplicate
         ff = [e for e in rows if e.get("source", "ff") == "ff" and e["country"] == "USD"]
         weekly, weekly_titles = {e["ts"] // 60 for e in ff}, {(e["ts"] // 60, e["title"]) for e in ff}
 
         def duplicate(e):
-            if e.get("source", "ff") == "ff":
-                return False
-            if _assets(e["title"]):  # an energy report: the same report in the weekly feed
+            if _assets(e["title"]) and e.get("source") != "ff":  # an energy report: the same one in the weekly feed
                 return (e["ts"] // 60, e["title"]) in weekly_titles
-            return "approx" not in e and e["ts"] // 60 in weekly  # official US releases
+            return e.get("source") in ("BEA", "Fed") and e["ts"] // 60 in weekly  # official US releases
         rows = [e for e in rows if not duplicate(e)]
         for e in rows:  # also tags events cached before tags existed
             if _assets(e["title"]):
@@ -323,6 +373,7 @@ class Calendar:
                 today = datetime.now(EASTERN).date()
                 found += energy_events(today - timedelta(days=35), today + timedelta(days=OFFICIAL_HORIZON_DAYS),
                                        await self._fetch(s, EIA_WPSR_SCHEDULE), await self._fetch(s, EIA_NGS_SCHEDULE))
+                found += option_expiries(today - timedelta(days=35), today + timedelta(days=OFFICIAL_HORIZON_DAYS))
                 stocks = self.stock_symbols()
                 if stocks:
                     for n in range(-35, EARNINGS_AHEAD_DAYS + 1):

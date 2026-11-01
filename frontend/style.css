@@ -365,6 +365,18 @@ body.dragging-line, body.dragging-line * { cursor: ns-resize !important; user-se
 .chipsel { display: flex; gap: 4px; margin-bottom: 6px; }
 .chipsel button { padding: 3px 8px; border-radius: 10px; border: 1px solid var(--line-2); color: var(--muted); font-size: 10.5px; }
 .chipsel button.active { color: var(--text); border-color: var(--line-3); background: var(--raised); }
+.chipsel { flex-wrap: wrap; }
+.chipsel .ev-add { margin-left: auto; border-style: dashed; }
+.chipsel .ev-add:hover { color: var(--text); }
+.ev-form { display: flex; flex-direction: column; gap: 6px; padding: 10px; margin: 4px 0 8px; border: 1px solid var(--line-2); border-radius: 8px; background: var(--bg); }
+.ev-form input, .ev-form select { height: 30px; padding: 0 8px; border: 1px solid var(--line-2); border-radius: 6px; background: var(--surface); font-size: 11.5px; min-width: 0; }
+.ev-form input:focus, .ev-form select:focus { outline: none; border-color: var(--line-3); }
+.ev-form-row { display: flex; gap: 6px; }
+.ev-form-row > * { flex: 1; }
+.ev-form-row .primary { margin-top: 0; height: 30px; }
+.ev-form-row button[type="button"] { border: 1px solid var(--line-2); border-radius: 6px; color: var(--text-2); }
+.ev-del { margin-left: 6px; color: var(--muted); font-size: 10px; }
+.ev-del:hover, .ev-del.confirming { color: var(--red); }
 
 /* ---------- pages (markets / automations / activity) ---------- */
 .page { height: 100%; overflow-y: auto; padding: 22px 24px; }

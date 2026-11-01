@@ -114,6 +114,36 @@ async def candles(market_id: int, resolution: str = "15m", count: int = 500):
         raise HTTPException(400, "bad resolution")
 
 
+class CustomEventReq(BaseModel):
+    title: str
+    ts: int                   # unix seconds
+    markets: list[str]        # Lighter symbols the event moves
+    impact: str = "High"
+
+
+@app.post("/api/custom_events")
+async def add_custom_event(r: CustomEventReq):
+    unknown = [s for s in r.markets if s.strip().upper() not in {m.symbol for m in api.markets.values()}]
+    if unknown or not r.markets:
+        raise HTTPException(400, L(f"Mercato sconosciuto: {', '.join(unknown) or '—'}", f"Unknown market: {', '.join(unknown) or '—'}"))
+    if not time.time() - 86400 * 35 <= r.ts <= time.time() + 86400 * 800:
+        raise HTTPException(400, L("Data fuori dall'intervallo", "Date out of range"))
+    try:
+        return calendar.add_custom(r.title, r.ts, r.markets, r.impact)
+    except ValueError:
+        raise HTTPException(400, L("Titolo da 1 a 80 caratteri e impatto alto, medio o basso",
+                                   "Title of 1 to 80 characters and impact high, medium or low"))
+
+
+@app.delete("/api/custom_events/{event_id}")
+async def delete_custom_event(event_id: str):
+    try:
+        calendar.delete_custom(event_id)
+    except KeyError:
+        raise HTTPException(404, L("Evento non trovato", "Event not found"))
+    return {"ok": True}
+
+
 _funding_cache = {}  # (market, days) -> (fetched at, rows); funding changes once an hour
 
 
