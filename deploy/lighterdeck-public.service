@@ -1,0 +1,25 @@
+[Unit]
+Description=LighterDeck public read-only site
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=lighterdeck
+Group=lighterdeck
+WorkingDirectory=/opt/lighterdeck-public
+EnvironmentFile=/etc/lighterdeck-public/lighterdeck.env
+Environment=DATA_DIR=/var/lib/lighterdeck-public
+Environment=PUBLIC_MODE=1
+ExecStart=/opt/lighterdeck-public/.venv/bin/python backend/main.py
+Restart=always
+RestartSec=5
+# keep it small next to the other services
+MemoryMax=400M
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/lighterdeck-public
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
