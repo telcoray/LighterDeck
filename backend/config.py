@@ -36,7 +36,7 @@ CREDENTIALS_FILE = DATA_DIR / "credentials.json"
 # Public read-only site (lighterdeck.xyz): never loads a key, refuses every write, and the UI
 # shows the welcome bar. The personal deck runs without it, behind the SSH tunnel.
 PUBLIC_MODE = _env("PUBLIC_MODE", "").lower() in ("1", "true", "yes")
-REFERRAL_URL = _env("REFERRAL_URL", "https://app.lighter.xyz")  # "open a Lighter account" link
+REFERRAL_URL = _env("REFERRAL_URL", "https://app.lighter.xyz/?referral=7658993U&source=none")  # "open a Lighter account": the project's referral
 GITHUB_URL = "https://github.com/telcoray/LighterDeck"
 BLOCKED_COUNTRIES = {"US", "GB", "CA"}  # where Lighter isn't available
 if PUBLIC_MODE:

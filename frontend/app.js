@@ -70,8 +70,9 @@ function swatch() {
 let info = {}, markets = [], bySymbol = {}, byId = {};
 let prices = {}, account = null, events = [], lastTick = 0;
 let panels = [];
+// first visit: four charts across crypto, gold and a stock, to show what Lighter lists
 let panelCfg = load("panels", [
-  { symbol: "BTC", tf: "1h" }, { symbol: "ETH", tf: "1h" }, { symbol: "SOL", tf: "1h" }, { symbol: "HYPE", tf: "1h" },
+  { symbol: "BTC", tf: "1h" }, { symbol: "ETH", tf: "1h" }, { symbol: "XAU", tf: "1h" }, { symbol: "HOOD", tf: "1h" },
 ]);
 let layout = load("layout", "4");
 let activeIdx = Math.min(load("active", 0), 3);
