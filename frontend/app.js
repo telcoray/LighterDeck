@@ -552,7 +552,76 @@ function renderMarketBar() {
   const f = $("#stFund");
   f.textContent = p.funding.toFixed(4) + "%";
   f.className = p.funding >= 0 ? "" : "down";
+  if (fundView.open && $("#fundPop").dataset.mid !== String(m.id)) { $("#fundPop").dataset.mid = m.id; loadFundingHistory(); }
   $("#stOi").textContent = fcompact(p.oi);
+}
+
+// ---------- funding details ----------
+// Lighter pays funding every hour; the estimate in the market bar is the % per hour, positive when longs pay
+const fundView = { open: false, days: 7, chart: null, rate: null, cum: null, timer: null };
+const fpctf = (v) => `${v >= 0 ? "+" : "−"}${Math.abs(v).toFixed(4)}%`;
+
+function toggleFunding(open = !fundView.open) {
+  fundView.open = open;
+  $("#fundPop").classList.toggle("hidden", !open);
+  $("#stFundBtn").classList.toggle("open", open);
+  clearInterval(fundView.timer);
+  if (!open) return;
+  fundView.timer = setInterval(renderFundingStats, 1000); // countdown
+  renderFundingStats();
+  $("#fundPop").dataset.mid = activeMarket() ? activeMarket().id : "";
+  loadFundingHistory();
+}
+
+function renderFundingStats() {
+  const m = activeMarket(), p = m && prices[m.id];
+  if (!fundView.open || !m) return;
+  $("#fundTitle").textContent = t("Funding {sym}", { sym: m.symbol });
+  const left = 3600 - Math.floor(Date.now() / 1000) % 3600;
+  $("#fdNext").textContent = `${String(Math.floor(left / 60)).padStart(2, "0")}:${String(left % 60).padStart(2, "0")}`;
+  const r = p ? p.funding : null;
+  const show = (id, v) => { const el = $(id); el.textContent = r === null ? "—" : fpctf(v); el.className = r === null ? "" : v >= 0 ? "up" : "down"; };
+  show("#fdNow", r); show("#fdWeek", r * 24 * 7); show("#fdMonth", r * 24 * 30); show("#fdYear", r * 24 * 365);
+  // what the open position pays (−) or receives (+) at the next funding, at the current estimate
+  const pos = account && account.positions.find((x) => x.market_id === m.id);
+  $("#fdPosRow").classList.toggle("hidden", !pos || r === null);
+  if (pos && r !== null) {
+    const usd = -Math.sign(pos.size) * Math.abs(pos.size) * (p.mark || pos.entry) * r / 100;
+    const el = $("#fdPos");
+    el.textContent = `${usd >= 0 ? t("ricevi") : t("paghi")} ${fusd(Math.abs(usd))}/h`;
+    el.className = usd >= 0 ? "up" : "down";
+  }
+}
+
+async function loadFundingHistory() {
+  const m = activeMarket();
+  if (!m) return;
+  const days = fundView.days;
+  $$("#fundRange button").forEach((b) => b.classList.toggle("active", +b.dataset.d === days));
+  if (!fundView.chart) {
+    const pct = { type: "custom", minMove: 0.0001, formatter: (v) => v.toFixed(4) + "%" };
+    fundView.chart = LightweightCharts.createChart($("#fundChart"), {
+      autoSize: true,
+      layout: { background: { color: "transparent" }, fontSize: 10.5, fontFamily: "JetBrains Mono, monospace" },
+      rightPriceScale: { scaleMargins: { top: 0.1, bottom: 0.1 } },
+      leftPriceScale: { visible: true, scaleMargins: { top: 0.1, bottom: 0.1 } },
+      timeScale: { timeVisible: true, secondsVisible: false },
+      crosshair: { mode: 0, vertLine: { style: 2 }, horzLine: { style: 2 } },
+      handleScroll: false, handleScale: false,
+    });
+    fundView.cum = fundView.chart.addLineSeries({ priceScaleId: "left", lineWidth: 1.5, priceFormat: pct, lastValueVisible: false, priceLineVisible: false });
+    fundView.rate = fundView.chart.addBaselineSeries({ baseValue: { type: "price", price: 0 }, lineWidth: 1.5, priceFormat: pct, priceLineVisible: false });
+  }
+  fundView.chart.applyOptions(chartTheme());
+  fundView.cum.applyOptions({ color: cssVar("--muted") });
+  fundView.rate.applyOptions({ topLineColor: C.green, bottomLineColor: C.red, topFillColor1: "transparent", topFillColor2: "transparent",
+    bottomFillColor1: "transparent", bottomFillColor2: C.red + "22" });
+  const rows = await api(`/funding?market_id=${m.id}&days=${days}`).catch(() => null);
+  if (!rows || activeMarket() !== m || fundView.days !== days) return;
+  let sum = 0;
+  fundView.rate.setData(rows.map((r) => ({ time: r.t, value: r.rate })));
+  fundView.cum.setData(rows.map((r) => ({ time: r.t, value: (sum += r.rate) })));
+  fundView.chart.timeScale().fitContent();
 }
 
 function renderTicker() {
@@ -1402,6 +1471,14 @@ function wire() {
   };
   $("#tfReset").onclick = (e) => { e.stopPropagation(); shownTfs = [...DEFAULT_TFS]; store("tfs", shownTfs); renderTfs(); };
   document.addEventListener("click", () => { toggleTfMenu(false); $("#elMenu").classList.add("hidden"); });
+  $("#stFundBtn").onclick = (e) => { e.stopPropagation(); toggleFunding(); };
+  $("#fundClose").onclick = () => toggleFunding(false);
+  $("#fundPop").onclick = (e) => {
+    e.stopPropagation();
+    const b = e.target.closest("[data-d]");
+    if (b) { fundView.days = +b.dataset.d; loadFundingHistory(); }
+  };
+  document.addEventListener("click", () => fundView.open && toggleFunding(false));
   $("#elBtn").onclick = (e) => {
     e.stopPropagation();
     const menu = $("#elMenu");
@@ -1514,7 +1591,7 @@ function wire() {
   };
 
   // a pending confirm goes away with Esc, a click on anything else, or a change in the ticket
-  document.addEventListener("keydown", (e) => { if (e.key === "Escape") { cancelConfirm(); panels.forEach((p) => p.hold && p.endMove(false)); } });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") { cancelConfirm(); panels.forEach((p) => p.hold && p.endMove(false)); if (fundView.open) toggleFunding(false); } });
   document.addEventListener("mousedown", (e) => {
     if (pendingConfirm && !e.target.closest(`[data-ck="${pendingConfirm.key}"], #armedBtn`)) cancelConfirm();
   });

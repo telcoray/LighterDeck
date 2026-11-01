@@ -254,6 +254,15 @@ class LighterAPI:
         self._candle_cache[key] = (time.time(), bars)
         return bars
 
+    async def fundings(self, market_id, hours):
+        """Hourly funding of a market, oldest first: unix seconds and % per hour, positive when longs pay."""
+        now = int(time.time())
+        data = await self._get("/api/v1/fundings", {"market_id": market_id, "resolution": "1h",
+                                                    "start_timestamp": now - hours * 3600, "end_timestamp": now,
+                                                    "count_back": 0})
+        return [{"t": f["timestamp"], "rate": float(f["rate"]) * (1 if f["direction"] == "long" else -1)}
+                for f in data.get("fundings", [])]
+
     async def account(self):
         if config.ACCOUNT_INDEX is None:
             return None

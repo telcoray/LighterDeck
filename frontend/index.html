@@ -23,7 +23,7 @@
 </script>
 <style>html.i18n-pending body { visibility: hidden; }</style>
 <link rel="icon" href="favicon.svg?v=1" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=64">
+<link rel="stylesheet" href="style.css?v=65">
 <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
 </head>
 <body>
@@ -74,8 +74,24 @@
         <div class="stat"><label>24h</label><span id="stChg">—</span></div>
         <div class="stat"><label>Volume 24h</label><span id="stVol">—</span></div>
         <div class="stat"><label>Index</label><span id="stIdx">—</span></div>
-        <div class="stat"><label>Funding est.</label><span id="stFund">—</span></div>
+        <button class="stat stat-btn" id="stFundBtn" title="Dettagli funding"><label>Funding est.</label><span id="stFund">—</span></button>
         <div class="stat"><label>Open interest</label><span id="stOi">—</span></div>
+      </div>
+
+      <div class="fund-pop hidden" id="fundPop">
+        <div class="fund-head"><b id="fundTitle">Funding</b><button class="xbtn" id="fundClose" aria-label="Chiudi">✕</button></div>
+        <dl class="fund-stats">
+          <div><dt>Tasso attuale · 1h</dt><dd id="fdNow">—</dd></div>
+          <div><dt>Prossimo funding</dt><dd id="fdNext">—</dd></div>
+          <div><dt>Settimana</dt><dd id="fdWeek">—</dd></div>
+          <div><dt>Mese</dt><dd id="fdMonth">—</dd></div>
+          <div><dt>Anno</dt><dd id="fdYear">—</dd></div>
+          <div class="hidden" id="fdPosRow"><dt>La tua posizione</dt><dd id="fdPos">—</dd></div>
+        </dl>
+        <div class="fund-hist-head"><span class="caps muted">Storico</span>
+          <div class="seg" id="fundRange"><button data-d="1">24H</button><button data-d="7" class="active">1W</button><button data-d="30">1M</button></div></div>
+        <div class="fund-chart" id="fundChart"></div>
+        <div class="fund-legend"><span><i class="sw rate"></i>Funding</span><span><i class="sw cum"></i>Cumulato</span><span class="muted">Positivo: i long pagano gli short</span></div>
       </div>
 
       <div class="toolbar">
@@ -431,9 +447,9 @@
 </div>
 
 <div class="toast hidden" id="toast"></div>
-<script src="i18n.js?v=64"></script>
-<script src="formulas.js?v=64"></script>
-<script src="app.js?v=64"></script>
-<script src="picker.js?v=64"></script>
+<script src="i18n.js?v=65"></script>
+<script src="formulas.js?v=65"></script>
+<script src="app.js?v=65"></script>
+<script src="picker.js?v=65"></script>
 </body>
 </html>

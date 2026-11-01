@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import re
+import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -110,6 +111,23 @@ async def candles(market_id: int, resolution: str = "15m", count: int = 500):
         return await api.candles(market_id, resolution, min(count, 1000))
     except KeyError:
         raise HTTPException(400, "bad resolution")
+
+
+_funding_cache = {}  # (market, days) -> (fetched at, rows); funding changes once an hour
+
+
+@app.get("/api/funding")
+async def funding(market_id: int, days: int = 7):
+    days = max(1, min(days, 31))  # Lighter returns at most 750 hourly points
+    hit = _funding_cache.get((market_id, days))
+    if hit and time.time() - hit[0] < 300:
+        return hit[1]
+    try:
+        rows = await api.fundings(market_id, days * 24)
+    except Exception as e:
+        raise HTTPException(502, str(e))
+    _funding_cache[(market_id, days)] = (time.time(), rows)
+    return rows
 
 
 @app.get("/api/calendar")

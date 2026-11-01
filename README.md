@@ -11,7 +11,7 @@ A personal trading terminal for the perpetual futures on [Lighter](https://light
 | Area | What's there |
 | --- | --- |
 | Charts | 1, 2 or 4 charts (side by side or stacked), 14 timeframes, OHLC legend, volume, entry, liquidation, open orders (SL/TP/limit, draggable to move them) and the managed stop moving on the chart, mark price, macro events; each one can be turned on or off from **Elements** |
-| Markets | Live prices for every perpetual, mark/index, funding, open interest, order book with spread, market picker with search and categories |
+| Markets | Live prices for every perpetual, mark/index, funding (click it for the hourly rate over a week, month and year, the next funding countdown, what your position pays and the 24H/1W/1M history), open interest, order book with spread, market picker with search and categories |
 | Orders | Market and limit, post-only, reduce-only, slippage in bps, size in USD / quantity / % of equity / $ risk to the stop; limit price, SL, TP and trailing previewed on the chart while you fill in the ticket; orders and full closes confirmed with a second click, no pop-ups |
 | Protection | Native SL/TP sent together with the entry (OTO/OTOCO), TP and SL shown in the positions table and set or changed from there, partial close 25/50/75/100%, leverage and cross/isolated |
 | Risk (optional) | Off by default, each one switched on by itself: limits per order, per market and total exposure as a % of equity, daily loss as a % of the equity at 00:00 UTC (open positions included), leverage, number of positions, mandatory stop-loss, no reversals |
