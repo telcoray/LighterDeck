@@ -290,7 +290,7 @@ async def delete_trail(market_id: int):
 async def get_limits():
     risk.convert_usd_limits(engine.account)
     equity = (engine.account or {}).get("total_value")
-    daily = await risk.daily_pnl()
+    daily = await risk.daily_pnl() if risk.limits["on"].get("daily_loss_pct") else None
     # what each % is worth right now (the daily loss is measured on the equity at 00:00 UTC)
     return {"limits": risk.limits, "hard_cap_usd": config.MAX_NOTIONAL_USD, "daily_pnl": daily,
             "equity": equity, "day_start_equity": equity - daily if equity and daily is not None else equity}
@@ -363,7 +363,7 @@ async def set_leverage(market_id: int, leverage: int, cross: bool = True):
     m = api.markets.get(market_id)
     if not m or leverage < 1 or (m.max_leverage and leverage > m.max_leverage):
         raise HTTPException(400, L("Leva fuori dai limiti del mercato", "Leverage outside the market's range"))
-    if leverage > risk.limits["leverage_cap"]:
+    if risk.limits["on"].get("leverage_cap") and leverage > risk.limits["leverage_cap"]:
         raise HTTPException(400, L(f"Leva oltre il tuo limite ({risk.limits['leverage_cap']}x)",
                                    f"Leverage above your limit ({risk.limits['leverage_cap']}x)"))
     try:

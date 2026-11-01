@@ -4,10 +4,12 @@ Each rule is a small function that looks at a `Proposal` (the order plus the acc
 now) and returns a reason to refuse it, or None. Rules run in order and the first refusal wins,
 so the message the user sees names the most basic problem first.
 
-Limits are editable from the UI and saved in data/limits.json. Size and loss limits are a % of
-the account's equity, so they follow the account as it grows or shrinks; the daily loss is a % of
-the equity at 00:00 UTC. The MAX_NOTIONAL_USD cap in config.py stays a hard ceiling in dollars,
-enforced again in lighter_api just before signing.
+A few checks always run because the exchange would refuse the order anyway (minimum size, margin,
+SL/TP side, stale prices). The risk limits are optional: each one has its own switch in the UI and
+all are off by default. Limits are saved in data/limits.json. Size and loss limits are a % of the
+account's equity, so they follow the account as it grows or shrinks; the daily loss is a % of the
+equity at 00:00 UTC. The optional MAX_NOTIONAL_USD cap in the env file is checked again in
+lighter_api just before signing.
 """
 import json
 import time
@@ -27,9 +29,11 @@ DEFAULT_LIMITS = {
     "leverage_cap": 5,
     "daily_loss_pct": 3.0,        # % of the equity at 00:00 UTC
     "open_markets": 3,
-    "slippage_bps_cap": 50,
-    "stop_required": True,
+    "slippage_bps_cap": 50,       # default slippage for market orders (a setting, not a limit)
 }
+# limits that only apply when switched on; stop_required and no_flip are switches alone
+OPTIONAL = ("per_order_pct", "per_market_pct", "total_exposure_pct", "daily_loss_pct",
+            "leverage_cap", "open_markets", "stop_required", "no_flip")
 LIMIT_RANGES = {  # accepted values from the UI: (min, max, integer?)
     "per_order_pct": (0.1, 1000, False),
     "per_market_pct": (0.1, 2000, False),
@@ -121,16 +125,14 @@ def rule_protection_side(p, L):
     return sltp_trigger_error(p.side, p.price, p.mark, p.stop, p.target)
 
 
+def on(L, key):
+    return L["on"].get(key, False)
+
+
 def rule_stop_required(p, L):
-    if L["stop_required"] and not p.stop:
+    if on(L, "stop_required") and not p.stop:
         return tr("Imposta uno stop-loss: è obbligatorio nei tuoi limiti di rischio",
                  "Set a stop-loss: your risk limits require one")
-
-
-def rule_slippage(p, L):
-    if p.slippage_bps is not None and p.slippage_bps > L["slippage_bps_cap"]:
-        return tr(f"Slippage oltre il tuo limite di {L['slippage_bps_cap']} bps",
-                  f"Slippage above your {L['slippage_bps_cap']} bps limit")
 
 
 def _pct(L, key):
@@ -138,6 +140,8 @@ def _pct(L, key):
 
 
 def rule_order_size(p, L):
+    if not on(L, "per_order_pct"):
+        return None
     cap = p.cap(L, "per_order_pct")
     if p.notional > cap:
         return tr(f"Ordine da ${p.notional:,.0f}: il tuo limite per ordine è {_pct(L, 'per_order_pct')} del capitale (${cap:,.0f})",
@@ -150,12 +154,14 @@ def rule_account_loaded(p, L):
 
 
 def rule_no_flip(p, L):
-    if p.held * p.side < 0:
+    if on(L, "no_flip") and p.held * p.side < 0:
         return tr("Hai una posizione opposta: chiudila (reduce-only) prima di girarti",
                  "You hold the opposite position: close it (reduce-only) before reversing")
 
 
 def rule_daily_loss(p, L):
+    if not on(L, "daily_loss_pct"):
+        return None
     if p.daily_pnl is None:
         return tr("Non riesco a verificare il PnL di oggi: nuove posizioni bloccate per sicurezza",
                   "Today's PnL can't be checked: new positions blocked to be safe")
@@ -166,6 +172,8 @@ def rule_daily_loss(p, L):
 
 
 def rule_market_exposure(p, L):
+    if not on(L, "per_market_pct"):
+        return None
     here = next((abs(x["value"]) for x in p.positions if x["market_id"] == p.market.id), 0.0)
     cap = p.cap(L, "per_market_pct")
     if here + p.notional > cap:
@@ -174,6 +182,8 @@ def rule_market_exposure(p, L):
 
 
 def rule_total_exposure(p, L):
+    if not on(L, "total_exposure_pct"):
+        return None
     total = sum(abs(x["value"]) for x in p.positions) + p.notional
     cap = p.cap(L, "total_exposure_pct")
     if total > cap:
@@ -182,6 +192,8 @@ def rule_total_exposure(p, L):
 
 
 def rule_open_markets(p, L):
+    if not on(L, "open_markets"):
+        return None
     markets = {x["market_id"] for x in p.positions} | {p.market.id}
     if len(markets) > L["open_markets"]:
         return tr(f"Avresti più di {L['open_markets']} mercati aperti insieme",
@@ -195,7 +207,7 @@ def _leverage(p):
 
 def rule_leverage(p, L):
     lev = _leverage(p)
-    if lev and lev > L["leverage_cap"]:
+    if on(L, "leverage_cap") and lev and lev > L["leverage_cap"]:
         return tr(f"La leva su {p.market.symbol} è {lev:g}x, oltre il tuo limite di {L['leverage_cap']}x: abbassala prima",
                   f"{p.market.symbol} leverage is {lev:g}x, above your {L['leverage_cap']}x limit: lower it first")
 
@@ -207,7 +219,7 @@ def rule_margin(p, L):
 
 
 OPENING_RULES = [
-    rule_exchange_minimum, rule_protection_side, rule_stop_required, rule_slippage, rule_account_loaded,
+    rule_exchange_minimum, rule_protection_side, rule_stop_required, rule_account_loaded,
     rule_order_size, rule_no_flip, rule_daily_loss, rule_market_exposure, rule_total_exposure,
     rule_open_markets, rule_leverage, rule_margin,
 ]
@@ -224,11 +236,12 @@ def rule_reduces_position(p, L):
 class RiskGuard:
     def __init__(self, api, feed):
         self.api, self.feed = api, feed
-        self.limits = dict(DEFAULT_LIMITS)
+        self.limits = {**DEFAULT_LIMITS, "on": {k: False for k in OPTIONAL}}
         self._usd_to_convert = {}
         if LIMITS_FILE.exists():
             saved = {_OLD_NAMES.get(k, k): v for k, v in json.loads(LIMITS_FILE.read_text()).items()}
             self.limits.update({k: v for k, v in saved.items() if k in DEFAULT_LIMITS})
+            self.limits["on"].update({k: bool(v) for k, v in (saved.get("on") or {}).items() if k in OPTIONAL})
             self._usd_to_convert = {_USD_NAMES[k]: v for k, v in saved.items() if k in _USD_NAMES and _USD_NAMES[k] not in saved}
         self._pnl_cache = (None, 0.0)
 
@@ -245,8 +258,8 @@ class RiskGuard:
 
     def update(self, changes):
         for key, value in changes.items():
-            if key == "stop_required":
-                self.limits[key] = bool(value)
+            if key == "on":
+                self.limits["on"].update({k: bool(v) for k, v in value.items() if k in OPTIONAL})
             elif key in LIMIT_RANGES:
                 lo, hi, whole = LIMIT_RANGES[key]
                 value = float(value)
@@ -287,7 +300,8 @@ class RiskGuard:
             if reason:
                 raise Blocked(reason)
             return
-        proposal.daily_pnl = await self.daily_pnl() if account is not None else None
+        if account is not None and on(self.limits, "daily_loss_pct"):
+            proposal.daily_pnl = await self.daily_pnl()
         for rule in OPENING_RULES:
             reason = rule(proposal, self.limits)
             if reason:

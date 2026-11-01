@@ -23,7 +23,7 @@
 </script>
 <style>html.i18n-pending body { visibility: hidden; }</style>
 <link rel="icon" href="favicon.svg?v=1" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=62">
+<link rel="stylesheet" href="style.css?v=64">
 <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
 </head>
 <body>
@@ -194,7 +194,7 @@
         <dl class="kv">
           <dt>Margine disponibile</dt><dd id="accAvail">—</dd>
           <dt>PnL non realizzato</dt><dd id="accUpnl">—</dd>
-          <dt>Limite per ordine</dt><dd id="accLimit">—</dd>
+          <dt class="hidden" id="accLimitDt">Limite per ordine</dt><dd class="hidden" id="accLimit">—</dd>
         </dl>
       </section>
 
@@ -300,24 +300,27 @@
           <div id="rules"></div>
         </section>
         <section class="card">
-          <div class="card-head"><b>Limiti di rischio</b><span class="muted" id="dailyPnl"></span></div>
+          <div class="card-head"><b>Limiti di rischio</b><span class="muted" id="dailyPnl">facoltativi</span></div>
           <form id="limitsForm" class="form">
             <div class="two">
-              <div class="field"><label>Max per ordine</label><input name="per_order_pct" type="number" step="0.1" min="0.1"><span class="unit">%<em class="eq" data-eq="per_order_pct"></em></span></div>
-              <div class="field"><label>Max per mercato</label><input name="per_market_pct" type="number" step="0.1" min="0.1"><span class="unit">%<em class="eq" data-eq="per_market_pct"></em></span></div>
+              <div class="field"><label><input type="checkbox" data-on="per_order_pct">Max per ordine</label><input name="per_order_pct" type="number" step="0.1" min="0.1"><span class="unit">%<em class="eq" data-eq="per_order_pct"></em></span></div>
+              <div class="field"><label><input type="checkbox" data-on="per_market_pct">Max per mercato</label><input name="per_market_pct" type="number" step="0.1" min="0.1"><span class="unit">%<em class="eq" data-eq="per_market_pct"></em></span></div>
             </div>
             <div class="two">
-              <div class="field"><label>Esposizione totale</label><input name="total_exposure_pct" type="number" step="0.1" min="0.1"><span class="unit">%<em class="eq" data-eq="total_exposure_pct"></em></span></div>
-              <div class="field"><label>Perdita giornaliera</label><input name="daily_loss_pct" type="number" step="0.1" min="0.1"><span class="unit">%<em class="eq" data-eq="daily_loss_pct"></em></span></div>
+              <div class="field"><label><input type="checkbox" data-on="total_exposure_pct">Esposizione totale</label><input name="total_exposure_pct" type="number" step="0.1" min="0.1"><span class="unit">%<em class="eq" data-eq="total_exposure_pct"></em></span></div>
+              <div class="field"><label><input type="checkbox" data-on="daily_loss_pct">Perdita giornaliera</label><input name="daily_loss_pct" type="number" step="0.1" min="0.1"><span class="unit">%<em class="eq" data-eq="daily_loss_pct"></em></span></div>
             </div>
             <div class="three">
-              <div class="field"><label>Leva max</label><input name="leverage_cap" type="number" step="1"><span class="unit">x</span></div>
-              <div class="field"><label>Posizioni</label><input name="open_markets" type="number" step="1"></div>
-              <div class="field"><label>Slippage</label><input name="slippage_bps_cap" type="number" step="1"><span class="unit">bps</span></div>
+              <div class="field"><label><input type="checkbox" data-on="leverage_cap">Leva max</label><input name="leverage_cap" type="number" step="1"><span class="unit">x</span></div>
+              <div class="field"><label><input type="checkbox" data-on="open_markets">Posizioni</label><input name="open_markets" type="number" step="1"><span class="unit"></span></div>
+              <div class="field"><label>Slippage predefinito</label><input name="slippage_bps_cap" type="number" step="1"><span class="unit">bps</span></div>
             </div>
-            <div class="checks"><label><input type="checkbox" name="stop_required"> Stop-loss obbligatorio su ogni nuova posizione</label></div>
-            <p class="hint">Ordini ed esposizione sono in % del capitale attuale, la perdita giornaliera in % del capitale alle 00:00 UTC (posizioni aperte incluse). Accanto vedi quanto valgono adesso.</p>
-            <p class="hint" id="hardCap"></p>
+            <div class="checks col">
+              <label><input type="checkbox" data-on="stop_required"> Stop-loss obbligatorio su ogni nuova posizione</label>
+              <label><input type="checkbox" data-on="no_flip"> Niente inversioni: chiudi prima la posizione opposta</label>
+            </div>
+            <p class="hint">Vale solo quello che spunti. Le % sono sul capitale attuale; la perdita giornaliera sul capitale alle 00:00 UTC, posizioni aperte incluse.</p>
+            <p class="hint hidden" id="hardCap"></p>
             <button type="submit" class="primary">Salva limiti</button>
           </form>
         </section>
@@ -428,9 +431,9 @@
 </div>
 
 <div class="toast hidden" id="toast"></div>
-<script src="i18n.js?v=62"></script>
-<script src="formulas.js?v=62"></script>
-<script src="app.js?v=62"></script>
-<script src="picker.js?v=62"></script>
+<script src="i18n.js?v=64"></script>
+<script src="formulas.js?v=64"></script>
+<script src="app.js?v=64"></script>
+<script src="picker.js?v=64"></script>
 </body>
 </html>

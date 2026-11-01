@@ -24,10 +24,10 @@ CREDENTIALS_SOURCE = "env" if API_PRIVATE_KEY else None
 # Token required by the browser UI (header X-Token / ?token=).
 DASH_TOKEN = _env("DASH_TOKEN", None)
 
-# Hard safety limits, enforced on every order the backend sends.
-MAX_NOTIONAL_USD = _env("MAX_NOTIONAL_USD", 500.0, float)
-MAX_ORDERS_PER_DAY = _env("MAX_ORDERS_PER_DAY", 40, int)
-MAX_SLIPPAGE_PCT = _env("MAX_SLIPPAGE_PCT", 0.5, float)
+# Optional hard caps on every opening order the backend sends; unset means no cap.
+MAX_NOTIONAL_USD = _env("MAX_NOTIONAL_USD", None, float)
+MAX_ORDERS_PER_DAY = _env("MAX_ORDERS_PER_DAY", None, int)
+MAX_SLIPPAGE_PCT = _env("MAX_SLIPPAGE_PCT", 0.5, float)  # worst-price margin for stop orders
 
 DATA_DIR = Path(_env("DATA_DIR", str(Path(__file__).resolve().parent.parent / "data")))
 DATA_DIR.mkdir(parents=True, exist_ok=True)

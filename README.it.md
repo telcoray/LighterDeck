@@ -14,7 +14,7 @@ Terminale di trading personale per i perpetual di Lighter (lighter.xyz), con aut
 | Mercati | Prezzi live di tutti i perpetual, mark/index, funding, open interest, order book con spread, preferiti |
 | Ordini | Market e limit, post-only, reduce-only, slippage in bps, size in USD / quantità / % capitale / rischio $ allo stop; prezzo limite, SL, TP e trailing in anteprima sul grafico mentre compili il ticket; ordini e chiusure totali confermati con un secondo click, senza finestre |
 | Protezione | SL/TP nativi inviati insieme all'entrata (OTO/OTOCO), TP e SL nella tabella posizioni, da aggiungere o modificare lì, chiusura parziale 25/50/75/100%, leva e cross/isolated |
-| Rischio | Limiti per ordine, mercato ed esposizione totale in % del capitale, perdita giornaliera in % del capitale alle 00:00 UTC (posizioni aperte incluse), leva, numero posizioni; stop-loss obbligatorio; blocco inversioni e dati non aggiornati |
+| Rischio (facoltativo) | Spenti di default, ognuno si attiva da solo: limiti per ordine, mercato ed esposizione totale in % del capitale, perdita giornaliera in % del capitale alle 00:00 UTC (posizioni aperte incluse), leva, numero posizioni, stop-loss obbligatorio, niente inversioni |
 | Automazioni | Stop gestito (iniziale, breakeven, trailing) e trade su eventi macro (orario o breakout del range), con kill switch |
 | Calendario | Eventi economici della settimana (Forex Factory), riunioni Fed ufficiali, aperture delle principali borse |
 | Storico | Trade raggruppati per ordine o come singoli fill, PnL realizzato calcolato da ogni fill |
@@ -66,8 +66,8 @@ systemctl daemon-reload && systemctl enable --now lighterdeck
 - La API key di Lighter può aprire e chiudere posizioni e prelevare verso il **tuo** wallet,
   ma non trasferire fondi ad altri (serve la firma del wallet). Usa un indice di API key
   dedicato (es. 5), non quello usato dall'app web.
-- Tetto fisso nel file env: `MAX_NOTIONAL_USD`, `MAX_ORDERS_PER_DAY`, `MAX_SLIPPAGE_PCT`.
-  Sopra di esso, i limiti di rischio modificabili dalla pagina Automazioni (salvati in `data/limits.json`).
+- Tetti facoltativi nel file env: `MAX_NOTIONAL_USD`, `MAX_ORDERS_PER_DAY` (vuoti = nessun tetto).
+  Anche i limiti di rischio della pagina Automazioni sono facoltativi: vale solo quello che spunti (salvati in `data/limits.json`).
 - Il pulsante **AUTOMAZIONI ON/OFF** è il kill switch: con OFF il motore non invia nessun ordine.
   Gli stop già piazzati restano su Lighter.
 
@@ -80,7 +80,7 @@ systemctl daemon-reload && systemctl enable --now lighterdeck
   Si attiva direttamente dal ticket (**Trailing stop**) o dal bottone **Trailing** di una posizione aperta.
 - **Trade su evento**: long/short N secondi dopo l'evento, oppure breakout del range
   dei minuti precedenti. L'entrata parte con SL/TP nativi; trailing e breakeven poi stringono lo stop.
-  Ogni entrata automatica passa dagli stessi controlli di rischio degli ordini manuali.
+  Ogni entrata automatica passa dagli stessi controlli degli ordini manuali, compresi i limiti di rischio che hai attivato.
 
 Il calendario gratuito (Forex Factory) ha orari, impatto, previsto e precedente, ma **non il dato effettivo**.
 Le regole quindi reagiscono all'orario e al movimento del prezzo, non al numero pubblicato.

@@ -948,7 +948,9 @@ function renderAccount() {
   const u = $("#accUpnl");
   u.textContent = has ? fusd(upnl) : "—";
   u.className = has ? cls(upnl) : "";
-  const perOrder = info.limits && info.limits.per_order_pct;
+  const perOrder = info.limits && info.limits.on && info.limits.on.per_order_pct && info.limits.per_order_pct;
+  $("#accLimit").classList.toggle("hidden", !perOrder);
+  $("#accLimitDt").classList.toggle("hidden", !perOrder);
   $("#accLimit").textContent = perOrder ? `${perOrder}%${has ? " · " + fusd((account.total_value * perOrder) / 100, 0) : ""}` : "—";
   const pill = $("#accountPill");
   pill.innerHTML = info.trading ? `<i class="dot"></i><span>${t("Account #{n}", { n: info.account_index })}</span>` : `<i class="dot off"></i><span>${t("Sola lettura")}</span>`;
@@ -1261,22 +1263,20 @@ async function loadLimits() {
   if (!r) return;
   loadLimits.last = r;
   const f = $("#limitsForm");
-  for (const [k, v] of Object.entries(r.limits)) {
-    const el = f.elements[k];
-    if (!el) continue;
-    if (el.type === "checkbox") el.checked = v;
-    else el.value = v;
-  }
-  $("#hardCap").textContent = t("Tetto fisso del server: ${cap} per ordine (MAX_NOTIONAL_USD). Le automazioni rispettano gli stessi limiti.", { cap: r.hard_cap_usd.toLocaleString("en-US") });
-  $("#dailyPnl").textContent = info.trading ? (r.daily_pnl === null ? t("PnL di oggi non disponibile") : t("PnL di oggi {pnl}", { pnl: fusd(r.daily_pnl) })) : "";
+  for (const [k, v] of Object.entries(r.limits)) if (f.elements[k]) f.elements[k].value = v;
+  for (const box of $$("[data-on]", f)) box.checked = !!r.limits.on[box.dataset.on];
+  $("#hardCap").classList.toggle("hidden", !r.hard_cap_usd);
+  if (r.hard_cap_usd) $("#hardCap").textContent = t("Tetto fisso del server: ${cap} per ordine (MAX_NOTIONAL_USD).", { cap: r.hard_cap_usd.toLocaleString("en-US") });
+  $("#dailyPnl").textContent = info.trading && r.limits.on.daily_loss_pct && r.daily_pnl !== null ? t("PnL di oggi {pnl}", { pnl: fusd(r.daily_pnl) }) : t("facoltativi");
   info.limits = { ...info.limits, ...r.limits };
   renderLimitValues();
   renderAccount();
 }
 
-// next to each % limit: what it is worth in dollars right now
+// next to each % limit: what it is worth in dollars right now; limits switched off are dimmed
 function renderLimitValues() {
   const r = loadLimits.last;
+  for (const box of $$("#limitsForm .field [data-on]")) box.closest(".field").classList.toggle("off", !box.checked);
   for (const el of $$("#limitsForm [data-eq]")) {
     const base = r && (el.dataset.eq === "daily_loss_pct" ? r.day_start_equity : r.equity);
     const pct = +$("#limitsForm").elements[el.dataset.eq].value;
@@ -1290,11 +1290,13 @@ function openLeverage() {
   const box = $("#levBox");
   if (!box.classList.contains("hidden")) { box.classList.add("hidden"); return; }
   const set = account && account.settings && account.settings[m.id];
-  $("#levInput").value = set ? Math.round(set.leverage) : Math.min(m.default_leverage || 5, (info.limits || {}).leverage_cap || 5);
+  const cap = info.limits && info.limits.on && info.limits.on.leverage_cap ? info.limits.leverage_cap : null;
+  $("#levInput").value = set ? Math.round(set.leverage) : Math.min(m.default_leverage || 5, cap || Infinity);
   $("#levInput").max = m.max_leverage || 50;
   levCross = set ? set.cross : true;
   $$(".levmode button").forEach((b) => b.classList.toggle("active", (b.dataset.cross === "1") === levCross));
-  $("#levHint").textContent = t("{sym}: massimo dell'exchange {max}x, tuo limite {cap}x.", { sym: m.symbol, max: m.max_leverage || "—", cap: (info.limits || {}).leverage_cap || "—" });
+  $("#levHint").textContent = cap ? t("{sym}: massimo dell'exchange {max}x, tuo limite {cap}x.", { sym: m.symbol, max: m.max_leverage || "—", cap })
+    : t("{sym}: massimo dell'exchange {max}x.", { sym: m.symbol, max: m.max_leverage || "—" });
   box.classList.remove("hidden");
 }
 
@@ -1455,10 +1457,10 @@ function wire() {
   $("#limitsForm").oninput = renderLimitValues;
   $("#limitsForm").onsubmit = async (e) => {
     e.preventDefault();
-    const patch = {};
+    const patch = { on: {} };
     for (const el of e.target.elements) {
-      if (!el.name) continue;
-      patch[el.name] = el.type === "checkbox" ? el.checked : +el.value;
+      if (el.dataset.on) patch.on[el.dataset.on] = el.checked;
+      else if (el.name) patch[el.name] = +el.value;
     }
     try { await api("/limits", { method: "PATCH", body: JSON.stringify(patch) }); toast(t("Limiti salvati")); loadLimits(); }
     catch (err) { toast(err.message, true); }

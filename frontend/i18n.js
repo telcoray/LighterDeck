@@ -184,6 +184,12 @@ const EN = {
   "Perdita giornaliera": "Daily loss",
   "Leva max": "Max leverage",
   "Stop-loss obbligatorio su ogni nuova posizione": "Stop-loss required on every new position",
+  "Niente inversioni: chiudi prima la posizione opposta": "No reversals: close the opposite position first",
+  "facoltativi": "optional",
+  "Slippage predefinito": "Default slippage",
+  "Vale solo quello che spunti. Le % sono sul capitale attuale; la perdita giornaliera sul capitale alle 00:00 UTC, posizioni aperte incluse.": "Only what you tick applies. The % are of current equity; the daily loss of equity at 00:00 UTC, open positions included.",
+  "Tetto fisso del server: ${cap} per ordine (MAX_NOTIONAL_USD).": "Server hard cap: ${cap} per order (MAX_NOTIONAL_USD).",
+  "{sym}: massimo dell'exchange {max}x.": "{sym}: exchange maximum {max}x.",
   "Salva limiti": "Save limits",
   "Limiti salvati": "Limits saved",
   "Tetto fisso del server: ${cap} per ordine (MAX_NOTIONAL_USD). Le automazioni rispettano gli stessi limiti.":

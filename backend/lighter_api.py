@@ -386,13 +386,13 @@ class LighterAPI:
     def _check_limits(self, notional):
         if not self.signer:
             raise RuntimeError("trading disabled: no API key configured")
-        if notional > config.MAX_NOTIONAL_USD:
+        if config.MAX_NOTIONAL_USD and notional > config.MAX_NOTIONAL_USD:
             raise RuntimeError(f"order ${notional:.0f} exceeds MAX_NOTIONAL_USD ${config.MAX_NOTIONAL_USD:.0f}")
         day, n = self._orders_today
         today = time.strftime("%Y-%m-%d")
         if day != today:
             day, n = today, 0
-        if n >= config.MAX_ORDERS_PER_DAY:
+        if config.MAX_ORDERS_PER_DAY and n >= config.MAX_ORDERS_PER_DAY:
             raise RuntimeError(f"MAX_ORDERS_PER_DAY ({config.MAX_ORDERS_PER_DAY}) reached")
         self._orders_today = (day, n + 1)
 
