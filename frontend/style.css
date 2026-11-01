@@ -152,9 +152,12 @@ body.reordering { cursor: grabbing; user-select: none; }
 .stat { display: flex; flex-direction: column; gap: 3px; white-space: nowrap; }
 .stat label { font-size: 9.5px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
 .stat span { font-family: var(--mono); font-size: 12px; color: var(--text); }
-.stat-btn { text-align: left; cursor: pointer; }
-.stat-btn label { cursor: pointer; text-decoration: underline dotted; text-underline-offset: 3px; }
-.stat-btn:hover label, .stat-btn.open label { color: var(--text-2); }
+.stat-btn { text-align: left; cursor: pointer; margin: -5px -8px; padding: 5px 8px; border-radius: 6px; }
+.stat-btn label { cursor: pointer; }
+.stat-btn:hover, .stat-btn.open { background: var(--raised); }
+.stat-btn .stat-val { display: inline-flex; align-items: center; gap: 5px; }
+.stat-btn svg { color: var(--muted); transition: transform .15s; }
+.stat-btn.open svg { transform: rotate(180deg); }
 /* funding details, opened from the market bar */
 .fund-pop { position: absolute; top: 56px; left: 14px; z-index: 16; width: min(620px, calc(100% - 28px)); padding: 14px 16px 12px; background: var(--surface); border: 1px solid var(--line-2); border-radius: 10px; box-shadow: 0 20px 50px rgba(0,0,0,.5); }
 .fund-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
@@ -675,5 +678,6 @@ button.pill:hover { border-color: var(--line-3); color: var(--text); }
 @media (max-width: 420px) {
   .logo span { display: none; }
   .marketbar .stat:nth-child(n+5) { display: none; }
+  .marketbar { gap: 16px; }
   .three, .two { grid-template-columns: 1fr; }
 }

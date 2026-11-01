@@ -612,7 +612,7 @@ async function loadFundingHistory() {
     fundView.cum = fundView.chart.addLineSeries({ priceScaleId: "left", lineWidth: 1.5, priceFormat: pct, lastValueVisible: false, priceLineVisible: false });
     fundView.rate = fundView.chart.addBaselineSeries({ baseValue: { type: "price", price: 0 }, lineWidth: 1.5, priceFormat: pct, priceLineVisible: false });
   }
-  fundView.chart.applyOptions(chartTheme());
+  fundView.chart.applyOptions({ ...chartTheme(), leftPriceScale: { visible: innerWidth > 640 } }); // phones: room for the chart, cumulative still drawn
   fundView.cum.applyOptions({ color: cssVar("--muted") });
   fundView.rate.applyOptions({ topLineColor: C.green, bottomLineColor: C.red, topFillColor1: "transparent", topFillColor2: "transparent",
     bottomFillColor1: "transparent", bottomFillColor2: C.red + "22" });
