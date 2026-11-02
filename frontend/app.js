@@ -523,6 +523,7 @@ function setActive(i) {
   renderTicket();
   renderTicker();
   renderTitle();
+  if (curView === "trade" && activeMarket()) syncUrl(false); // /trade/<market> follows the selected chart
   if (showBook) loadBook();
   renderEcon(); // the calendar follows the selected market
 }
@@ -1820,7 +1821,24 @@ function setStatus(ok) {
 }
 
 // ================= ui wiring =================
-function switchView(v) {
+// ---------- addresses ----------
+// every page has its own path and the trade page names its market (/trade/WTI), so a link opens the
+// same view, the browser's back button walks between pages, and a market can be shared directly
+const ROUTES = { trade: "trade", markets: "markets", calendar: "cal", account: "account", automations: "auto", activity: "activity" };
+const PATH_OF = Object.fromEntries(Object.entries(ROUTES).map(([path, view]) => [view, path]));
+let curView = "trade";
+function routeFromUrl() {
+  const [, page, sym] = location.pathname.split("/");
+  return { view: ROUTES[page] || null, sym: sym ? decodeURIComponent(sym).toUpperCase() : null };
+}
+function syncUrl(push) {
+  const m = activeMarket();
+  const path = "/" + PATH_OF[curView] + (curView === "trade" && m ? "/" + encodeURIComponent(m.symbol) : "");
+  if (location.pathname !== path) history[push ? "pushState" : "replaceState"](null, "", path + location.search);
+}
+
+function switchView(v, opts = {}) {
+  if (info.public && ["auto", "activity", "account"].includes(v)) v = "trade"; // not on the public site yet
   $$("#views button").forEach((b) => b.classList.toggle("active", b.dataset.view === v));
   $$(".view").forEach((s) => s.classList.toggle("hidden", s.id !== "view-" + v));
   if (v === "markets") renderMarkets();
@@ -1828,6 +1846,8 @@ function switchView(v) {
   if (v === "account") loadAccountPage();
   if (v === "auto") { loadRules(); loadLimits(); }
   store("view", v);
+  curView = v;
+  if (!opts.fromUrl) syncUrl(true);
 }
 
 function switchBottom(t) {
@@ -2466,10 +2486,19 @@ async function init() {
     if (b) { applyTheme(b.dataset.theme); $("#themeMenu").classList.add("hidden"); }
   };
   document.addEventListener("click", () => $("#themeMenu").classList.add("hidden"));
+  // the address decides the page and the market: /trade/WTI opens WTI on the selected chart
+  const route = routeFromUrl();
+  if (route.sym && bySymbol[route.sym]) panelCfg[activeIdx].symbol = route.sym;
   buildCharts();
   toggleBook(showBook);
   renderAccount();
-  switchView(load("view", "trade"));
+  switchView(route.view || (location.pathname === "/" ? load("view", "trade") : "trade"), { fromUrl: true });
+  syncUrl(false);
+  window.addEventListener("popstate", () => {
+    const r = routeFromUrl();
+    if (r.sym && bySymbol[r.sym] && activeMarket() && activeMarket().symbol !== r.sym) setSymbol(r.sym);
+    switchView(r.view || "trade", { fromUrl: true });
+  });
   renderSessions();
   await loadCalendar();
   loadRules();

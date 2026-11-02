@@ -765,6 +765,19 @@ async def index():
     return FileResponse(FRONTEND / "index.html")
 
 
+# Pages have their own addresses (lighterdeck.xyz/trade/WTI, /calendar, /account…): they all load the
+# same page, which reads the path and opens that view and market.
+PAGES = ("trade", "markets", "calendar", "account", "automations", "activity")
+
+
+@app.get("/trade/{symbol}", include_in_schema=False)
+async def trade_page(symbol: str):
+    return FileResponse(FRONTEND / "index.html")
+
+
+for _page in PAGES:
+    app.add_api_route(f"/{_page}", lambda: FileResponse(FRONTEND / "index.html"), methods=["GET"], include_in_schema=False)
+
 app.mount("/", StaticFiles(directory=FRONTEND), name="static")
 
 
