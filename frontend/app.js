@@ -2426,6 +2426,105 @@ function wirePaper() {
   $("#keyPaper").onclick = $("#keyPaper2").onclick = () => { closeKeyDialog(); setPaper(true); toast(t("Paper trading: prezzi veri, soldi finti")); };
 }
 
+// ================= keyboard shortcuts =================
+// single keys, off while typing or with a dialog open; closing and cancelling ask for a second press
+const HOTKEYS = [
+  ["B", "Buy / Long: lato acquisto e cursore sulla size"],
+  ["S", "Sell / Short: lato vendita e cursore sulla size"],
+  ["M", "Ordine market"],
+  ["L", "Ordine limit al prezzo medio"],
+  ["Enter", "Invia l'ordine dal ticket (di nuovo per confermare)"],
+  ["F", "Chiudi la posizione del mercato (due volte)"],
+  ["H", "Chiudi metà posizione (due volte)"],
+  ["C", "Annulla i limit del mercato (due volte)"],
+  ["1–4", "Seleziona il grafico"],
+  ["[ ]", "Timeframe precedente / successivo"],
+  ["/", "Cerca mercato"],
+  ["?", "Questo elenco"],
+];
+
+function renderHotkeys() {
+  $("#hkList").innerHTML = HOTKEYS.map(([k, d]) => `<dt>${k.split(" ").map((x) => `<kbd>${esc(x)}</kbd>`).join(" ")}</dt><dd>${esc(t(d))}</dd>`).join("");
+}
+
+function toggleHotkeys(open) {
+  const show = open ?? $("#hkModal").classList.contains("hidden");
+  if (show) renderHotkeys();
+  $("#hkVeil").classList.toggle("hidden", !show);
+  $("#hkModal").classList.toggle("hidden", !show);
+}
+
+// first press arms the action (and lights the matching button), a second within a few seconds runs it
+function hotkeyConfirm(key, text) {
+  if (askConfirm(key, text)) return true;
+  toast(text);
+  return false;
+}
+
+async function hotkeyClose(m, fraction) {
+  const pos = account && account.positions.find((p) => p.market_id === m.id);
+  if (!pos) return toast(t("Nessuna posizione su {sym}", { sym: m.symbol }), true);
+  const key = fraction >= 1 ? `close:${m.id}` : `hk:half:${m.id}`;
+  if (!hotkeyConfirm(key, t(fraction >= 1 ? "Premi di nuovo F: chiudi {sym}" : "Premi di nuovo H: chiudi metà {sym}", { sym: m.symbol }))) return;
+  try { await api(`/close?market_id=${m.id}&fraction=${fraction}`, { method: "POST" }); toast(t("Chiusura {f}% inviata", { f: Math.round(fraction * 100) })); }
+  catch (err) { toast(err.message, true); }
+}
+
+async function hotkeyCancel(m) {
+  const armed = pendingConfirm && pendingConfirm.key === `hk:cancel:${m.id}`;
+  if (!armed) await fetchOpenOrders(true).catch(() => {});
+  const limits = (openOrders[m.id] || []).filter((o) => orderKind(o) === "LIMIT");
+  if (!limits.length) return toast(t("Nessun limit aperto su {sym}", { sym: m.symbol }), true);
+  if (!hotkeyConfirm(`hk:cancel:${m.id}`, t("Premi di nuovo C: annulla {n} limit su {sym}", { n: limits.length, sym: m.symbol }))) return;
+  let done = 0;
+  for (const o of limits) {
+    try { await api(`/cancel_order?market_id=${m.id}&order_index=${o.order_index}`, { method: "POST" }); done++; }
+    catch (err) { toast(err.message, true); }
+  }
+  if (done) toast(t("{n} limit annullati su {sym}", { n: done, sym: m.symbol }));
+  loadOrders(true);
+}
+
+function stepTf(dir) {
+  const cur = panelCfg[activeIdx].tf;
+  const list = shownTfs.includes(cur) ? shownTfs : ALL_TFS;
+  const next = list[list.indexOf(cur) + dir];
+  if (next) setTf(next);
+}
+
+function wireHotkeys() {
+  $("#hkOpen").onclick = () => toggleHotkeys(true);
+  $("#hkClose").onclick = $("#hkVeil").onmousedown = () => toggleHotkeys(false);
+  // Enter in the ticket's fields sends the order, like the button (which asks to confirm)
+  for (const id of ["#tkSize", "#tkPrice", "#tkSl", "#tkTp"]) {
+    $(id).addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); $("#tkExec").click(); } });
+  }
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !$("#hkModal").classList.contains("hidden")) return toggleHotkeys(false);
+    if (e.ctrlKey || e.metaKey || e.altKey || e.repeat) return;
+    if (e.target.closest("input, textarea, select, [contenteditable]")) return;
+    if ($$(".modal, .picker, #trailPop").some((x) => !x.classList.contains("hidden"))) return;
+    if (curView !== "trade" && e.key !== "?") return;
+    const m = activeMarket(), k = e.key;
+    const focusSize = () => { $("#tkSize").focus(); $("#tkSize").select(); };
+    const act = {
+      b: () => { ticket.side = "buy"; renderTicket(); focusSize(); },
+      s: () => { ticket.side = "sell"; renderTicket(); focusSize(); },
+      m: () => { ticket.kind = "market"; renderTicket(); },
+      l: () => { ticket.kind = "limit"; fillMid(); renderTicket(); },
+      f: () => m && hotkeyClose(m, 1),
+      h: () => m && hotkeyClose(m, 0.5),
+      c: () => m && hotkeyCancel(m),
+      "/": openPalette,
+      "?": () => toggleHotkeys(),
+      "[": () => stepTf(-1),
+      "]": () => stepTf(1),
+    }[k.length === 1 ? k.toLowerCase() : k];
+    if (act) { e.preventDefault(); act(); return; }
+    if (/^[1-4]$/.test(k) && +k <= panels.length) { e.preventDefault(); setActive(+k - 1); }
+  });
+}
+
 function wireKeyDialog() {
   $("#accountPill").onclick = () => (Paper.on ? openPaperModal() : !info.public && openKeyDialog());
   $("#keyClose").onclick = closeKeyDialog;
@@ -2562,6 +2661,7 @@ async function init() {
   wire();
   wireKeyDialog();
   wirePaper();
+  wireHotkeys();
   wireBottomSplit();
   wireTrail();
   applyTheme(load("theme", "fosforo")); // first visit: Phosphor
