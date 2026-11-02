@@ -1243,15 +1243,19 @@ const eventDetail = (e) => (e.source === "custom" ? esc((e.markets || []).join("
   ? `${t(WHEN[e.when] || e.when)} · ${t("stima EPS {f} · anno scorso {p}", { f: esc(e.forecast || "—"), p: esc(e.previous || "—") })}`
   : t("prev. {f} · prec. {p}", { f: esc(e.forecast || "—"), p: esc(e.previous || "—") }));
 
+// Real sessions come from exchange_hours.json (holidays, half-days, lunch breaks; made by
+// tools/make_exchange_hours.py); past its last date the plain weekday hours below are used.
 const SESSIONS = [
-  { name: "Stati Uniti", ex: "NYSE", tz: "America/New_York", open: [9, 30], close: [16, 0] },
-  { name: "Regno Unito", ex: "LSE", tz: "Europe/London", open: [8, 0], close: [16, 30] },
-  { name: "Germania", ex: "Xetra", tz: "Europe/Berlin", open: [9, 0], close: [17, 30] },
-  { name: "Giappone", ex: "TSE", tz: "Asia/Tokyo", open: [9, 0], close: [15, 30] },
-  { name: "Cina", ex: "SSE Shanghai", tz: "Asia/Shanghai", open: [9, 30], close: [15, 0] },
-  { name: "Hong Kong", ex: "HKEX", tz: "Asia/Hong_Kong", open: [9, 30], close: [16, 0] },
-  { name: "Australia", ex: "ASX", tz: "Australia/Sydney", open: [10, 0], close: [16, 0] },
+  { name: "Stati Uniti", ex: "NYSE", code: "XNYS", tz: "America/New_York", open: [9, 30], close: [16, 0] },
+  { name: "Regno Unito", ex: "LSE", code: "XLON", tz: "Europe/London", open: [8, 0], close: [16, 30] },
+  { name: "Germania", ex: "Xetra", code: "XETR", tz: "Europe/Berlin", open: [9, 0], close: [17, 30] },
+  { name: "Giappone", ex: "TSE", code: "XTKS", tz: "Asia/Tokyo", open: [9, 0], close: [15, 30], lunch: [[11, 30], [12, 30]] },
+  { name: "Cina", ex: "SSE Shanghai", code: "XSHG", tz: "Asia/Shanghai", open: [9, 30], close: [15, 0], lunch: [[11, 30], [13, 0]] },
+  { name: "Hong Kong", ex: "HKEX", code: "XHKG", tz: "Asia/Hong_Kong", open: [9, 30], close: [16, 0], lunch: [[12, 0], [13, 0]] },
+  { name: "Australia", ex: "ASX", code: "XASX", tz: "Australia/Sydney", open: [10, 0], close: [16, 0] },
 ];
+let exchangeHours = null;
+fetch("exchange_hours.json?v=1").then((r) => r.json()).then((d) => { exchangeHours = d.exchanges; renderSessions(); }).catch(() => {});
 
 function zoned(ts, tz) {
   const parts = Object.fromEntries(new Intl.DateTimeFormat("en-US", { timeZone: tz, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", weekday: "short" })
@@ -1269,16 +1273,34 @@ function wallToUtc(y, mo, d, h, mi, tz) {
   return guess;
 }
 
+// state: "open" (until the lunch break or the close), "lunch" (until trading resumes) or "closed"
+// (until the next open; holiday when the exchange is shut on a weekday)
 function sessionStatus(s, now) {
-  for (let dayOff = 0; dayOff < 8; dayOff++) {
-    const z = zoned(now + dayOff * 86400000, s.tz);
-    if (z.wd === "Sat" || z.wd === "Sun") continue;
-    const open = wallToUtc(z.y, z.mo, z.d, s.open[0], s.open[1], s.tz);
-    const close = wallToUtc(z.y, z.mo, z.d, s.close[0], s.close[1], s.tz);
-    if (now < open) return { open: false, at: open };
-    if (now < close) return { open: true, at: close };
+  const data = exchangeHours && exchangeHours[s.code];
+  let days;
+  if (data && now / 1000 < data.until) days = data.sessions.map((x) => x.map((v) => v * 1000));
+  else { // plain weekday hours
+    days = [];
+    for (let dayOff = -1; dayOff < 8; dayOff++) {
+      const z = zoned(now + dayOff * 86400000, s.tz);
+      if (z.wd === "Sat" || z.wd === "Sun") continue;
+      const at = (hm) => wallToUtc(z.y, z.mo, z.d, hm[0], hm[1], s.tz);
+      days.push([at(s.open), at(s.close), ...(s.lunch ? [at(s.lunch[0]), at(s.lunch[1])] : [])]);
+    }
   }
-  return { open: false, at: null };
+  for (const [open, close, bs, be] of days) {
+    if (now >= close) continue;
+    if (now < open) {
+      const today = zoned(now, s.tz), next = zoned(open, s.tz);
+      const weekday = today.wd !== "Sat" && today.wd !== "Sun";
+      const holiday = weekday && (today.y !== next.y || today.mo !== next.mo || today.d !== next.d)
+        && !days.some(([o]) => { const z = zoned(o, s.tz); return z.y === today.y && z.mo === today.mo && z.d === today.d; });
+      return { state: "closed", at: open, holiday };
+    }
+    if (bs && now >= bs && now < be) return { state: "lunch", at: be };
+    return { state: "open", at: bs && now < bs ? bs : close, lunchNext: !!(bs && now < bs), close };
+  }
+  return { state: "closed", at: null };
 }
 
 function dur(ms) {
@@ -1292,12 +1314,19 @@ function dur(ms) {
 
 function renderSessions() {
   const now = Date.now();
+  const rank = { open: 0, lunch: 1, closed: 2 };
   const rows = SESSIONS.map((s) => ({ s, st: sessionStatus(s, now) }))
-    .sort((a, b) => (b.st.open - a.st.open) || (a.st.at - b.st.at));
+    .sort((a, b) => (rank[a.st.state] - rank[b.st.state]) || (a.st.at - b.st.at));
   const local = (t) => new Date(t).toLocaleString(LOCALE, { weekday: "short", hour: "2-digit", minute: "2-digit" });
+  const hm = (t) => new Date(t).toLocaleTimeString(LOCALE, { hour: "2-digit", minute: "2-digit" });
+  const line = (st) => st.state === "open"
+    ? (st.lunchNext ? t("pausa pranzo alle {t} · chiude {c}", { t: hm(st.at), c: hm(st.close) }) : `${t("chiude")} ${local(st.at)}`)
+    : st.state === "lunch" ? t("pausa pranzo · riprende {t}", { t: hm(st.at) })
+    : `${st.holiday ? t("festività") + " · " : ""}${t("apre")} ${st.at ? local(st.at) : ""}`;
   const html = rows.map(({ s, st }) => `<div class="cal-row">
-      <div><div class="t">${t(s.name)}</div><div class="s">${s.ex} · ${st.open ? t("chiude") : t("apre")} ${st.at ? local(st.at) : ""}</div></div>
-      <div class="w ${st.open ? "open" : st.at - now < 3600000 ? "soon" : ""}">${st.open ? t("aperto · {d}", { d: dur(st.at - now) }) : t("tra {d}", { d: dur(st.at - now) })}</div>
+      <div><div class="t">${t(s.name)}</div><div class="s">${s.ex} · ${line(st)}</div></div>
+      <div class="w ${st.state === "open" ? "open" : st.state === "lunch" || st.at - now < 3600000 ? "soon" : ""}">${
+        st.state === "open" ? t("aperto · {d}", { d: dur(st.at - now) }) : st.state === "lunch" ? t("pausa · {d}", { d: dur(st.at - now) }) : t("tra {d}", { d: dur(st.at - now) })}</div>
     </div>`).join("");
   $("#ctab-sessions").innerHTML = html;
   $("#cpSessions").innerHTML = html;

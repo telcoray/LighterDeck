@@ -143,6 +143,10 @@ const EN = {
   "Germania": "Germany",
   "Giappone": "Japan",
   "Cina": "China",
+  "pausa pranzo alle {t} · chiude {c}": "lunch break at {t} · closes {c}",
+  "pausa pranzo · riprende {t}": "lunch break · resumes {t}",
+  "pausa · {d}": "break · {d}",
+  "festività": "holiday",
   "Hong Kong": "Hong Kong",
   "Australia": "Australia",
   // ---- markets page ----

@@ -18,7 +18,7 @@ A trading terminal for the perpetual futures on [Lighter](https://lighter.xyz), 
 | Protection | Native SL/TP sent together with the entry (OTO/OTOCO), TP and SL shown in the positions table and set or changed from there, partial close 25/50/75/100%, leverage and cross/isolated |
 | Risk (optional) | Off by default, each one switched on by itself: limits per order, per market and total exposure as a % of equity, daily loss as a % of the equity at 00:00 UTC (open positions included), leverage, number of positions, mandatory stop-loss, no reversals |
 | Automations | Managed stop (initial, breakeven, trailing) and trades on macro events (at the release time or on a range breakout), with a kill switch |
-| Calendar | Its own page with filters by market, type (macro, energy, earnings, crypto, yours), impact, period and text, plus a short list for the selected market next to the ticket. This week's economic events (Forex Factory), official BEA releases and Fed meetings, energy reports (EIA crude and gas storage with EIA's holiday schedule, API bulletin, Baker Hughes rig count), quarterly earnings of the stocks on Lighter and of the largest US companies (Nasdaq calendar, with EPS estimate), Deribit's monthly and quarterly BTC/ETH option expiries, your own events for any market (a token unlock, an upgrade), opening hours of the main exchanges; the calendar, the chart dots and event trades follow the selected market (oil reports for WTI and Brent, a stock's own earnings, the largest companies' earnings for the indices, both currencies for a forex pair) |
+| Calendar | Its own page with filters by market, type (macro, energy, earnings, crypto, yours), impact, period and text, plus a short list for the selected market next to the ticket. This week's economic events (Forex Factory), official BEA releases and Fed meetings, energy reports (EIA crude and gas storage with EIA's holiday schedule, API bulletin, Baker Hughes rig count), quarterly earnings of the stocks on Lighter and of the largest US companies (Nasdaq calendar, with EPS estimate), Deribit's monthly and quarterly BTC/ETH option expiries, your own events for any market (a token unlock, an upgrade), opening hours of the main exchanges with their holidays, half-days and lunch breaks; the calendar, the chart dots and event trades follow the selected market (oil reports for WTI and Brent, a stock's own earnings, the largest companies' earnings for the indices, both currencies for a forex pair) |
 | History | Trades grouped by order or as single fills, realized PnL worked out from each fill |
 | Look | Five themes, English and Italian, layout that works in narrow windows and on phones |
 
@@ -26,7 +26,7 @@ A trading terminal for the perpetual futures on [Lighter](https://lighter.xyz), 
 frontend/   web page (HTML/CSS/JS, TradingView Lightweight Charts)
 backend/    FastAPI: Lighter data, calendar, risk checks, order signing (official SDK), automation engine
 deploy/     systemd services, nginx site for the public instance, example configuration
-tools/      link preview card (og.png)
+tools/      link preview card (og.png), exchange sessions for the market hours (exchange_hours.json)
 ```
 
 ## Run it locally

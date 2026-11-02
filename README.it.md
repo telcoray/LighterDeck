@@ -18,7 +18,7 @@ Terminale di trading per i perpetual di Lighter (lighter.xyz), con automazioni l
 | Protezione | SL/TP nativi inviati insieme all'entrata (OTO/OTOCO), TP e SL nella tabella posizioni, da aggiungere o modificare lì, chiusura parziale 25/50/75/100%, leva e cross/isolated |
 | Rischio (facoltativo) | Spenti di default, ognuno si attiva da solo: limiti per ordine, mercato ed esposizione totale in % del capitale, perdita giornaliera in % del capitale alle 00:00 UTC (posizioni aperte incluse), leva, numero posizioni, stop-loss obbligatorio, niente inversioni |
 | Automazioni | Stop gestito (iniziale, breakeven, trailing) e trade su eventi macro (orario o breakout del range), con kill switch |
-| Calendario | Pagina dedicata con filtri per mercato, tipo (macro, energia, trimestrali, crypto, tuoi), impatto, periodo e testo, più una breve lista per il mercato selezionato accanto al ticket. Eventi economici della settimana (Forex Factory), rilasci BEA e riunioni Fed ufficiali, report sull'energia (scorte EIA di greggio e gas con il calendario festività EIA, bollettino API, rig count Baker Hughes), trimestrali delle azioni su Lighter e delle maggiori società USA (calendario Nasdaq, con stima EPS), scadenze mensili e trimestrali delle opzioni BTC/ETH su Deribit, eventi tuoi per qualsiasi mercato (uno sblocco di token, un aggiornamento), aperture delle principali borse; calendario, punti sul grafico e trade su evento seguono il mercato selezionato (report sul petrolio per WTI e Brent, la trimestrale di ogni azione, quelle delle maggiori società per gli indici, entrambe le valute per una coppia forex) |
+| Calendario | Pagina dedicata con filtri per mercato, tipo (macro, energia, trimestrali, crypto, tuoi), impatto, periodo e testo, più una breve lista per il mercato selezionato accanto al ticket. Eventi economici della settimana (Forex Factory), rilasci BEA e riunioni Fed ufficiali, report sull'energia (scorte EIA di greggio e gas con il calendario festività EIA, bollettino API, rig count Baker Hughes), trimestrali delle azioni su Lighter e delle maggiori società USA (calendario Nasdaq, con stima EPS), scadenze mensili e trimestrali delle opzioni BTC/ETH su Deribit, eventi tuoi per qualsiasi mercato (uno sblocco di token, un aggiornamento), aperture delle principali borse con festività, mezze giornate e pause pranzo; calendario, punti sul grafico e trade su evento seguono il mercato selezionato (report sul petrolio per WTI e Brent, la trimestrale di ogni azione, quelle delle maggiori società per gli indici, entrambe le valute per una coppia forex) |
 | Storico | Trade raggruppati per ordine o come singoli fill, PnL realizzato calcolato da ogni fill |
 | Aspetto | Cinque temi, italiano e inglese, layout che funziona in finestre strette e sul telefono |
 
@@ -26,7 +26,7 @@ Terminale di trading per i perpetual di Lighter (lighter.xyz), con automazioni l
 frontend/   pagina web (HTML/CSS/JS, TradingView Lightweight Charts)
 backend/    FastAPI: dati Lighter, calendario, rischio, firma ordini (SDK ufficiale), motore automazioni
 deploy/     servizi systemd, sito nginx per l'istanza pubblica, esempio di configurazione
-tools/      immagine di anteprima dei link (og.png)
+tools/      immagine di anteprima dei link (og.png), sessioni delle borse per le aperture (exchange_hours.json)
 ```
 
 ## In locale (sola lettura)
