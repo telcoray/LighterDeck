@@ -39,7 +39,7 @@
 </script>
 <style>html.i18n-pending body { visibility: hidden; }</style>
 <link rel="icon" href="favicon.svg?v=1" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=86">
+<link rel="stylesheet" href="style.css?v=88">
 <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
 </head>
 <body>
@@ -62,6 +62,7 @@
     <button data-view="trade" class="active">Trade</button>
     <button data-view="markets">Mercati</button>
     <button data-view="cal">Calendario</button>
+    <button data-view="account">Account</button>
     <button data-view="auto">Automazioni</button>
     <button data-view="activity">Attività</button>
   </nav>
@@ -230,7 +231,7 @@
       </section>
 
       <section class="card">
-        <div class="card-head"><b>Account</b><span class="muted" id="accIdx"></span></div>
+        <div class="card-head"><button class="card-link" id="accOpen" title="Apri la pagina Account"><b>Account</b><span class="arr">→</span></button><span class="muted" id="accIdx"></span></div>
         <div class="equity"><span id="accEq">—</span><small>USDC</small></div>
         <dl class="kv">
           <dt>Margine disponibile</dt><dd id="accAvail">—</dd>
@@ -410,6 +411,55 @@
 </section>
 
 <!-- ============ ACTIVITY VIEW ============ -->
+<section class="view hidden" id="view-account">
+  <div class="page ac-page">
+    <div class="page-head">
+      <h1>Account</h1><span class="muted" id="acIdx"></span>
+      <div class="grow"></div>
+      <span class="muted" id="acState"></span>
+      <a class="link" href="https://app.lighter.xyz/portfolio" target="_blank" rel="noopener">Depositi e prelievi su Lighter ↗</a>
+    </div>
+    <div class="empty hidden" id="acEmpty">Collega un'API key per vedere equity, PnL e storico dell'account.</div>
+    <div id="acBody">
+      <div class="ac-kpis">
+        <div><label>Equity</label><b id="acEq">—</b></div>
+        <div><label>PnL di oggi</label><b id="acToday">—</b><small>UTC</small></div>
+        <div><label>PnL non realizzato</label><b id="acUpnl">—</b></div>
+        <div><label>Margine disponibile</label><b id="acAvail">—</b></div>
+        <div><label>Leva</label><b id="acLev">—</b></div>
+        <div><label>Margine usato</label><b id="acUsed">—</b><i class="ac-bar"><i id="acUsedBar"></i></i></div>
+      </div>
+      <div class="ac-grid">
+        <section class="ac-card">
+          <div class="ac-head">
+            <div class="seg" id="acMode"><button data-mode="pnl">PnL</button><button data-mode="equity">Equity</button></div>
+            <div class="seg" id="acDays"><button data-days="7">1W</button><button data-days="30">1M</button><button data-days="90">3M</button><button data-days="365">1Y</button></div>
+          </div>
+          <div class="ac-chart" id="acChart"></div>
+          <p class="hint" id="acChartHint"></p>
+        </section>
+        <section class="ac-card">
+          <div class="ac-head"><b>Performance</b><span class="muted" id="acPeriod"></span></div>
+          <dl class="kv ac-kv" id="acStats"></dl>
+        </section>
+      </div>
+      <div class="ac-grid">
+        <section class="ac-card">
+          <div class="ac-head"><b id="acMonth">—</b>
+            <div class="seg"><button id="acPrev" aria-label="Mese precedente">‹</button><button id="acNext" aria-label="Mese successivo">›</button></div></div>
+          <div class="ac-cal" id="acCal"></div>
+          <div class="ac-month" id="acMonthSum"></div>
+          <div class="ac-dayfills" id="acDayFills"></div>
+        </section>
+        <section class="ac-card">
+          <div class="ac-head"><b>Per mercato</b><span class="muted" id="acMktNote"></span></div>
+          <div id="acMarkets"></div>
+        </section>
+      </div>
+    </div>
+  </div>
+</section>
+
 <section class="view hidden" id="view-activity">
   <div class="page">
     <div class="page-head"><h1>Attività</h1></div>
@@ -524,9 +574,9 @@
 </div>
 
 <div class="toast hidden" id="toast"></div>
-<script src="i18n.js?v=86"></script>
-<script src="formulas.js?v=86"></script>
-<script src="app.js?v=86"></script>
-<script src="picker.js?v=86"></script>
+<script src="i18n.js?v=88"></script>
+<script src="formulas.js?v=88"></script>
+<script src="app.js?v=88"></script>
+<script src="picker.js?v=88"></script>
 </body>
 </html>

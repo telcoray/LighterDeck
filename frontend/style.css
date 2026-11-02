@@ -413,6 +413,51 @@ body.dragging-line, body.dragging-line * { cursor: ns-resize !important; user-se
 .ev-form-row button[type="button"] { border: 1px solid var(--line-2); border-radius: 6px; color: var(--text-2); }
 .ev-del { margin-left: 6px; color: var(--muted); font-size: 10px; }
 .econ-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 4px; font-size: 10.5px; }
+/* account page */
+.ac-page .page-head .link { white-space: nowrap; text-decoration: none; }
+.ac-kpis { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 1px; margin-bottom: 16px; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--line); }
+.ac-kpis > div { display: flex; flex-direction: column; gap: 6px; padding: 14px 16px; background: var(--bg); min-width: 0; }
+.ac-kpis label { font-size: 9.5px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+.ac-kpis b { font-family: var(--mono); font-size: 17px; font-weight: 500; color: var(--text); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ac-kpis b.up { color: var(--green); } .ac-kpis b.down { color: var(--red); }
+.ac-kpis small { font-size: 9.5px; color: var(--faint); margin-top: -3px; }
+.ac-bar { display: block; height: 3px; border-radius: 2px; background: var(--line-2); overflow: hidden; }
+.ac-bar i { display: block; height: 100%; width: 0; background: var(--green); }
+.ac-bar i.warn { background: var(--amber); } .ac-bar i.danger { background: var(--red); }
+.ac-grid { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); gap: 16px; margin-bottom: 16px; align-items: start; }
+.ac-card { border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; background: var(--surface); min-width: 0; }
+.ac-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+.ac-head b { font-weight: 500; font-size: 12.5px; }
+.ac-head .seg button.active { color: var(--text); background: var(--raised); }
+.ac-chart { height: 280px; }
+.ac-kv { grid-template-columns: 1fr auto; gap: 10px 12px; margin: 0; }
+.ac-kv dd.up { color: var(--green); } .ac-kv dd.down { color: var(--red); }
+.ac-kv dd small { display: block; font-size: 10px; color: var(--muted); margin-top: 2px; }
+.ac-cal { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.ac-cal .dow { font-size: 9.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); text-align: center; padding-bottom: 2px; }
+.ac-cal button { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-height: 52px; padding: 6px 7px; border: 1px solid var(--line); border-radius: 6px; text-align: left; min-width: 0; }
+.ac-cal button .n { font-size: 10.5px; color: var(--muted); }
+.ac-cal button .v { font-family: var(--mono); font-size: 10.5px; white-space: nowrap; overflow: hidden; max-width: 100%; }
+.ac-cal button.up { background: var(--green-soft); border-color: rgba(43,217,164,.25); } .ac-cal button.up .v { color: var(--green); }
+.ac-cal button.down { background: var(--red-soft); border-color: rgba(242,84,109,.25); } .ac-cal button.down .v { color: var(--red); }
+.ac-cal button.sel { outline: 1px solid var(--text-2); }
+.ac-cal button:disabled { opacity: .35; cursor: default; }
+.ac-cal .pad { min-height: 52px; }
+.ac-month { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 12px; font-size: 11px; color: var(--text-2); }
+.ac-month b { font-family: var(--mono); font-weight: 500; }
+.ac-cal .vs { display: none; }
+.ac-dayfills, #acMarkets { overflow-x: auto; }
+.ac-dayfills:not(:empty) { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+.ac-dayfills .t { font-size: 11.5px; color: var(--text); margin-bottom: 6px; }
+.ac-page .table td, .ac-page .table th { padding: 7px 8px; }
+@media (max-width: 1100px) { .ac-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); } .ac-grid { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 640px) {
+  .ac-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } .ac-kpis b { font-size: 15px; }
+  .ac-cal { gap: 3px; } .ac-cal button { min-height: 44px; padding: 4px; } .ac-cal button .v { font-size: 9px; }
+  .ac-cal .vl { display: none; } .ac-cal .vs { display: inline; }
+  .ac-card { padding: 12px; }
+}
+body.public [data-view="account"] { display: none !important; }
 /* calendar page */
 .cal-page .page-head .search { width: min(280px, 100%); }
 .ev-add-btn { height: 30px; padding: 0 12px; border: 1px dashed var(--line-3); border-radius: 6px; color: var(--text-2); font-size: 11.5px; white-space: nowrap; }

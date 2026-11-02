@@ -151,6 +151,100 @@ async def delete_custom_event(event_id: str):
     return {"ok": True}
 
 
+# ---------- account page ----------
+_account_cache = {}  # (kind, args) -> (fetched at, result)
+
+
+async def _cached(key, ttl, fn):
+    hit = _account_cache.get(key)
+    if hit and time.time() - hit[0] < ttl:
+        return hit[1]
+    value = await fn()
+    _account_cache[key] = (time.time(), value)
+    return value
+
+
+def _pnl_of(p):     # cumulative trading PnL (perpetuals + spot)
+    return float(p["trade_pnl"]) + float(p.get("trade_spot_pnl") or 0)
+
+
+def _flows_of(p):   # cumulative deposits minus withdrawals
+    return (float(p["inflow"]) - float(p["outflow"]) + float(p.get("spot_inflow") or 0)
+            - float(p.get("spot_outflow") or 0))
+
+
+@app.get("/api/account_stats")
+async def account_stats(days: int = 30):
+    """Equity and PnL over a period, daily PnL for the calendar, stats, and PnL and funding per market.
+    PnL excludes deposits and withdrawals, so the curve shows trading alone."""
+    if not api.signer:
+        raise HTTPException(400, L("Collega un'API key per vedere l'account", "Connect an API key to see the account"))
+    days = max(1, min(days, 365))
+
+    async def build():
+        now = int(time.time())
+        start = now - days * 86400
+        year = await api.pnl_points(now - 365 * 86400, now, "1d")
+        pts = await api.pnl_points(start, now, "1h") if days <= 7 else [p for p in year if p["timestamp"] >= start - 86400]
+        if not pts:
+            return {"series": [], "flows": [], "days": [], "stats": None, "markets": []}
+        p0, f0 = _pnl_of(pts[0]), _flows_of(pts[0])
+        series = [{"t": p["timestamp"], "equity": _pnl_of(p) + _flows_of(p), "pnl": _pnl_of(p) - p0} for p in pts]
+        flows = [{"t": b["timestamp"], "usd": _flows_of(b) - _flows_of(a)}
+                 for a, b in zip(pts, pts[1:]) if abs(_flows_of(b) - _flows_of(a)) >= 1]
+        # daily PnL (UTC days, as Lighter's calendar): each 00:00 point to the next one (the last is live)
+        daily = [{"day": time.strftime("%Y-%m-%d", time.gmtime(a["timestamp"])), "pnl": _pnl_of(b) - _pnl_of(a)}
+                 for a, b in zip(year, year[1:])]
+        in_period = [d for d in daily if d["day"] >= time.strftime("%Y-%m-%d", time.gmtime(start))]
+        peak, drawdown = float("-inf"), 0.0
+        for s in series:
+            peak = max(peak, s["pnl"])
+            drawdown = max(drawdown, peak - s["pnl"])
+        e0, net_flows = series[0]["equity"], _flows_of(pts[-1]) - f0
+        base = e0 + max(net_flows, 0) / 2  # deposits count half, as if they arrived mid-period
+        stats = {
+            "pnl": series[-1]["pnl"], "return_pct": series[-1]["pnl"] / base * 100 if base > 0 else None,
+            "max_drawdown": drawdown, "net_flows": net_flows, "start_equity": e0,
+            "best_day": max(in_period, key=lambda d: d["pnl"], default=None),
+            "worst_day": min(in_period, key=lambda d: d["pnl"], default=None),
+            "green_days": sum(d["pnl"] > 0.005 for d in in_period), "red_days": sum(d["pnl"] < -0.005 for d in in_period),
+        }
+        # per market: realized PnL of the fills in the period, and funding received/paid
+        positions = {p["market_id"]: p["size"] for p in (engine.account or {}).get("positions", [])}
+        fills = await api.trades(positions=positions, since_ms=start * 1000)
+        funding, funding_complete = await api.funding_paid(start)
+        per = {}
+        for f in fills:
+            r = per.setdefault(f["market_id"], {"market_id": f["market_id"], "symbol": f["symbol"], "realized": 0.0,
+                                                "fills": 0, "volume": 0.0, "funding": 0.0})
+            r["fills"] += 1
+            r["volume"] += f["usd"]
+            r["realized"] += f["pnl"] or 0.0
+        for mid, usd in funding.items():
+            m = api.markets.get(mid)
+            per.setdefault(mid, {"market_id": mid, "symbol": m.symbol if m else str(mid), "realized": 0.0,
+                                 "fills": 0, "volume": 0.0, "funding": 0.0})["funding"] += usd
+        markets = sorted(per.values(), key=lambda r: -abs(r["realized"] + r["funding"]))
+        stats["volume"] = sum(r["volume"] for r in markets)
+        return {"series": series, "flows": flows, "days": daily, "stats": stats, "markets": markets,
+                "funding_complete": funding_complete}
+
+    try:
+        return await _cached(("stats", days), 60, build)
+    except RuntimeError as e:
+        raise HTTPException(502, str(e))
+
+
+@app.get("/api/fills")
+async def fills_between(start: int, end: int):
+    """Fills between two unix times (s), newest first, with realized PnL: one day of the PnL calendar."""
+    if not api.signer:
+        return []
+    positions = {p["market_id"]: p["size"] for p in (engine.account or {}).get("positions", [])}
+    rows = await _cached(("fills", start), 60, lambda: api.trades(positions=positions, since_ms=start * 1000))
+    return [r for r in rows if r["ts"] < end * 1000]
+
+
 _funding_cache = {}  # (market, days) -> (fetched at, rows); funding changes once an hour
 
 

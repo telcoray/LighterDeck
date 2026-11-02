@@ -1023,6 +1023,7 @@ async function executeTicket() {
 
 // ================= account / bottom tables =================
 function renderAccount() {
+  renderAccountHead();
   const has = !!account;
   $("#accIdx").textContent = has ? "#" + account.index : "";
   $("#accEq").textContent = has ? account.total_value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—";
@@ -1356,6 +1357,165 @@ function renderEcon() {
   markConfirm();
 }
 
+// ---------- Account page ----------
+// equity and margin from the live account; curve, stats, calendar and per-market figures from
+// /api/account_stats (Lighter's daily PnL series, which keeps deposits and withdrawals apart)
+const acc = { days: load("acc.days", 30), mode: load("acc.mode", "pnl"), month: null, day: null, data: null, chart: null, line: null };
+const fk = (v) => { // +$1.85K
+  const a = Math.abs(v), s = v >= 0 ? "+" : "−";
+  return a >= 1000 ? `${s}$${(a / 1000).toFixed(a >= 100000 ? 0 : 2)}K` : `${s}$${a.toFixed(a >= 100 ? 0 : 2)}`;
+};
+const fkShort = (v) => { const a = Math.abs(v), s = v >= 0 ? "+" : "−"; return a >= 1000 ? `${s}${(a / 1000).toFixed(1)}K` : `${s}${Math.round(a)}`; }; // phone cells
+const fsigned = (v) => `${v >= 0 ? "+" : "−"}${fusd(Math.abs(v))}`;
+const utcDay = (d) => d.toISOString().slice(0, 10);
+const shiftMonth = (ym, n) => { const [y, m] = ym.split("-").map(Number); const d = new Date(Date.UTC(y, m - 1 + n, 1)); return d.toISOString().slice(0, 7); };
+
+async function loadAccountPage() {
+  const has = !!info.trading;
+  $("#acEmpty").classList.toggle("hidden", has);
+  $("#acBody").classList.toggle("hidden", !has);
+  if (!has) return;
+  $$("#acDays button").forEach((b) => b.classList.toggle("active", +b.dataset.days === acc.days));
+  $$("#acMode button").forEach((b) => b.classList.toggle("active", b.dataset.mode === acc.mode));
+  renderAccountHead();
+  const days = acc.days;
+  $("#acState").textContent = t("Aggiorno…");
+  const d = await api(`/account_stats?days=${days}`).catch((e) => { toast(e.message, true); return null; });
+  $("#acState").textContent = "";
+  if (!d || days !== acc.days) return;
+  acc.data = d;
+  acc.month = acc.month || utcDay(new Date()).slice(0, 7);
+  renderAccountHead();
+  renderAccountChart();
+  renderAccountStats();
+  renderPnlCalendar();
+  renderAccountMarkets();
+}
+
+function renderAccountHead() {
+  if (!account || $("#view-account").classList.contains("hidden")) return;
+  const eq = account.total_value, avail = account.available;
+  const upnl = account.positions.reduce((s, p) => s + p.upnl, 0);
+  const notional = account.positions.reduce((s, p) => s + Math.abs(p.value), 0);
+  const used = eq > 0 ? Math.max(0, Math.min(100, ((eq - avail) / eq) * 100)) : 0;
+  $("#acIdx").textContent = "#" + account.index;
+  $("#acEq").textContent = fusd(eq);
+  const today = acc.data && acc.data.days.find((x) => x.day === utcDay(new Date()));
+  const td = $("#acToday");
+  td.textContent = today ? fsigned(today.pnl) : "—";
+  td.className = today ? cls(today.pnl) : "";
+  $("#acUpnl").textContent = fsigned(upnl);
+  $("#acUpnl").className = cls(upnl);
+  $("#acAvail").textContent = fusd(avail);
+  $("#acLev").textContent = eq > 0 ? `${(notional / eq).toFixed(1)}x` : "—";
+  $("#acUsed").textContent = `${used.toFixed(1)}%`;
+  const bar = $("#acUsedBar");
+  bar.style.width = used + "%";
+  bar.className = used >= 85 ? "danger" : used >= 65 ? "warn" : "";
+}
+
+function renderAccountChart() {
+  const d = acc.data;
+  if (!d) return;
+  $$("#acMode button").forEach((b) => b.classList.toggle("active", b.dataset.mode === acc.mode));
+  if (acc.chart) { acc.chart.remove(); acc.chart = null; }
+  const money = { type: "custom", minMove: 0.01, formatter: (v) => fusd(v, 0) };
+  acc.chart = LightweightCharts.createChart($("#acChart"), {
+    autoSize: true,
+    layout: { background: { color: "transparent" }, fontSize: 10.5, fontFamily: "JetBrains Mono, monospace" },
+    rightPriceScale: { scaleMargins: { top: 0.1, bottom: 0.08 } },
+    timeScale: { timeVisible: acc.days <= 7, secondsVisible: false },
+    crosshair: { mode: 0, vertLine: { style: 2 }, horzLine: { style: 2 } },
+    handleScroll: false, handleScale: false,
+  });
+  acc.chart.applyOptions(chartTheme());
+  const pnl = acc.mode === "pnl";
+  // PnL: green above zero, red below; equity: one line, deposits and withdrawals marked on it
+  acc.line = pnl
+    ? acc.chart.addBaselineSeries({ baseValue: { type: "price", price: 0 }, lineWidth: 2, priceFormat: money, priceLineVisible: false,
+        topLineColor: C.green, topFillColor1: C.green + "33", topFillColor2: C.green + "05",
+        bottomLineColor: C.red, bottomFillColor1: C.red + "05", bottomFillColor2: C.red + "33" })
+    : acc.chart.addAreaSeries({ lineWidth: 2, priceFormat: money, priceLineVisible: false,
+        lineColor: C.green, topColor: C.green + "33", bottomColor: C.green + "03" });
+  acc.line.setData(d.series.map((s) => ({ time: s.t, value: pnl ? s.pnl : s.equity })));
+  acc.line.setMarkers(d.flows.map((f) => ({ time: f.t, position: f.usd > 0 ? "belowBar" : "aboveBar", shape: "circle",
+    color: cssVar("--amber"), size: 0.6, text: `${f.usd > 0 ? t("deposito") : t("prelievo")} ${fk(f.usd)}` })));
+  acc.chart.timeScale().fitContent();
+  $("#acChartHint").textContent = pnl ? t("Solo trading: depositi e prelievi non spostano la curva.")
+    : d.flows.length ? t("I punti gialli sono depositi e prelievi.") : "";
+}
+
+function renderAccountStats() {
+  const s = acc.data && acc.data.stats;
+  if (!s) { $("#acStats").innerHTML = ""; return; }
+  $("#acPeriod").textContent = { 7: t("ultimi 7 giorni"), 30: t("ultimi 30 giorni"), 90: t("ultimi 90 giorni"), 365: t("ultimo anno") }[acc.days];
+  const day = (x) => x ? `${fsigned(x.pnl)}<small>${new Date(x.day + "T00:00:00Z").toLocaleDateString(LOCALE, { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" })}</small>` : "—";
+  const row = (k, v, c = "") => `<dt>${k}</dt><dd class="${c}">${v}</dd>`;
+  $("#acStats").innerHTML =
+    row(t("PnL"), fsigned(s.pnl), cls(s.pnl)) +
+    row(t("Rendimento"), s.return_pct === null ? "—" : fpct(s.return_pct), cls(s.return_pct || 0)) +
+    row(t("Massimo drawdown"), s.max_drawdown ? "−" + fusd(s.max_drawdown) : "—", s.max_drawdown ? "down" : "") +
+    row(t("Giorno migliore"), day(s.best_day), s.best_day && s.best_day.pnl > 0 ? "up" : "") +
+    row(t("Giorno peggiore"), day(s.worst_day), s.worst_day && s.worst_day.pnl < 0 ? "down" : "") +
+    row(t("Giorni verdi / rossi"), `${s.green_days} / ${s.red_days}`) +
+    row(t("Volume"), fusd(s.volume, 0)) +
+    row(t("Depositi − prelievi"), Math.abs(s.net_flows) < 1 ? "—" : fsigned(s.net_flows));
+}
+
+function renderPnlCalendar() {
+  const d = acc.data;
+  if (!d || !acc.month) return;
+  const byDay = Object.fromEntries(d.days.map((x) => [x.day, x.pnl]));
+  const [y, m] = acc.month.split("-").map(Number);
+  const first = new Date(Date.UTC(y, m - 1, 1)), days = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  $("#acMonth").textContent = first.toLocaleDateString(LOCALE, { month: "long", year: "numeric", timeZone: "UTC" });
+  const lead = (first.getUTCDay() + 6) % 7; // Monday first
+  const dows = Array.from({ length: 7 }, (_, i) => new Date(Date.UTC(2024, 0, 1 + i)).toLocaleDateString(LOCALE, { weekday: "short", timeZone: "UTC" }));
+  let html = dows.map((w) => `<div class="dow">${w}</div>`).join("") + '<div class="pad"></div>'.repeat(lead);
+  let green = 0, red = 0, net = 0;
+  for (let n = 1; n <= days; n++) {
+    const key = `${acc.month}-${String(n).padStart(2, "0")}`, v = byDay[key];
+    if (v !== undefined) { net += v; if (v > 0.005) green++; else if (v < -0.005) red++; }
+    const c = v === undefined ? "" : v > 0.005 ? "up" : v < -0.005 ? "down" : "";
+    html += `<button data-day="${key}" class="${c}${acc.day === key ? " sel" : ""}"${v === undefined ? " disabled" : ""}><span class="n">${n}</span><span class="v">${v === undefined ? "" : `<span class="vl">${fk(v)}</span><span class="vs">${fkShort(v)}</span>`}</span></button>`;
+  }
+  $("#acCal").innerHTML = html;
+  $("#acMonthSum").innerHTML = `<span>${t("Netto")} <b class="${cls(net)}">${fsigned(net)}</b></span><span>${t("{g} giorni verdi · {r} rossi", { g: green, r: red })}</span><span class="muted">${t("Giorni UTC, come su Lighter")}</span>`;
+  const now = utcDay(new Date()).slice(0, 7), oldest = d.days.length ? d.days[0].day.slice(0, 7) : now;
+  $("#acPrev").disabled = acc.month <= oldest;
+  $("#acNext").disabled = acc.month >= now;
+  if (!acc.day) $("#acDayFills").innerHTML = "";
+}
+
+async function showDayFills(day) {
+  acc.day = day;
+  renderPnlCalendar();
+  const start = Date.parse(day + "T00:00:00Z") / 1000;
+  const box = $("#acDayFills");
+  box.innerHTML = `<div class="t">${t("Carico i trade…")}</div>`;
+  const rows = await api(`/fills?start=${start}&end=${start + 86400}`).catch(() => null);
+  if (acc.day !== day) return;
+  const title = new Date(day + "T00:00:00Z").toLocaleDateString(LOCALE, { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
+  if (!rows || !rows.length) { box.innerHTML = `<div class="t">${title}</div><div class="muted">${t("Nessun trade quel giorno: il PnL viene dalle posizioni aperte e dal funding.")}</div>`; return; }
+  const groups = aggregateTrades(rows);
+  const time = (ts) => new Date(ts).toLocaleTimeString(LOCALE, { hour: "2-digit", minute: "2-digit" });
+  box.innerHTML = `<div class="t">${title} · ${t("{n} ordini", { n: groups.length })}</div><table class="table"><thead><tr><th>${t("Ora")}</th><th>${t("Mercato")}</th><th>${t("Lato")}</th><th class="r">Size</th><th class="r">${t("Prezzo medio")}</th><th class="r">${t("PnL realizzato")}</th></tr></thead><tbody>${
+    groups.map((r) => `<tr><td>${time(r.ts)}</td><td class="mk">${esc(r.symbol)}</td><td class="${r.side === "buy" ? "up" : "down"}">${r.side === "buy" ? "Buy" : "Sell"}</td>
+      <td class="r">${fsize(r.size, byId[r.market_id])}</td><td class="r">${fp(r.price, byId[r.market_id])}</td><td class="r ${r.pnl ? cls(r.pnl) : ""}">${r.pnl ? fsigned(r.pnl) : "—"}</td></tr>`).join("")}</tbody></table>`;
+}
+
+function renderAccountMarkets() {
+  const d = acc.data;
+  if (!d) return;
+  $("#acMktNote").textContent = d.funding_complete ? "" : t("funding parziale");
+  if (!d.markets.length) { $("#acMarkets").innerHTML = `<div class="empty">${t("Nessun trade nel periodo.")}</div>`; return; }
+  $("#acMarkets").innerHTML = `<table class="table"><thead><tr><th>${t("Mercato")}</th><th class="r" title="${t("Dai fill del periodo, al netto del prezzo medio di entrata")}">${t("Realizzato")}</th><th class="r">Funding</th><th class="r">${t("Totale")}</th><th class="r">Fill</th><th class="r">${t("Volume")}</th></tr></thead><tbody>${
+    d.markets.map((r) => { const tot = r.realized + r.funding; return `<tr><td class="mk">${esc(r.symbol)}</td>
+      <td class="r ${cls(r.realized)}">${r.realized ? fsigned(r.realized) : "—"}</td><td class="r ${cls(r.funding)}">${r.funding ? fsigned(r.funding) : "—"}</td>
+      <td class="r main ${cls(tot)}">${fsigned(tot)}</td><td class="r">${r.fills}</td><td class="r">${fcompact(r.volume)}</td></tr>`; }).join("")}</tbody></table>
+    <p class="hint">${t("Il PnL di un trade si conta quando chiudi: le posizioni ancora aperte sono nel PnL non realizzato in alto.")}</p>`;
+}
+
 // ---------- Calendar page ----------
 // what kind of event it is, for the filters
 const evType = (e) => (e.source === "custom" ? "mine" : e.source === "Deribit" ? "crypto" : e.source === "Nasdaq" ? "earnings"
@@ -1617,6 +1777,7 @@ function switchView(v) {
   $$(".view").forEach((s) => s.classList.toggle("hidden", s.id !== "view-" + v));
   if (v === "markets") renderMarkets();
   if (v === "cal") renderCalPage();
+  if (v === "account") loadAccountPage();
   if (v === "auto") { loadRules(); loadLimits(); }
   store("view", v);
 }
@@ -1740,6 +1901,12 @@ function wire() {
 
   // calendar
   $("#calOpen").onclick = () => switchView("cal");
+  $("#accOpen").onclick = () => switchView("account");
+  $("#acDays").onclick = (e) => { const b = e.target.closest("[data-days]"); if (b) { acc.days = +b.dataset.days; store("acc.days", acc.days); loadAccountPage(); } };
+  $("#acMode").onclick = (e) => { const b = e.target.closest("[data-mode]"); if (b) { acc.mode = b.dataset.mode; store("acc.mode", acc.mode); renderAccountChart(); } };
+  $("#acPrev").onclick = () => { acc.month = shiftMonth(acc.month, -1); acc.day = null; renderPnlCalendar(); };
+  $("#acNext").onclick = () => { acc.month = shiftMonth(acc.month, 1); acc.day = null; renderPnlCalendar(); };
+  $("#acCal").onclick = (e) => { const b = e.target.closest("[data-day]"); if (b) showDayFills(b.dataset.day); };
   $("#econOpen").onclick = () => { cp.scope = "mkt"; cp.market = activeMarket() && activeMarket().symbol; saveCp(); switchView("cal"); };
   $("#cpFilters").onclick = (e) => {
     const b = e.target.closest("button");

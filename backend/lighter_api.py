@@ -314,16 +314,24 @@ class LighterAPI:
         return {"asks": levels(data.get("asks", []), False), "bids": levels(data.get("bids", []), True),
                 "ts": time.time()}
 
-    async def trades(self, limit=100, positions=None):
-        """Recent fills, newest first. `positions` ({market_id: signed display size}) anchors the
-        realized PnL worked out by realized_pnl()."""
+    async def trades(self, limit=100, positions=None, since_ms=None, max_pages=40):
+        """Fills, newest first: the latest `limit`, or (since_ms) every fill back to that time, 100 a page.
+        `positions` ({market_id: signed display size}) anchors the realized PnL worked out by realized_pnl()."""
         if not self.signer:
             return []
-        data = await self._get("/api/v1/trades", {
-            "account_index": config.ACCOUNT_INDEX, "sort_by": "timestamp", "limit": limit,
-        }, headers={"authorization": await self._auth_token()})
+        raw, cursor = [], None
+        for _ in range(max_pages if since_ms else 1):
+            params = {"account_index": config.ACCOUNT_INDEX, "sort_by": "timestamp", "limit": 100 if since_ms else limit}
+            if cursor:
+                params["cursor"] = cursor
+            data = await self._get("/api/v1/trades", params, headers={"authorization": await self._auth_token()})
+            page = data.get("trades", [])
+            raw += page
+            cursor = data.get("next_cursor")
+            if not since_ms or not page or not cursor or page[-1]["timestamp"] < since_ms:
+                break
         out, fills = [], []
-        for t in data.get("trades", []):
+        for t in raw:
             is_buyer = t["bid_account_id"] == config.ACCOUNT_INDEX
             m = self.markets.get(t["market_id"])
             maker = t["is_maker_ask"] != is_buyer  # we were the ask and the ask was maker, or vice versa
@@ -346,7 +354,34 @@ class LighterAPI:
                           for mid, size in (positions or {}).items()}
         for row, pnl in zip(out, realized_pnl(fills, real_positions)):
             row["pnl"] = pnl
-        return out
+        return [r for r in out if not since_ms or r["ts"] >= since_ms]
+
+    async def pnl_points(self, start, end, resolution="1d"):
+        """Account PnL series (cumulative trade PnL, deposits and withdrawals); the last point is live."""
+        data = await self._get("/api/v1/pnl", {
+            "by": "index", "value": config.ACCOUNT_INDEX, "resolution": resolution,
+            "start_timestamp": int(start), "end_timestamp": int(end), "count_back": 0,
+        }, headers={"authorization": await self._auth_token()})
+        return data.get("pnl") or []
+
+    async def funding_paid(self, since, max_pages=30):
+        """Funding the account received (+) or paid (-) since `since` (unix s), per market id."""
+        out, cursor = {}, None
+        complete = False
+        for _ in range(max_pages):
+            params = {"account_index": config.ACCOUNT_INDEX, "limit": 100}
+            if cursor:
+                params["cursor"] = cursor
+            data = await self._get("/api/v1/positionFunding", params, headers={"authorization": await self._auth_token()})
+            rows = data.get("position_fundings", [])
+            for f in rows:
+                if f["timestamp"] >= since:
+                    out[f["market_id"]] = out.get(f["market_id"], 0.0) + float(f["change"])
+            cursor = data.get("next_cursor")
+            if not rows or not cursor or rows[-1]["timestamp"] < since:
+                complete = True
+                break
+        return out, complete
 
     async def daily_pnl(self):
         """PnL since 00:00 UTC, closed trades and open positions together (fees and funding included).
