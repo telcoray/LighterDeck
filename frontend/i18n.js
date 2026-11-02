@@ -274,6 +274,8 @@ const EN = {
   "Breakeven a PnL +%": "Breakeven at PnL +%",
   "Parte da PnL +%": "Starts at PnL +%",
   "% prezzo": "% price",
+  "Margine": "Margin",
+  "Il tuo capitale impegnato: valore all'entrata diviso la leva.": "Your own capital in the position: entry value divided by the leverage.",
   "Reverse: chiude e apre il lato opposto, stessa size · R": "Reverse: closes and opens the other side, same size · R",
   "Premi di nuovo R: reverse {sym} a {side}": "Press R again: reverse {sym} to {side}",
   "Conferma → {side}": "Confirm → {side}",

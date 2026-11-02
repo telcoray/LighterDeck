@@ -1123,15 +1123,16 @@ function renderPositions() {
     box.innerHTML = `<div class="empty">${info.trading ? t("Nessuna posizione aperta.") : t("Sola lettura: collega un'API key per vedere posizioni e ordini.")}</div>`;
     return;
   }
-  box.innerHTML = `<table class="table"><thead><tr><th>${t("Mercato")}</th><th class="r">Size</th><th class="r">${t("Valore")}</th><th class="r">Entry</th><th class="r">Mark</th><th class="r">${t("Liquidazione")}</th><th class="r" title="${t("La percentuale è calcolata sul margine iniziale.")}">${t("PnL non realizzato")}</th><th class="r">TP / SL</th><th>${t("Trailing")}</th><th>${t("Chiudi a mercato")}</th></tr></thead><tbody>${
+  box.innerHTML = `<table class="table"><thead><tr><th>${t("Mercato")}</th><th class="r">Size</th><th class="r">${t("Valore")}</th><th class="r" title="${t("Il tuo capitale impegnato: valore all'entrata diviso la leva.")}">${t("Margine")}</th><th class="r">Entry</th><th class="r">Mark</th><th class="r">${t("Liquidazione")}</th><th class="r" title="${t("La percentuale è calcolata sul margine iniziale.")}">${t("PnL non realizzato")}</th><th class="r">TP / SL</th><th>${t("Trailing")}</th><th>${t("Chiudi a mercato")}</th></tr></thead><tbody>${
     list.map((p) => {
       const m = byId[p.market_id];
       const mark = prices[p.market_id] ? prices[p.market_id].mark : 0;
       // PnL % on the initial margin (entry value / leverage), as Lighter and the ticket show it
       const margin = p.leverage ? (Math.abs(p.size) * p.entry) / p.leverage : 0;
       const pct = margin ? (p.upnl / margin) * 100 : 0;
-      return `<tr><td class="mk">${gotoBtn(p.symbol)}<small class="${p.size > 0 ? "up" : "down"}">${p.size > 0 ? "Long" : "Short"}${p.leverage ? " · " + p.leverage + "x" : ""}</small></td>
-        <td class="r ${p.size > 0 ? "up" : "down"}">${fsize(p.size, m)}</td><td class="r main">${fusd(p.value)}</td><td class="r">${fp(p.entry, m)}</td><td class="r main">${fp(mark, m)}</td>
+      return `<tr><td class="mk">${gotoBtn(p.symbol)}<small class="${p.size > 0 ? "up" : "down"}">${p.size > 0 ? "Long" : "Short"}</small></td>
+        <td class="r ${p.size > 0 ? "up" : "down"}">${fsize(p.size, m)} <span class="unit-sym">${esc(p.symbol)}</span></td><td class="r main">${fusd(p.value)}</td>
+        <td class="r">${margin ? fusd(margin) : "—"}${p.leverage ? `<small class="pos-lev">${p.leverage}x${p.cross === false ? " isolated" : ""}</small>` : ""}</td><td class="r">${fp(p.entry, m)}</td><td class="r main">${fp(mark, m)}</td>
         <td class="r liq">${fp(p.liq, m)}</td><td class="r pnl ${cls(p.upnl)}">${fusd(p.upnl)}<small>${isFinite(pct) ? fpct(pct) : ""}</small></td>
         <td class="r sltp">${sltpCell(p, m)}</td>
         <td>${trailButton(p.market_id, m)}</td>
