@@ -4,7 +4,7 @@
 
 A trading terminal for the perpetual futures on [Lighter](https://lighter.xyz), with server-side automations.
 
-**Try it read-only at [lighterdeck.xyz](https://lighterdeck.xyz)**: charts, the calendar per market and funding, no account needed. To trade, run your own copy with your API key (below).
+**Try it at [lighterdeck.xyz](https://lighterdeck.xyz)**: charts, the calendar per market, funding and paper trading on Lighter's live prices, no account needed. To trade for real, run your own copy with your API key (below).
 
 [Leggi in italiano](README.it.md) · The interface is available in English and Italian (button in the top bar).
 
@@ -15,9 +15,12 @@ A trading terminal for the perpetual futures on [Lighter](https://lighter.xyz), 
 | Charts | 1, 2 or 4 charts (side by side or stacked), 14 timeframes, OHLC legend, volume, entry, liquidation, open orders (SL/TP/limit, draggable to move them) and the managed stop moving on the chart, mark price, macro events; each one can be turned on or off from **Elements** |
 | Markets | Live prices for every perpetual, mark/index, funding (click it for the hourly rate over a week, month and year, the next funding countdown, what your position pays and the 24H/1W/1M history), open interest, order book with spread, market picker with search and categories |
 | Orders | Market and limit, post-only, reduce-only, slippage in bps, size in USD / quantity / % of equity / $ risk to the stop; limit price, SL, TP and trailing previewed on the chart while you fill in the ticket; orders and full closes confirmed with a second click, no pop-ups |
-| Protection | Native SL/TP sent together with the entry (OTO/OTOCO), TP and SL shown in the positions table and set or changed from there, partial close 25/50/75/100%, leverage and cross/isolated |
+| Protection | Native SL/TP sent together with the entry (OTO/OTOCO); scaled exits (2 to 5 take-profit levels, each closing its share of the position, stop to breakeven once TP1 fills); TP and SL shown in the positions table and set or changed from there; partial close 25/50/75/100%, reverse, leverage and cross/isolated |
+| Positions | Size with its unit, value, margin with the leverage, entry, mark, liquidation, PnL in $ and % of margin; the market name opens its chart |
+| Paper trading | The same screen with simulated money on live prices: market and limit fills, SL/TP, scaled exits, trailing stop, hourly funding and liquidation run in the browser, and the time you were away is replayed from candles. Always on at lighterdeck.xyz, one switch on your own deck |
+| Keyboard | B / S side, M / L order type, Enter to send, F close, H close half, R reverse, C cancel limits (the last four need a second press), 1–4 charts, [ ] timeframe, / search, ? the full list; each key also shows on its button |
 | Risk (optional) | Off by default, each one switched on by itself: limits per order, per market and total exposure as a % of equity, daily loss as a % of the equity at 00:00 UTC (open positions included), leverage, number of positions, mandatory stop-loss, no reversals |
-| Automations | Managed stop (initial, breakeven, trailing) and trades on macro events (at the release time or on a range breakout), with a kill switch |
+| Automations | Managed stop (initial, breakeven, trailing, in PnL % with the position's leverage) and trades on macro events (at the release time or on a range breakout), with a kill switch |
 | Calendar | Its own page with filters by market, type (macro, energy, earnings, crypto, yours), impact, period and text, plus a short list for the selected market next to the ticket. This week's economic events (Forex Factory), official BEA releases and Fed meetings, energy reports (EIA crude and gas storage with EIA's holiday schedule, API bulletin, Baker Hughes rig count), quarterly earnings of the stocks on Lighter and of the largest US companies (Nasdaq calendar, with EPS estimate), Deribit's monthly and quarterly BTC/ETH option expiries, your own events for any market (a token unlock, an upgrade), opening hours of the main exchanges with their holidays, half-days and lunch breaks; the calendar, the chart dots and event trades follow the selected market (oil reports for WTI and Brent, a stock's own earnings, the largest companies' earnings for the indices, both currencies for a forex pair) |
 | Account | Equity, today's PnL, available margin, leverage and margin used; a PnL curve that leaves out deposits and withdrawals (or the equity curve with them marked), period stats (return, max drawdown, best and worst day, green and red days, volume), a PnL calendar where a click shows that day's trades, realized PnL and funding per market |
 | History | Trades grouped by order or as single fills, realized PnL worked out from each fill |
@@ -67,10 +70,11 @@ cp /opt/lighterdeck/deploy/lighterdeck.service /etc/systemd/system/
 systemctl daemon-reload && systemctl enable --now lighterdeck
 ```
 
-## Public read-only site
+## Public site
 
 With `PUBLIC_MODE=1` in the env file the deck runs as a public site (lighterdeck.xyz): it never loads
-an API key, refuses every write request, hides automations and positions, and greets first-time
+an API key, refuses every write request, and runs the trade screen in paper trading (simulated money,
+kept in each visitor's browser). It greets first-time
 visitors with a thin bar (link to this repository and to open a Lighter account, `REFERRAL_URL`)
 and a residence check. Visitors from the United States, the United Kingdom and Canada, where Lighter
 isn't available, see a page that says so (country from Cloudflare's `CF-IPCountry` header). Your own
@@ -88,11 +92,16 @@ calendar events stay in each visitor's browser. Run it as a separate instance fr
 
 ## Automations
 
-- **Managed stop** (per market): initial stop at -X% from entry, breakeven once profit reaches
-  +Y%, trailing Z% from the best price (active from +W%). The stop is never loosened.
+- **Managed stop** (per market): initial stop at -X% from entry, breakeven once the PnL reaches
+  +Y%, trailing from the best price (active from a PnL of +W%). PnL % is measured on margin, so it
+  includes the position's leverage, as in the positions table. The stop is never loosened.
   On Lighter it is a real reduce-only stop-loss order, so it stays in place even if the server goes down.
-  The trailing distance can be a %, a fixed $ amount or a multiple of ATR(14) on 15-minute candles.
+  The trailing distance is a PnL % by default, or a price %, a fixed $ amount or a multiple of ATR(14) on 15-minute candles.
   Turn it on straight from the order ticket (**Trailing stop**) or from the **Trailing** button on an open position.
+- **Scaled exits**: **+ TP** in the ticket splits the take-profit into 2 to 5 levels, each a reduce-only
+  order for its share of the position. A market entry places them at once; for a limit entry they go
+  out once it fills. With **Stop to breakeven after TP1** the stop moves to the entry price when the first level fills.
+  Those last two need Auto ON.
 - **Event trade**: long/short N seconds after the event, or a breakout of the range of the
   preceding minutes. The entry goes out with native SL/TP; trailing and breakeven then tighten the stop.
   Every automatic entry goes through the same checks as manual orders, including any risk limits you switched on.
