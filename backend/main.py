@@ -14,6 +14,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 import config
+import og
 from econ import Calendar
 from engine import Engine
 from feed import PriceFeed
@@ -770,9 +771,64 @@ async def index():
 PAGES = ("trade", "markets", "calendar", "account", "automations", "activity")
 
 
+def _market_by_symbol(symbol):
+    return next((m for m in api.markets.values() if m.symbol.upper() == symbol.upper()), None)
+
+
+def _market_quote(m):
+    """Display price and 24h change of a market, from the price feed."""
+    st = feed.stats.get(m.id) or {}
+    price = st.get("last") or st.get("mark")
+    return (f"{price:,.{m.price_decimals}f}" if price else None), st.get("change")
+
+
+def _set_meta(html, key, value):
+    """Replace the content of <meta property|name="key"> in the page."""
+    value = value.replace("&", "&amp;").replace('"', "&quot;").replace("<", "&lt;")
+    return re.sub(rf'(<meta (?:property|name)="{re.escape(key)}" content=")[^"]*(")', lambda mo: mo.group(1) + value + mo.group(2), html, count=1)
+
+
 @app.get("/trade/{symbol}", include_in_schema=False)
 async def trade_page(symbol: str):
-    return FileResponse(FRONTEND / "index.html")
+    """The app, with a link preview of its own for the market (title, price, change, chart image)."""
+    html = (FRONTEND / "index.html").read_text(encoding="utf-8")
+    m = _market_by_symbol(symbol)
+    if not m:
+        return Response(html, media_type="text/html")
+    price, change = _market_quote(m)
+    title = f"{m.symbol} · LighterDeck"
+    move = f", {change:+.2f}% in 24h" if change is not None else ""
+    desc = (f"{m.symbol}{f' ({m.name})' if m.name != m.symbol else ''} on Lighter{f': {price}' if price else ''}{move}. "
+            "Charts, the events that move it, funding.")
+    url = f"{config.SITE_URL}/trade/{m.symbol}"
+    html = html.replace("<title>LighterDeck</title>", f"<title>{title}</title>", 1)
+    for key, value in (("og:title", title), ("twitter:title", title), ("og:description", desc), ("twitter:description", desc),
+                       ("description", desc), ("og:url", url), ("og:image", f"{config.SITE_URL}/og/{m.symbol}.png"),
+                       ("twitter:image", f"{config.SITE_URL}/og/{m.symbol}.png"), ("og:image:alt", f"{m.symbol} on LighterDeck, 4h chart")):
+        html = _set_meta(html, key, value)
+    return Response(html, media_type="text/html")
+
+
+_og_cache = {}  # symbol -> (made at, png)
+
+
+@app.get("/og/{symbol}.png", include_in_schema=False)
+async def og_image(symbol: str):
+    """Link preview image of a market, redrawn at most every 10 minutes."""
+    m = _market_by_symbol(symbol)
+    if not m:
+        raise HTTPException(404, "unknown market")
+    hit = _og_cache.get(m.symbol)
+    if not hit or time.time() - hit[0] > 600:
+        try:
+            bars = await api.candles(m.id, "4h", 56)
+        except Exception:
+            bars = []
+        price, change = _market_quote(m)
+        png = await asyncio.to_thread(og.card, m.symbol, m.name, price, change, bars,
+                                      f"{config.SITE_URL.split('//')[-1]}/trade/{m.symbol}")
+        hit = _og_cache[m.symbol] = (time.time(), png)
+    return Response(hit[1], media_type="image/png", headers={"Cache-Control": "public, max-age=600"})
 
 
 for _page in PAGES:
