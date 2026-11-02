@@ -320,10 +320,11 @@ class Panel {
       }
     }
     if (pos && s && chartEls.stop) {
-      const dir = Math.sign(pos.size), amber = cssVar("--amber");
+      const dir = Math.sign(pos.size), amber = cssVar("--amber"), lev = pos.leverage || 1;
+      // activation and breakeven are PnL % on margin: the price moves that much divided by the leverage
       if (s.stop) this.stopLine = add({ price: s.stop, color: amber, lineWidth: 2, title: this.stopTitle(s) });
-      else if (s.trail_activate_pct) add({ price: pos.entry * (1 + dir * s.trail_activate_pct / 100), color: amber, lineStyle: 2, title: t("trailing da qui") });
-      if (s.breakeven_at_pct && (!s.stop || (s.stop - pos.entry) * dir < 0)) add({ price: pos.entry * (1 + dir * s.breakeven_at_pct / 100), color: amber, lineStyle: 3, title: "BE" });
+      else if (s.trail_activate_pct) add({ price: pos.entry * (1 + dir * s.trail_activate_pct / 100 / lev), color: amber, lineStyle: 2, title: t("trailing da qui") });
+      if (s.breakeven_at_pct && (!s.stop || (s.stop - pos.entry) * dir < 0)) add({ price: pos.entry * (1 + dir * s.breakeven_at_pct / 100 / lev), color: amber, lineStyle: 3, title: "BE" });
     }
     const q = prices[m.id];
     if (chartEls.mark && q && q.mark) this.markLine = add({ price: q.mark, color: cssVar("--muted"), lineStyle: 3, title: "MARK" });
@@ -946,20 +947,20 @@ function renderTicketEstimates(m, p, qty, entry) {
     draft.lines[draft.lines.length - 1].title += " " + (beyondLiq ? out.textContent
       : `PnL ${sign(pnl)}${fusd(Math.abs(pnl))} (${sign(roe)}${Math.abs(roe).toFixed(1)}%)`);
   }
-  draft.lines.push(...trailDraft(m, side, entry));
+  draft.lines.push(...trailDraft(m, side, entry, leverage));
   setTicketDraft(draft);
 }
 
 // where the ticket's trailing stop would sit right after the fill (ATR needs candles: start and breakeven only)
-function trailDraft(m, side, entry) {
+function trailDraft(m, side, entry, leverage = 1) {
   const tr = $("#tkTrail").checked && !$("#tkReduce").checked && readTrail($("#tkTrailBox"));
   if (!tr || !entry) return [];
   const out = [];
   const dist = tr.mode === "pct" ? entry * tr.value / 100 : tr.mode === "price" ? tr.value : null;
   const label = `TRAIL ${trailLabel(trailToStop(tr), m)}`;
-  if (tr.activate_pct) out.push({ kind: "trail", dashed: true, price: entry * (1 + side * tr.activate_pct / 100), title: `${label} · ${t("trailing da qui")}` });
+  if (tr.activate_pct) out.push({ kind: "trail", dashed: true, price: entry * (1 + side * tr.activate_pct / 100 / leverage), title: `${label} · ${t("trailing da qui")}` });
   else if (dist) out.push({ kind: "trail", price: entry - side * dist, title: label });
-  if (tr.breakeven_at_pct) out.push({ kind: "trail", dashed: true, price: entry * (1 + side * tr.breakeven_at_pct / 100), title: "BE" });
+  if (tr.breakeven_at_pct) out.push({ kind: "trail", dashed: true, price: entry * (1 + side * tr.breakeven_at_pct / 100 / leverage), title: "BE" });
   return out;
 }
 
@@ -2151,8 +2152,8 @@ function trailForm(v) {
   const unit = TRAIL_UNITS.map(([k, u]) => `<option value="${k}" ${v.mode === k ? "selected" : ""}>${u}</option>`).join("");
   return `<div class="trail-dist"><div class="field sm"><label>${t("Distanza dal prezzo migliore")}</label><input data-tr="value" type="number" min="0" step="any" value="${v.value ?? ""}" placeholder="${v.mode === "atr" ? "1.5" : v.mode === "price" ? "" : "1"}"></div>
       <select data-tr="mode">${unit}</select></div>
-    <div class="two"><div class="field sm"><label>${t("Parte da +% profitto")}</label><input data-tr="activate_pct" type="number" min="0" step="any" value="${v.activate_pct || ""}" placeholder="0"></div>
-      <div class="field sm"><label>${t("Breakeven a +%")}</label><input data-tr="breakeven_at_pct" type="number" min="0" step="any" value="${v.breakeven_at_pct ?? ""}" placeholder="${t("Opzionale")}"></div></div>
+    <div class="two"><div class="field sm"><label>${t("Parte da PnL +%")}</label><input data-tr="activate_pct" type="number" min="0" step="any" value="${v.activate_pct || ""}" placeholder="0"></div>
+      <div class="field sm"><label>${t("Breakeven a PnL +%")}</label><input data-tr="breakeven_at_pct" type="number" min="0" step="any" value="${v.breakeven_at_pct ?? ""}" placeholder="${t("Opzionale")}"></div></div>
     <p class="trail-hint" data-tr="hint"></p>`;
 }
 

@@ -338,7 +338,7 @@ async def trades():
 class TrailReq(BaseModel):
     mode: str = "pct"                 # "pct" | "price" | "atr"
     value: float                      # % of the best price, price distance, or ATR multiple
-    activate_pct: float = 0           # start trailing once the position is this much in profit
+    activate_pct: float = 0           # start trailing once the position's PnL % (on margin) reaches this
     breakeven_at_pct: float | None = None
 
 
@@ -354,8 +354,8 @@ def trail_fields(t: TrailReq):
         raise Blocked(L(f"Distanza del trailing fuori dai limiti ({lo:g}–{hi:g})", f"Trailing distance out of range ({lo:g}–{hi:g})")
                       if t.mode != "price" else L("La distanza del trailing deve essere maggiore di zero",
                                                     "The trailing distance must be above zero"))
-    if not 0 <= t.activate_pct <= 100 or (t.breakeven_at_pct is not None and not 0 < t.breakeven_at_pct <= 100):
-        raise Blocked(L("Attivazione e breakeven vanno tra 0 e 100%", "Activation and breakeven must be between 0 and 100%"))
+    if not 0 <= t.activate_pct <= 1000 or (t.breakeven_at_pct is not None and not 0 < t.breakeven_at_pct <= 1000):
+        raise Blocked(L("Attivazione e breakeven vanno tra 0 e 1000% di PnL", "Activation and breakeven must be between 0 and 1000% PnL"))
     return {f"trail_{t.mode}": t.value, "trail_activate_pct": t.activate_pct, "breakeven_at_pct": t.breakeven_at_pct}
 
 

@@ -273,8 +273,8 @@ const Paper = (() => {
   function trailFields(tr) {
     const range = TRAIL_RANGES[tr.mode] || err(t("Tipo di trailing sconosciuto"));
     if (!(tr.value >= range[0] && tr.value <= range[1])) err(t("Distanza del trailing fuori dai limiti ({lo}–{hi})", { lo: range[0], hi: range[1] }));
-    if (!(tr.activate_pct >= 0 && tr.activate_pct <= 100) || (tr.breakeven_at_pct != null && !(tr.breakeven_at_pct > 0 && tr.breakeven_at_pct <= 100)))
-      err(t("Attivazione e breakeven vanno tra 0 e 100%"));
+    if (!(tr.activate_pct >= 0 && tr.activate_pct <= 1000) || (tr.breakeven_at_pct != null && !(tr.breakeven_at_pct > 0 && tr.breakeven_at_pct <= 1000)))
+      err(t("Attivazione e breakeven vanno tra 0 e 1000% di PnL"));
     const f = { [`trail_${tr.mode}`]: tr.value, trail_activate_pct: tr.activate_pct || 0 };
     if (tr.breakeven_at_pct) f.breakeven_at_pct = tr.breakeven_at_pct;
     return f;
@@ -321,7 +321,7 @@ const Paper = (() => {
       return;
     }
     st.best = side > 0 ? Math.max(st.best, mark) : Math.min(st.best, mark);
-    const profit = (st.best - pos.entry) / pos.entry * 100 * side;
+    const profit = (st.best - pos.entry) / pos.entry * 100 * side * lev(id); // PnL % on margin, like the server
     const cands = [];
     if (s.breakeven_at_pct && profit >= s.breakeven_at_pct) cands.push(pos.entry * (1 + side * 0.05 / 100));
     if (profit >= (s.trail_activate_pct || 0)) {

@@ -131,11 +131,11 @@ class Engine:
             if r.get("initial_stop_pct"):
                 parts.append(f"SL {r['initial_stop_pct']}%")
             if r.get("breakeven_at_pct"):
-                parts.append(f"BE at +{r['breakeven_at_pct']}%")
+                parts.append(f"BE at PnL +{r['breakeven_at_pct']}%")
             trail = (f"{r['trail_pct']}%" if r.get("trail_pct") else f"${r['trail_price']:g}" if r.get("trail_price")
                      else f"{r['trail_atr']:g}x ATR" if r.get("trail_atr") else None)
             if trail:
-                parts.append(f"trail {trail} from +{r.get('trail_activate_pct', 0)}%")
+                parts.append(f"trail {trail} from PnL +{r.get('trail_activate_pct', 0)}%")
             return f"{sym} managed stop: " + ", ".join(parts or ["(empty)"])
         return f"{sym} {r['mode']} on {r['event_title']} ${r['size_usd']}"
 
@@ -221,7 +221,8 @@ class Engine:
             # new position (or flipped): restart tracking, keep the old order to be re-used/modified
             st.update({"side": side, "entry": entry, "best": mark, "stop": None})
         st["best"] = max(st["best"], mark) if side > 0 else min(st["best"], mark)
-        best_profit = (st["best"] - entry) / entry * 100 * side
+        # activation and breakeven are PnL % on margin, as the positions table shows it: price move x leverage
+        best_profit = (st["best"] - entry) / entry * 100 * side * (pos.get("leverage") or 1)
 
         candidates = []
         if r.get("initial_stop_pct"):
