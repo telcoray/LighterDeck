@@ -39,7 +39,7 @@
 </script>
 <style>html.i18n-pending body { visibility: hidden; }</style>
 <link rel="icon" href="favicon.svg?v=1" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=88">
+<link rel="stylesheet" href="style.css?v=91">
 <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
 </head>
 <body>
@@ -435,7 +435,7 @@
             <div class="seg" id="acMode"><button data-mode="pnl">PnL</button><button data-mode="equity">Equity</button></div>
             <div class="seg" id="acDays"><button data-days="7">1W</button><button data-days="30">1M</button><button data-days="90">3M</button><button data-days="365">1Y</button></div>
           </div>
-          <div class="ac-chart" id="acChart"></div>
+          <div class="ac-chart-wrap"><div class="ac-chart" id="acChart"></div><div class="ac-tip hidden" id="acTip"></div></div>
           <p class="hint" id="acChartHint"></p>
         </section>
         <section class="ac-card">
@@ -574,9 +574,9 @@
 </div>
 
 <div class="toast hidden" id="toast"></div>
-<script src="i18n.js?v=88"></script>
-<script src="formulas.js?v=88"></script>
-<script src="app.js?v=88"></script>
-<script src="picker.js?v=88"></script>
+<script src="i18n.js?v=91"></script>
+<script src="formulas.js?v=91"></script>
+<script src="app.js?v=91"></script>
+<script src="picker.js?v=91"></script>
 </body>
 </html>

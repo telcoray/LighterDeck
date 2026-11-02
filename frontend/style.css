@@ -430,6 +430,12 @@ body.dragging-line, body.dragging-line * { cursor: ns-resize !important; user-se
 .ac-head b { font-weight: 500; font-size: 12.5px; }
 .ac-head .seg button.active { color: var(--text); background: var(--raised); }
 .ac-chart { height: 280px; }
+.ac-chart-wrap { position: relative; }
+.ac-tip { position: absolute; z-index: 3; pointer-events: none; display: flex; flex-direction: column; gap: 2px; padding: 6px 9px; border-radius: 6px; background: var(--surface); border: 1px solid var(--line-3); box-shadow: 0 8px 20px rgba(0,0,0,.4); font-size: 11px; white-space: nowrap; }
+.ac-tip b { font-family: var(--mono); font-weight: 500; }
+.ac-tip span { color: var(--muted); font-size: 10px; }
+.ac-tip.dep b, #acChartHint .dep { color: var(--blue); }
+.ac-tip.wd b, #acChartHint .wd { color: var(--amber); }
 .ac-kv { grid-template-columns: 1fr auto; gap: 10px 12px; margin: 0; }
 .ac-kv dd.up { color: var(--green); } .ac-kv dd.down { color: var(--red); }
 .ac-kv dd small { display: block; font-size: 10px; color: var(--muted); margin-top: 2px; }

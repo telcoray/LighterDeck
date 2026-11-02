@@ -173,66 +173,93 @@ def _flows_of(p):   # cumulative deposits minus withdrawals
             - float(p.get("spot_outflow") or 0))
 
 
-@app.get("/api/account_stats")
-async def account_stats(days: int = 30):
-    """Equity and PnL over a period, daily PnL for the calendar, stats, and PnL and funding per market.
-    PnL excludes deposits and withdrawals, so the curve shows trading alone."""
+def _need_key():
     if not api.signer:
         raise HTTPException(400, L("Collega un'API key per vedere l'account", "Connect an API key to see the account"))
-    days = max(1, min(days, 365))
 
-    async def build():
-        now = int(time.time())
-        start = now - days * 86400
-        year = await api.pnl_points(now - 365 * 86400, now, "1d")
-        pts = await api.pnl_points(start, now, "1h") if days <= 7 else [p for p in year if p["timestamp"] >= start - 86400]
-        if not pts:
-            return {"series": [], "flows": [], "days": [], "stats": None, "markets": []}
-        p0, f0 = _pnl_of(pts[0]), _flows_of(pts[0])
-        series = [{"t": p["timestamp"], "equity": _pnl_of(p) + _flows_of(p), "pnl": _pnl_of(p) - p0} for p in pts]
-        flows = [{"t": b["timestamp"], "usd": _flows_of(b) - _flows_of(a)}
-                 for a, b in zip(pts, pts[1:]) if abs(_flows_of(b) - _flows_of(a)) >= 1]
-        # daily PnL (UTC days, as Lighter's calendar): each 00:00 point to the next one (the last is live)
-        daily = [{"day": time.strftime("%Y-%m-%d", time.gmtime(a["timestamp"])), "pnl": _pnl_of(b) - _pnl_of(a)}
-                 for a, b in zip(year, year[1:])]
-        in_period = [d for d in daily if d["day"] >= time.strftime("%Y-%m-%d", time.gmtime(start))]
-        peak, drawdown = float("-inf"), 0.0
-        for s in series:
-            peak = max(peak, s["pnl"])
-            drawdown = max(drawdown, peak - s["pnl"])
-        e0, net_flows = series[0]["equity"], _flows_of(pts[-1]) - f0
-        base = e0 + max(net_flows, 0) / 2  # deposits count half, as if they arrived mid-period
-        stats = {
-            "pnl": series[-1]["pnl"], "return_pct": series[-1]["pnl"] / base * 100 if base > 0 else None,
-            "max_drawdown": drawdown, "net_flows": net_flows, "start_equity": e0,
-            "best_day": max(in_period, key=lambda d: d["pnl"], default=None),
-            "worst_day": min(in_period, key=lambda d: d["pnl"], default=None),
-            "green_days": sum(d["pnl"] > 0.005 for d in in_period), "red_days": sum(d["pnl"] < -0.005 for d in in_period),
-        }
-        # per market: realized PnL of the fills in the period, and funding received/paid
+
+async def _year_fills():
+    """The year's fills with realized PnL, shared by every period and by the calendar's days (2 min)."""
+    async def fetch():
         positions = {p["market_id"]: p["size"] for p in (engine.account or {}).get("positions", [])}
-        fills = await api.trades(positions=positions, since_ms=start * 1000)
-        funding, funding_complete = await api.funding_paid(start)
-        per = {}
-        for f in fills:
-            r = per.setdefault(f["market_id"], {"market_id": f["market_id"], "symbol": f["symbol"], "realized": 0.0,
-                                                "fills": 0, "volume": 0.0, "funding": 0.0})
-            r["fills"] += 1
-            r["volume"] += f["usd"]
-            r["realized"] += f["pnl"] or 0.0
-        for mid, usd in funding.items():
-            m = api.markets.get(mid)
-            per.setdefault(mid, {"market_id": mid, "symbol": m.symbol if m else str(mid), "realized": 0.0,
-                                 "fills": 0, "volume": 0.0, "funding": 0.0})["funding"] += usd
-        markets = sorted(per.values(), key=lambda r: -abs(r["realized"] + r["funding"]))
-        stats["volume"] = sum(r["volume"] for r in markets)
-        return {"series": series, "flows": flows, "days": daily, "stats": stats, "markets": markets,
-                "funding_complete": funding_complete}
+        return await api.trades(positions=positions, since_ms=(int(time.time()) - 365 * 86400) * 1000)
+    return await _cached(("fills",), 120, fetch)
 
+
+@app.get("/api/account_stats")
+async def account_stats(days: int = 30):
+    """Equity and PnL over a period, daily PnL for the calendar and the period's stats: from Lighter's
+    PnL series alone (two fast requests). PnL excludes deposits and withdrawals, so the curve shows
+    trading alone. The per-market figures come from /api/account_markets, which is slower."""
+    _need_key()
+    days = max(1, min(days, 365))
+    now = int(time.time())
+    start = now - days * 86400
     try:
-        return await _cached(("stats", days), 60, build)
+        year = await _cached(("pnl", "1d"), 60, lambda: api.pnl_points(now - 365 * 86400, now, "1d"))
+        pts = (await _cached(("pnl", "1h"), 60, lambda: api.pnl_points(now - 7 * 86400, now, "1h")) if days <= 7
+               else [p for p in year if p["timestamp"] >= start - 86400])
     except RuntimeError as e:
         raise HTTPException(502, str(e))
+    pts = [p for p in pts if p["timestamp"] >= start - 3600] if days <= 7 else pts
+    if not pts:
+        return {"series": [], "flows": [], "days": [], "stats": None}
+    p0, f0 = _pnl_of(pts[0]), _flows_of(pts[0])
+    series = [{"t": p["timestamp"], "equity": _pnl_of(p) + _flows_of(p), "pnl": _pnl_of(p) - p0} for p in pts]
+    # a deposit or withdrawal shows on the point after it; "at" is the start of the interval it happened in
+    flows = [{"t": b["timestamp"], "at": a["timestamp"], "usd": _flows_of(b) - _flows_of(a)}
+             for a, b in zip(pts, pts[1:]) if abs(_flows_of(b) - _flows_of(a)) >= 1]
+    # daily PnL (UTC days, as Lighter's calendar): each 00:00 point to the next one (the last is live)
+    daily = [{"day": time.strftime("%Y-%m-%d", time.gmtime(a["timestamp"])), "pnl": _pnl_of(b) - _pnl_of(a)}
+             for a, b in zip(year, year[1:])]
+    in_period = [d for d in daily if d["day"] >= time.strftime("%Y-%m-%d", time.gmtime(start))]
+    peak, drawdown = float("-inf"), 0.0
+    for x in series:
+        peak = max(peak, x["pnl"])
+        drawdown = max(drawdown, peak - x["pnl"])
+    e0, net_flows = series[0]["equity"], _flows_of(pts[-1]) - f0
+    # return on the average capital in the account (the points where it held money), so deposits and
+    # withdrawals during the period, or an empty account at its start, don't distort it
+    funded = [x["equity"] for x in series if x["equity"] >= 50]
+    base = sum(funded) / len(funded) if funded else 0
+    stats = {
+        "pnl": series[-1]["pnl"], "return_pct": series[-1]["pnl"] / base * 100 if base > 0 else None,
+        "max_drawdown": drawdown, "net_flows": net_flows, "start_equity": e0,
+        "best_day": max(in_period, key=lambda d: d["pnl"], default=None),
+        "worst_day": min(in_period, key=lambda d: d["pnl"], default=None),
+        "green_days": sum(d["pnl"] > 0.005 for d in in_period), "red_days": sum(d["pnl"] < -0.005 for d in in_period),
+    }
+    return {"series": series, "flows": flows, "days": daily, "stats": stats}
+
+
+@app.get("/api/account_markets")
+async def account_markets(days: int = 30):
+    """Realized PnL, funding received/paid, fills and volume per market over a period. The year's fills
+    are cached and shared; funding is fetched alongside them."""
+    _need_key()
+    days = max(1, min(days, 365))
+    start = int(time.time()) - days * 86400
+    try:
+        fills, (funding, complete) = await asyncio.gather(
+            _year_fills(), _cached(("funding", days), 300, lambda: api.funding_paid(start)))
+    except RuntimeError as e:
+        raise HTTPException(502, str(e))
+    per = {}
+
+    def row(mid, symbol):
+        return per.setdefault(mid, {"market_id": mid, "symbol": symbol, "realized": 0.0, "fills": 0, "volume": 0.0, "funding": 0.0})
+    for f in fills:
+        if f["ts"] < start * 1000:
+            continue
+        r = row(f["market_id"], f["symbol"])
+        r["fills"] += 1
+        r["volume"] += f["usd"]
+        r["realized"] += f["pnl"] or 0.0
+    for mid, usd in funding.items():
+        m = api.markets.get(mid)
+        row(mid, m.symbol if m else str(mid))["funding"] += usd
+    markets = sorted(per.values(), key=lambda r: -abs(r["realized"] + r["funding"]))
+    return {"markets": markets, "volume": sum(r["volume"] for r in markets), "funding_complete": complete}
 
 
 @app.get("/api/fills")
@@ -240,9 +267,12 @@ async def fills_between(start: int, end: int):
     """Fills between two unix times (s), newest first, with realized PnL: one day of the PnL calendar."""
     if not api.signer:
         return []
-    positions = {p["market_id"]: p["size"] for p in (engine.account or {}).get("positions", [])}
-    rows = await _cached(("fills", start), 60, lambda: api.trades(positions=positions, since_ms=start * 1000))
-    return [r for r in rows if r["ts"] < end * 1000]
+    if start >= time.time() - 365 * 86400:
+        rows = await _year_fills()
+    else:
+        positions = {p["market_id"]: p["size"] for p in (engine.account or {}).get("positions", [])}
+        rows = await _cached(("fills", start), 120, lambda: api.trades(positions=positions, since_ms=start * 1000))
+    return [r for r in rows if start * 1000 <= r["ts"] < end * 1000]
 
 
 _funding_cache = {}  # (market, days) -> (fetched at, rows); funding changes once an hour

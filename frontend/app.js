@@ -1360,7 +1360,7 @@ function renderEcon() {
 // ---------- Account page ----------
 // equity and margin from the live account; curve, stats, calendar and per-market figures from
 // /api/account_stats (Lighter's daily PnL series, which keeps deposits and withdrawals apart)
-const acc = { days: load("acc.days", 30), mode: load("acc.mode", "pnl"), month: null, day: null, data: null, chart: null, line: null };
+const acc = { days: load("acc.days", 30), mode: load("acc.mode", "pnl"), month: null, day: null, data: null, mkt: null, chart: null, line: null, cache: {}, mcache: {} };
 const fk = (v) => { // +$1.85K
   const a = Math.abs(v), s = v >= 0 ? "+" : "−";
   return a >= 1000 ? `${s}$${(a / 1000).toFixed(a >= 100000 ? 0 : 2)}K` : `${s}$${a.toFixed(a >= 100 ? 0 : 2)}`;
@@ -1370,6 +1370,16 @@ const fsigned = (v) => `${v >= 0 ? "+" : "−"}${fusd(Math.abs(v))}`;
 const utcDay = (d) => d.toISOString().slice(0, 10);
 const shiftMonth = (ym, n) => { const [y, m] = ym.split("-").map(Number); const d = new Date(Date.UTC(y, m - 1 + n, 1)); return d.toISOString().slice(0, 7); };
 
+// stats come first (fast); per-market figures follow; answers are kept per period, so switching
+// period shows what is known at once and refreshes behind it, and the other periods are preloaded
+async function fetchAccount(days, kind) {
+  const path = kind === "stats" ? `/account_stats?days=${days}` : `/account_markets?days=${days}`;
+  const box = kind === "stats" ? acc.cache : acc.mcache;
+  const d = await api(path);
+  box[days] = { at: Date.now(), d };
+  return d;
+}
+
 async function loadAccountPage() {
   const has = !!info.trading;
   $("#acEmpty").classList.toggle("hidden", has);
@@ -1378,18 +1388,44 @@ async function loadAccountPage() {
   $$("#acDays button").forEach((b) => b.classList.toggle("active", +b.dataset.days === acc.days));
   $$("#acMode button").forEach((b) => b.classList.toggle("active", b.dataset.mode === acc.mode));
   renderAccountHead();
-  const days = acc.days;
-  $("#acState").textContent = t("Aggiorno…");
-  const d = await api(`/account_stats?days=${days}`).catch((e) => { toast(e.message, true); return null; });
-  $("#acState").textContent = "";
-  if (!d || days !== acc.days) return;
+  const days = acc.days, fresh = (x) => x && Date.now() - x.at < 60000;
+  const known = acc.cache[days], knownM = acc.mcache[days];
+  if (known) showAccountStats(known.d);
+  acc.mkt = knownM ? knownM.d : null;
+  renderAccountMarkets();
+  if (!fresh(known)) {
+    $("#acState").textContent = t("Aggiorno…");
+    const d = await fetchAccount(days, "stats").catch((e) => { toast(e.message, true); return null; });
+    $("#acState").textContent = "";
+    if (d && days === acc.days) showAccountStats(d);
+  }
+  if (!fresh(knownM)) {
+    const m = await fetchAccount(days, "markets").catch(() => null);
+    if (m && days === acc.days) { acc.mkt = m; renderAccountMarkets(); renderAccountStats(); }
+  }
+  preloadAccount();
+}
+
+function showAccountStats(d) {
   acc.data = d;
   acc.month = acc.month || utcDay(new Date()).slice(0, 7);
   renderAccountHead();
   renderAccountChart();
   renderAccountStats();
   renderPnlCalendar();
-  renderAccountMarkets();
+}
+
+async function preloadAccount() {
+  if (preloadAccount.busy) return;
+  preloadAccount.busy = true;
+  try {
+    for (const kind of ["stats", "markets"]) {
+      for (const days of [7, 30, 90, 365]) {
+        const box = kind === "stats" ? acc.cache : acc.mcache;
+        if (!box[days] || Date.now() - box[days].at > 60000) await fetchAccount(days, kind).catch(() => {});
+      }
+    }
+  } finally { preloadAccount.busy = false; }
 }
 
 function renderAccountHead() {
@@ -1423,14 +1459,14 @@ function renderAccountChart() {
   acc.chart = LightweightCharts.createChart($("#acChart"), {
     autoSize: true,
     layout: { background: { color: "transparent" }, fontSize: 10.5, fontFamily: "JetBrains Mono, monospace" },
-    rightPriceScale: { scaleMargins: { top: 0.1, bottom: 0.08 } },
+    rightPriceScale: { scaleMargins: { top: 0.12, bottom: 0.1 } },
     timeScale: { timeVisible: acc.days <= 7, secondsVisible: false },
     crosshair: { mode: 0, vertLine: { style: 2 }, horzLine: { style: 2 } },
     handleScroll: false, handleScale: false,
   });
   acc.chart.applyOptions(chartTheme());
   const pnl = acc.mode === "pnl";
-  // PnL: green above zero, red below; equity: one line, deposits and withdrawals marked on it
+  // PnL: green above zero, red below; equity: one line
   acc.line = pnl
     ? acc.chart.addBaselineSeries({ baseValue: { type: "price", price: 0 }, lineWidth: 2, priceFormat: money, priceLineVisible: false,
         topLineColor: C.green, topFillColor1: C.green + "33", topFillColor2: C.green + "05",
@@ -1438,11 +1474,23 @@ function renderAccountChart() {
     : acc.chart.addAreaSeries({ lineWidth: 2, priceFormat: money, priceLineVisible: false,
         lineColor: C.green, topColor: C.green + "33", bottomColor: C.green + "03" });
   acc.line.setData(d.series.map((s) => ({ time: s.t, value: pnl ? s.pnl : s.equity })));
-  acc.line.setMarkers(d.flows.map((f) => ({ time: f.t, position: f.usd > 0 ? "belowBar" : "aboveBar", shape: "circle",
-    color: cssVar("--amber"), size: 0.6, text: `${f.usd > 0 ? t("deposito") : t("prelievo")} ${fk(f.usd)}` })));
+  // deposits: blue arrow below the line; withdrawals: amber arrow above; the amount shows on hover
+  const flowAt = new Map(d.flows.map((f) => [f.t, f]));
+  acc.line.setMarkers(d.flows.map((f) => ({ time: f.t, position: f.usd > 0 ? "belowBar" : "aboveBar",
+    shape: f.usd > 0 ? "arrowUp" : "arrowDown", color: f.usd > 0 ? cssVar("--blue") : cssVar("--amber"), size: 0.8 })));
+  const tip = $("#acTip");
+  acc.chart.subscribeCrosshairMove((p) => {
+    const f = p.time !== undefined && flowAt.get(p.time);
+    if (!f || !p.point) { tip.classList.add("hidden"); return; }
+    tip.className = "ac-tip " + (f.usd > 0 ? "dep" : "wd");
+    tip.innerHTML = `<b>${f.usd > 0 ? t("Deposito") : t("Prelievo")} ${fsigned(f.usd)}</b><span>${new Date((acc.days <= 7 ? f.t : f.at) * 1000).toLocaleString(LOCALE, { day: "numeric", month: "short", ...(acc.days <= 7 ? { hour: "2-digit", minute: "2-digit" } : { timeZone: "UTC" }) })}</span>`;
+    const w = $("#acChart").clientWidth;
+    tip.style.left = Math.min(Math.max(p.point.x - 70, 4), w - 150) + "px";
+    tip.style.top = Math.max(p.point.y - 52, 4) + "px";
+  });
   acc.chart.timeScale().fitContent();
-  $("#acChartHint").textContent = pnl ? t("Solo trading: depositi e prelievi non spostano la curva.")
-    : d.flows.length ? t("I punti gialli sono depositi e prelievi.") : "";
+  const legend = d.flows.length ? `<span class="dep">▲ ${t("depositi")}</span> <span class="wd">▼ ${t("prelievi")}</span> · ${t("passa sopra per l'importo")}` : "";
+  $("#acChartHint").innerHTML = (pnl ? t("Solo trading: depositi e prelievi non spostano la curva.") + (legend ? " " : "") : "") + legend;
 }
 
 function renderAccountStats() {
@@ -1453,12 +1501,12 @@ function renderAccountStats() {
   const row = (k, v, c = "") => `<dt>${k}</dt><dd class="${c}">${v}</dd>`;
   $("#acStats").innerHTML =
     row(t("PnL"), fsigned(s.pnl), cls(s.pnl)) +
-    row(t("Rendimento"), s.return_pct === null ? "—" : fpct(s.return_pct), cls(s.return_pct || 0)) +
+    row(`<span title="${t("PnL diviso per il capitale medio nell'account durante il periodo")}">${t("Rendimento")}</span>`, s.return_pct === null ? "—" : fpct(s.return_pct), cls(s.return_pct || 0)) +
     row(t("Massimo drawdown"), s.max_drawdown ? "−" + fusd(s.max_drawdown) : "—", s.max_drawdown ? "down" : "") +
     row(t("Giorno migliore"), day(s.best_day), s.best_day && s.best_day.pnl > 0 ? "up" : "") +
     row(t("Giorno peggiore"), day(s.worst_day), s.worst_day && s.worst_day.pnl < 0 ? "down" : "") +
     row(t("Giorni verdi / rossi"), `${s.green_days} / ${s.red_days}`) +
-    row(t("Volume"), fusd(s.volume, 0)) +
+    row(t("Volume"), acc.mkt ? fusd(acc.mkt.volume, 0) : "…") +
     row(t("Depositi − prelievi"), Math.abs(s.net_flows) < 1 ? "—" : fsigned(s.net_flows));
 }
 
@@ -1505,8 +1553,8 @@ async function showDayFills(day) {
 }
 
 function renderAccountMarkets() {
-  const d = acc.data;
-  if (!d) return;
+  const d = acc.mkt;
+  if (!d) { $("#acMktNote").textContent = ""; $("#acMarkets").innerHTML = `<div class="empty">${t("Carico trade e funding…")}</div>`; return; }
   $("#acMktNote").textContent = d.funding_complete ? "" : t("funding parziale");
   if (!d.markets.length) { $("#acMarkets").innerHTML = `<div class="empty">${t("Nessun trade nel periodo.")}</div>`; return; }
   $("#acMarkets").innerHTML = `<table class="table"><thead><tr><th>${t("Mercato")}</th><th class="r" title="${t("Dai fill del periodo, al netto del prezzo medio di entrata")}">${t("Realizzato")}</th><th class="r">Funding</th><th class="r">${t("Totale")}</th><th class="r">Fill</th><th class="r">${t("Volume")}</th></tr></thead><tbody>${
