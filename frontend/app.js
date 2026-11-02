@@ -368,6 +368,7 @@ class Panel {
     const add = (o) => { const l = this.series.createPriceLine({ lineWidth: 1, lineStyle: 0, ...o }); this.lines.push(l); return l; };
     const pos = account && account.positions.find((p) => p.market_id === m.id);
     const s = pos && stops[m.id];
+    this.posPrice = pos && chartEls.position ? pos.entry : null;
     if (pos && chartEls.position) add({ price: pos.entry, color: cssVar("--blue"), lineStyle: 2, title: `${pos.size > 0 ? "LONG" : "SHORT"} ${fsize(pos.size, m)}` });
     if (pos && pos.liq && chartEls.liq) add({ price: pos.liq, color: C.red, lineStyle: 1, title: "LIQ" });
     if (chartEls.orders) {
@@ -518,10 +519,10 @@ class Panel {
       if (raw === null || raw <= 0 || !m) return;
       setActive(this.idx);
       this.menuPrice = +raw.toFixed(decimals(m));
-      const items = this.orderMenuItems(m, this.menuPrice);
+      const items = [...this.lineMenuItems(m, y), ...this.orderMenuItems(m, this.menuPrice)];
       if (!items.length) return;
       menu.innerHTML = `<div class="cm-price">${fp(this.menuPrice, m)}</div>` + items.map((it, i) =>
-        `<button data-cm="${i}" class="${it.cls || ""}">${esc(it.label)}${it.note ? `<small>${esc(it.note)}</small>` : ""}</button>`).join("");
+        `<button data-cm="${i}" class="${it.cls || ""}${it.line && !(items[i + 1] || {}).line ? " line-last" : ""}">${esc(it.label)}${it.note ? `<small>${esc(it.note)}</small>` : ""}</button>`).join("");
       this.menuItems = items;
       menu.classList.remove("hidden");
       const r = this.el.getBoundingClientRect(), w = menu.offsetWidth, h = menu.offsetHeight;
@@ -532,6 +533,11 @@ class Panel {
       const b = e.target.closest("[data-cm]");
       if (!b) return;
       const it = this.menuItems[+b.dataset.cm];
+      if (it.confirm && !b.classList.contains("armed")) { // a second click on the same item does it
+        b.classList.add("armed");
+        b.innerHTML = `${esc(it.confirm)}<small>${t("clicca di nuovo")}</small>`;
+        return;
+      }
       this.closeOrderMenu();
       it.run();
     });
@@ -542,6 +548,36 @@ class Panel {
   }
 
   closeOrderMenu() { $(".chart-menu", this.el).classList.add("hidden"); }
+
+  // the line under the pointer (within 6 px), if any: what can be done to it comes first in the menu
+  lineMenuItems(m, y) {
+    const near = (price) => { const ly = price > 0 ? this.series.priceToCoordinate(price) : null; return ly !== null && Math.abs(ly - y) <= 6; };
+    const items = [];
+    for (const d of this.dragOrders.filter((x) => near(x.price))) {
+      if (d.alert) {
+        items.push({ line: true, cls: "alert", label: t("Togli l'alert a {price}", { price: fp(d.alert.price, m) }), run: () => removeAlert(d.alert.id) });
+        continue;
+      }
+      const o = d.order, kind = orderKind(o);
+      const label = kind === "LIMIT" ? t("Annulla il limit {side} {size} a {price}", { side: o.is_ask ? "Sell" : "Buy", size: fsize(o.remaining, m), price: fp(o.price, m) })
+        : t("Annulla il {kind} a {price}", { kind, price: fp(o.trigger_price, m) });
+      items.push({ line: true, cls: "danger", label, run: () => chartCancelOrder(o) });
+    }
+    for (const d of this.dragPreview.filter((x) => near(x.price))) {
+      items.push({ line: true, label: t("Togli {what} dal ticket", { what: d.label }), run: () => chartClearTicket(d) });
+    }
+    const s = stops[m.id];
+    if (this.stopLine && s && near(s.stop)) {
+      items.push({ line: true, label: t("Ferma il trailing (lo stop resta a {price})", { price: fp(s.stop, m) }), run: () => chartStopTrail(m) });
+    }
+    const pos = account && account.positions.find((p) => p.market_id === m.id);
+    if (pos && info.trading && near(this.posPrice)) {
+      const what = `${pos.size > 0 ? "Long" : "Short"} ${fsize(pos.size, m)} ${m.symbol}`;
+      items.push({ line: true, cls: "danger", label: t("Chiudi la posizione ({what})", { what }), confirm: t("Conferma: chiudi {what} a mercato", { what }),
+        run: () => chartClosePosition(pos) });
+    }
+    return items;
+  }
 
   orderMenuItems(m, price) {
     const q = prices[m.id], last = (q && (q.last || q.mark)) || (this.last && this.last.close);
@@ -570,10 +606,8 @@ class Panel {
         items.push({ label, cls: "pos " + k, note: t("subito"), run: () => chartPositionStop(pos, k, price, cur) });
       }
     }
-    // a price alert, with or without trading; one already near this price can be removed instead
-    const near = alerts.find((a) => a.market_id === m.id && Math.abs(a.price - price) / price < 0.0015);
-    items.push(near ? { label: t("Togli l'alert a {price}", { price: fp(near.price, m) }), cls: "alert", run: () => removeAlert(near.id) }
-      : { label: t("Alert a {price}", { price: at }), cls: "alert", note: "A", run: () => addAlert(m, price) });
+    // a price alert, with or without trading
+    items.push({ label: t("Alert a {price}", { price: at }), cls: "alert", note: "A", run: () => addAlert(m, price) });
     return items;
   }
 
@@ -1204,6 +1238,38 @@ function chartTicketStop(k, price, level = null) {
   if (level !== null) $$("#tkTpBox [data-tp-price]")[level].value = price;
   else $(k === "tp" ? "#tkTp" : "#tkSl").value = price;
   updateTicketSummary();
+}
+
+async function chartCancelOrder(o) {
+  try {
+    await api(`/cancel_order?market_id=${o.market_id}&order_index=${o.order_index}`, { method: "POST" });
+    toast(t("Ordine annullato"));
+    loadOrders(true);
+  } catch (err) { toast(err.message, true); }
+}
+
+function chartClearTicket(d) {
+  if (d.input) d.input.value = "";
+  else $({ sl: "#tkSl", tp: "#tkTp", limit: "#tkPrice" }[d.kind]).value = "";
+  if (d.kind === "limit") { ticket.kind = "market"; renderTicket(); }
+  updateTicketSummary();
+}
+
+async function chartStopTrail(m) {
+  try {
+    const res = await api(`/trail/${m.id}`, { method: "DELETE" });
+    stops = res.stops;
+    renderPositions();
+    panels.forEach((p) => p.drawLines());
+    toast(t("Trailing fermato su {sym}", { sym: m.symbol }));
+  } catch (err) { toast(err.message, true); }
+}
+
+async function chartClosePosition(pos) {
+  try {
+    await api(`/close?market_id=${pos.market_id}&fraction=1`, { method: "POST" });
+    toast(t("Chiusura {f}% inviata", { f: 100 }));
+  } catch (err) { toast(err.message, true); }
 }
 
 async function chartPositionStop(pos, k, price, cur) {

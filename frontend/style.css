@@ -416,6 +416,9 @@ select option, select optgroup { background-color: var(--surface); color: var(--
 .chart-menu button small { color: var(--faint); font-size: 10px; }
 .chart-menu button.pos { border-top: 1px solid var(--line); border-radius: 0 0 5px 5px; margin-top: 3px; }
 .chart-menu button.alert { color: var(--blue); }
+.chart-menu button.danger { color: var(--red); }
+.chart-menu button.armed { background: var(--red-soft); color: var(--red); }
+.chart-menu button.line-last { border-bottom: 1px solid var(--line); border-radius: 5px 5px 0 0; margin-bottom: 3px; }
 .chart-menu button:not(:first-of-type).alert { border-top: 1px solid var(--line); border-radius: 0 0 5px 5px; margin-top: 3px; }
 .alerts-foot { padding: 8px 12px; }
 body.dragging-line, body.dragging-line * { cursor: ns-resize !important; user-select: none; }
