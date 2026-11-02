@@ -1130,7 +1130,7 @@ function renderPositions() {
       // PnL % on the initial margin (entry value / leverage), as Lighter and the ticket show it
       const margin = p.leverage ? (Math.abs(p.size) * p.entry) / p.leverage : 0;
       const pct = margin ? (p.upnl / margin) * 100 : 0;
-      return `<tr><td class="mk">${esc(p.symbol)}<small class="${p.size > 0 ? "up" : "down"}">${p.size > 0 ? "Long" : "Short"}${p.leverage ? " · " + p.leverage + "x" : ""}</small></td>
+      return `<tr><td class="mk">${gotoBtn(p.symbol)}<small class="${p.size > 0 ? "up" : "down"}">${p.size > 0 ? "Long" : "Short"}${p.leverage ? " · " + p.leverage + "x" : ""}</small></td>
         <td class="r ${p.size > 0 ? "up" : "down"}">${fsize(p.size, m)}</td><td class="r main">${fusd(p.value)}</td><td class="r">${fp(p.entry, m)}</td><td class="r main">${fp(mark, m)}</td>
         <td class="r liq">${fp(p.liq, m)}</td><td class="r pnl ${cls(p.upnl)}">${fusd(p.upnl)}<small>${isFinite(pct) ? fpct(pct) : ""}</small></td>
         <td class="r sltp">${sltpCell(p, m)}</td>
@@ -1161,7 +1161,7 @@ async function loadOrders(fresh = false) {
   box.innerHTML = `<table class="table"><thead><tr><th>${t("Mercato")}</th><th>${t("Tipo")}</th><th>${t("Lato")}</th><th class="r">${t("Prezzo")}</th><th class="r">Trigger</th><th class="r">${t("Size residua")}</th><th>Reduce only</th><th></th></tr></thead><tbody>${
     orders.map((o) => {
       const m = byId[o.market_id];
-      return `<tr><td class="mk">${esc(o.symbol)}</td><td>${esc(o.type)}</td><td class="${o.is_ask ? "down" : "up"}">${o.is_ask ? "Sell" : "Buy"}</td>
+      return `<tr><td class="mk">${gotoBtn(o.symbol)}</td><td>${esc(o.type)}</td><td class="${o.is_ask ? "down" : "up"}">${o.is_ask ? "Sell" : "Buy"}</td>
         <td class="r">${fp(o.price, m)}</td><td class="r">${o.trigger_price ? fp(o.trigger_price, m) : "—"}</td><td class="r">${fsize(o.remaining, m)}</td>
         <td>${o.reduce_only ? t("sì") : "—"}</td><td class="r"><button class="xbtn" data-cancel="${o.market_id}:${o.order_index}">${t("Annulla")}</button></td></tr>`;
     }).join("")}</tbody></table>`;
@@ -1175,6 +1175,16 @@ async function loadTrades() {
   if (!trades.length) { box.innerHTML = `<div class="empty">${t("Nessun trade recente.")}</div>`; return; }
   loadTrades.last = trades;
   renderTrades();
+}
+
+// a market's name in the bottom tables: a click brings up its chart, the one already showing it if any
+const gotoBtn = (sym) => `<button class="goto" data-goto="${esc(sym)}" title="${t("Apri il grafico di {sym}", { sym: esc(sym) })}">${esc(sym)}</button>`;
+
+function goToMarket(sym) {
+  if (!bySymbol[sym]) return;
+  const shown = panels.find((p) => panelCfg[p.idx].symbol === sym);
+  if (shown) setActive(shown.idx);
+  else setSymbol(sym);
 }
 
 // fills of the same order merged into one row: total size, average price, summed value and PnL
@@ -1208,7 +1218,7 @@ function renderTrades() {
       const m = byId[r.market_id];
       const count = !split && r.fills > 1 ? `<span class="fills" title="${t("Primo fill: {t}", { t: time(r.first) })}">${t("{n} fill", { n: r.fills })}</span>` : "";
       return `<tr><td>${time(r.ts)}</td>
-        <td class="mk">${esc(r.symbol)}${count}</td><td class="${r.side === "buy" ? "up" : "down"}">${r.side === "buy" ? "Buy" : "Sell"}</td>
+        <td class="mk">${gotoBtn(r.symbol)}${count}</td><td class="${r.side === "buy" ? "up" : "down"}">${r.side === "buy" ? "Buy" : "Sell"}</td>
         <td class="r main">${fsize(r.size, m)}</td><td class="r">${fp(r.price, m)}</td><td class="r main">${fusd(r.usd)}</td><td>${r.role}</td>
         <td class="r ${r.pnl ? cls(r.pnl) : ""}">${r.pnl ? fusd(r.pnl) : "—"}</td></tr>`;
     }).join("")}</tbody></table>`;
@@ -2690,6 +2700,7 @@ async function init() {
   wirePaper();
   wireHotkeys();
   applyKeyHints();
+  $("#bottom").addEventListener("click", (e) => { const b = e.target.closest("[data-goto]"); if (b) goToMarket(b.dataset.goto); });
   wireBottomSplit();
   wireTrail();
   applyTheme(load("theme", "fosforo")); // first visit: Phosphor
