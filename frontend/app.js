@@ -176,6 +176,8 @@ class Panel {
     this.wireOrderMenu();
     this.data = new Map();
     this.eventBars = new Map();
+    this.fills = [];          // this market's latest fills, grouped by order
+    this.fillBars = new Map(); // bar time -> the fill groups drawn on it
     this.chart.subscribeCrosshairMove((p) => {
       const bar = p && p.time ? this.data.get(p.time) : null;
       this.hover = bar || null;
@@ -208,6 +210,7 @@ class Panel {
     this.series.setData(candles);
     this.vol.setData(candles.map((c) => ({ time: c.time, value: c.volume, color: c.close >= c.open ? "rgba(43,217,164,.28)" : "rgba(242,84,109,.28)" })));
     this.last = candles[candles.length - 1] || null;
+    this.loadFills(true);
     this.drawMarkers();
     this.drawLines();
     this.renderLegend();
@@ -258,22 +261,61 @@ class Panel {
     }
     if (!chartEls.events) bars.clear();
     this.eventBars = bars;
-    const markers = [...bars.entries()].sort((a, b) => a[0] - b[0]).map(([time]) => ({
+    const markers = [...bars.entries()].map(([time]) => ({
       time, position: "belowBar", shape: "circle", size: 0.4, color: "rgba(232,177,74,.8)",
       text: "",
     }));
-    this.series.setMarkers(markers);
+    // your fills: an arrow under the bar for buys, over it for sells, one per side and bar
+    const first = this.data.size ? this.data.keys().next().value : Infinity;
+    this.fillBars = new Map();
+    if (chartEls.fills && info.trading) {
+      for (const f of this.fills) {
+        const time = barStart(this.cfg.tf, Math.floor(f.ts / 1000));
+        if (time < first) continue;
+        this.fillBars.set(time, (this.fillBars.get(time) || []).concat(f));
+      }
+      for (const [time, fs] of this.fillBars) {
+        for (const side of ["buy", "sell"]) {
+          const n = fs.filter((f) => f.side === side).length;
+          if (!n) continue;
+          markers.push({ time, position: side === "buy" ? "belowBar" : "aboveBar", shape: side === "buy" ? "arrowUp" : "arrowDown",
+            color: side === "buy" ? C.green : C.red, size: 0.8, text: n > 1 ? `${side === "buy" ? "B" : "S"}×${n}` : side === "buy" ? "B" : "S" });
+        }
+      }
+    }
+    this.series.setMarkers(markers.sort((a, b) => a.time - b.time));
+  }
+
+  // this market's latest fills (100), merged per order; at most every 20 s unless something just happened
+  async loadFills(fresh = false) {
+    const m = this.market;
+    if (!m || !info.trading || !chartEls.fills) { if (this.fills.length) { this.fills = []; this.drawMarkers(); } return; }
+    if (!fresh && this.fillsFor === m.id && Date.now() - (this.fillsAt || 0) < 20000) return;
+    this.fillsAt = Date.now();
+    this.fillsFor = m.id;
+    const list = await api(`/trades?market_id=${m.id}`).catch(() => null);
+    if (!list || this.market !== m) return;
+    const fills = aggregateTrades(list.filter((f) => f.market_id === m.id));
+    if (JSON.stringify(fills) === JSON.stringify(this.fills)) return;
+    this.fills = fills;
+    this.drawMarkers();
   }
 
   // box with the events behind a dot, shown while the pointer is on or near it
   renderEventTip(p, bar) {
     const tip = $(".ev-tip", this.el);
     const evs = bar && this.eventBars.get(bar.time);
-    const lowY = evs && this.series.priceToCoordinate(bar.low);
-    if (!evs || lowY === null || !p.point || p.point.y < lowY - 6 || p.point.y > lowY + 34) {
+    const fs = bar && this.fillBars.get(bar.time);
+    const lowY = bar && this.series.priceToCoordinate(bar.low), highY = bar && this.series.priceToCoordinate(bar.high);
+    const nearLow = lowY !== null && p.point && p.point.y >= lowY - 6 && p.point.y <= lowY + 34;
+    const nearHigh = highY !== null && p.point && p.point.y <= highY + 6 && p.point.y >= highY - 34;
+    const showFills = fs && ((nearLow && fs.some((f) => f.side === "buy")) || (nearHigh && fs.some((f) => f.side === "sell")));
+    if (!showFills && (!evs || !nearLow)) {
       tip.classList.add("hidden");
       return;
     }
+    // the arrows under the bar are its buys, the ones over it its sells
+    if (showFills) return this.placeTip(tip, p, this.fillTip(fs.filter((f) => (f.side === "buy" ? nearLow : nearHigh))));
     const m = this.market;
     let prev = null; // previous bar (bars are not all the same length on 1W / 1M)
     for (const [t, c] of this.data) { if (t >= bar.time) break; prev = c; }
@@ -285,6 +327,21 @@ class Panel {
           <div class="ev-s">${new Date(e.ts * 1000).toLocaleString(LOCALE, { weekday: "short", day: "numeric", month: "short", ...(e.approx ? {} : { hour: "2-digit", minute: "2-digit" }) })}${e.forecast || e.previous || e.when ? " · " + eventDetail(e) : ""}</div>
         </div>`).join("") +
       (move !== null ? `<div class="ev-move">${t("Candela {tf}: {move} · chiusura {close}", { tf: tfLabel(this.cfg.tf), move: `<b class="${cls(move)}">${fpct(move)}</b>`, close: fp(after, m) })}</div>` : "");
+    this.placeTip(tip, p);
+  }
+
+  // the fills on a bar: side, size, average price, maker/taker, time and the PnL they realized
+  fillTip(fs) {
+    const m = this.market;
+    return fs.sort((a, b) => a.ts - b.ts).map((f) => `
+        <div class="ev fill">
+          <div class="ev-t"><b class="${f.side === "buy" ? "up" : "down"}">${f.side === "buy" ? "Buy" : "Sell"}</b> ${fsize(f.size, m)} ${esc(m.symbol)} @ ${fp(f.price, m)}</div>
+          <div class="ev-s">${new Date(f.ts).toLocaleString(LOCALE, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })} · ${esc(f.role)}${f.fills > 1 ? ` · ${t("{n} fill", { n: f.fills })}` : ""}${f.pnl ? ` · PnL <b class="${cls(f.pnl)}">${fusd(f.pnl)}</b>` : ""}</div>
+        </div>`).join("");
+  }
+
+  placeTip(tip, p, html) {
+    if (html !== undefined) tip.innerHTML = html;
     tip.classList.remove("hidden");
     const w = this.el.clientWidth, h = this.el.clientHeight;
     const tw = tip.offsetWidth, th = tip.offsetHeight;
@@ -518,9 +575,9 @@ function savePanels() { store("panels", panelCfg); }
 // ---------- Chart elements menu: which lines and marks every chart draws ----------
 const CHART_ELEMENTS = [
   ["orders", "Linee ordini"], ["stop", "Stop gestito"], ["position", "Linea posizione"],
-  ["liq", "Prezzo di liquidazione"], ["mark", "Linea prezzo mark"], ["events", "Eventi macro"], ["preview", "Anteprima ticket"],
+  ["liq", "Prezzo di liquidazione"], ["mark", "Linea prezzo mark"], ["events", "Eventi macro"], ["fills", "I tuoi fill"], ["preview", "Anteprima ticket"],
 ];
-let chartEls = { orders: true, stop: true, position: true, liq: true, mark: false, events: true, preview: true, ...load("chartEls", {}) };
+let chartEls = { orders: true, stop: true, position: true, liq: true, mark: false, events: true, fills: true, preview: true, ...load("chartEls", {}) };
 let openOrders = {}; // market id -> open orders on Lighter, shared by the chart lines and the Orders tab
 const fade = (c) => (/^#[0-9a-f]{6}$/i.test(c) ? c + "b0" : c); // hex colour at ~70% for provisional lines
 const orderKind = (o) => (/stop/i.test(o.type) ? "SL" : /take/i.test(o.type) ? "TP" : "LIMIT");
@@ -538,6 +595,7 @@ function toggleChartEl(k) {
   panels.forEach((p) => { p.drawLines(); p.drawMarkers(); });
   if (k === "preview") updateTicketSummary();
   if (k === "orders" && chartEls.orders) fetchOpenOrders().catch(() => {});
+  if (k === "fills") panels.forEach((p) => p.loadFills(true));
 }
 
 // ---------- timeframe toolbar + "More" menu ----------
@@ -1260,7 +1318,7 @@ async function fetchOpenOrders(fresh = false) {
   const list = await api(`/open_orders?market_ids=${[...ids].join(",")}${fresh ? "&fresh=1" : ""}`);
   openOrders = {};
   for (const o of list) (openOrders[o.market_id] ||= []).push(o);
-  panels.forEach((p) => p.drawLines());
+  panels.forEach((p) => { p.drawLines(); p.loadFills(fresh); });
   renderPositions();
   return list;
 }

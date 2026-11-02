@@ -274,6 +274,8 @@ const EN = {
   "Breakeven a PnL +%": "Breakeven at PnL +%",
   "Parte da PnL +%": "Starts at PnL +%",
   "% prezzo": "% price",
+  "I tuoi fill": "Your fills",
+  "{n} fill": "{n} fills",
   "Sell limit a {price}": "Sell limit at {price}",
   "Buy limit a {price}": "Buy limit at {price}",
   "nel ticket": "in the ticket",

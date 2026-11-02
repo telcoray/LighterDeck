@@ -329,9 +329,12 @@ async def orderbook(market_id: int):
 
 
 @app.get("/api/trades")
-async def trades():
+async def trades(market_id: int | None = None):
+    """Latest fills: all markets, or one market's (the chart's fill marks)."""
     positions = {p["market_id"]: p["size"] for p in (engine.account or {}).get("positions", [])}
-    return await api.trades(positions=positions)
+    if market_id is not None:
+        positions = {k: v for k, v in positions.items() if k == market_id}
+    return await api.trades(positions=positions, market_id=market_id)
 
 
 # ---------- manual trading ----------

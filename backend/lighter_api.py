@@ -314,7 +314,7 @@ class LighterAPI:
         return {"asks": levels(data.get("asks", []), False), "bids": levels(data.get("bids", []), True),
                 "ts": time.time()}
 
-    async def trades(self, limit=100, positions=None, since_ms=None, max_pages=40):
+    async def trades(self, limit=100, positions=None, since_ms=None, max_pages=40, market_id=None):
         """Fills, newest first: the latest `limit`, or (since_ms) every fill back to that time, 100 a page.
         `positions` ({market_id: signed display size}) anchors the realized PnL worked out by realized_pnl()."""
         if not self.signer:
@@ -322,6 +322,8 @@ class LighterAPI:
         raw, cursor = [], None
         for _ in range(max_pages if since_ms else 1):
             params = {"account_index": config.ACCOUNT_INDEX, "sort_by": "timestamp", "limit": 100 if since_ms else limit}
+            if market_id is not None:
+                params["market_id"] = market_id
             if cursor:
                 params["cursor"] = cursor
             data = await self._get("/api/v1/trades", params, headers={"authorization": await self._auth_token()})

@@ -536,7 +536,7 @@ const Paper = (() => {
     if (p === "/leverage" && method === "POST") return run(() => setLeverage(+qs.get("market_id"), +qs.get("leverage")));
     if (p === "/open_orders") return run(() => S.orders.map(({ sl, tp, trail, post_only, ts, ...o }) => ({ ...o, symbol: byId[o.market_id] ? byId[o.market_id].symbol : String(o.market_id),
       remaining: o.remaining || Math.abs((S.positions[o.market_id] || {}).size || 0) })));
-    if (p === "/trades") return run(() => S.trades.slice(0, 100));
+    if (p === "/trades") return run(() => (qs.has("market_id") ? S.trades.filter((x) => x.market_id === +qs.get("market_id")) : S.trades).slice(0, 100));
     const trail = p.match(/^\/trail\/(\d+)$/);
     if (trail && method === "PUT") return run(() => {
       if (!S.positions[trail[1]]) err(t("Nessuna posizione"));
