@@ -347,7 +347,7 @@ class Panel {
     };
     for (const l of d.lines) {
       const line = add(l.price, colour[l.kind], l.title, l.dashed ? 3 : 1);
-      if (line && l.kind !== "trail") this.dragPreview.push({ line, price: l.price, label: l.kind.toUpperCase(), kind: l.kind, preview: true });
+      if (line && l.kind !== "trail") this.dragPreview.push({ line, price: l.price, label: l.label || l.kind.toUpperCase(), kind: l.kind, input: l.input, preview: true });
     }
     if (d.liq) add(d.liq, C.red, t("LIQ stimata"), 3);
   }
@@ -395,7 +395,7 @@ class Panel {
       document.body.classList.remove("dragging-line");
       if (d.to === d.from) { this.drawLines(); this.drawPreview(); return; }
       if (d.preview) {
-        $({ sl: "#tkSl", tp: "#tkTp", limit: "#tkPrice" }[d.kind]).value = d.to;
+        (d.input || $({ sl: "#tkSl", tp: "#tkTp", limit: "#tkPrice" }[d.kind])).value = d.to;
         this.drawLines();
         updateTicketSummary();
         return;
@@ -867,7 +867,11 @@ function ticketBody() {
     reduce_only: $("#tkReduce").checked,
   };
   if (+$("#tkSl").value) body.sl_price = +$("#tkSl").value;
-  if (+$("#tkTp").value) body.tp_price = +$("#tkTp").value;
+  const levels = readTpLevels();
+  if (levels) {
+    body.tp_levels = levels;
+    body.be_after_tp1 = $("#tkTpBe").checked;
+  } else if (+$("#tkTp").value) body.tp_price = +$("#tkTp").value;
   if ($("#tkTrail").checked && !body.reduce_only) body.trail = readTrail($("#tkTrailBox"));
   if (ticket.kind === "limit") {
     body.price = +$("#tkPrice").value;
@@ -893,6 +897,7 @@ function updateTicketSummary() {
     else if (unit === "equity_pct" && account) qty = (account.total_value * size) / 100 / ref;
     else if (unit === "risk_usd" && sl && sl !== ref) qty = size / Math.abs(ref - sl);
   }
+  tpHint();
   $("#tkNotional").textContent = qty ? fusd(qty * ref) : "—";
   $("#tkQty").textContent = qty ? `${qty.toFixed(m.size_decimals)} ${m.symbol}` : "—";
   renderTicketEstimates(m, p, qty, ref);
@@ -929,7 +934,8 @@ function renderTicketEstimates(m, p, qty, entry) {
   const held = pos && !reduce && Math.sign(pos.size) === side ? Math.abs(pos.size) : 0;
   const totQty = (qty || 0) + held;
   const avgEntry = totQty ? ((qty || 0) * entry + (held ? held * pos.entry : 0)) / totQty : entry;
-  for (const [id, isSL] of [["Sl", true], ["Tp", false]]) {
+  const levels = readTpLevels();
+  for (const [id, isSL] of levels ? [["Sl", true]] : [["Sl", true], ["Tp", false]]) {
     const trigger = +$("#tk" + id).value;
     const out = $(`#tk${id}Out`);
     const check = Formulas.sltpOutcome({ isSL, side, entry, trigger, qty: qty || 1, leverage });
@@ -946,6 +952,16 @@ function renderTicketEstimates(m, p, qty, entry) {
     out.className = "sltp-out" + (beyondLiq ? " warn" : "");
     draft.lines[draft.lines.length - 1].title += " " + (beyondLiq ? out.textContent
       : `PnL ${sign(pnl)}${fusd(Math.abs(pnl))} (${sign(roe)}${Math.abs(roe).toFixed(1)}%)`);
+  }
+  if (levels) {
+    const inputs = $$("#tkTpBox [data-tp-price]");
+    levels.forEach((l, i) => {
+      if (!(l.price > 0)) return;
+      const res = qty && Formulas.sltpOutcome({ isSL: false, side, entry, trigger: l.price, qty: qty * l.pct / 100, leverage });
+      const sign = (v) => (v >= 0 ? "+" : "−");
+      const outcome = res && res.usd >= 0 ? ` · PnL ${sign(res.usd)}${fusd(Math.abs(res.usd))} (${sign(res.pct)}${Math.abs(res.pct).toFixed(1)}%)` : "";
+      draft.lines.push({ kind: "tp", price: l.price, label: `TP${i + 1}`, input: inputs[i], title: `TP${i + 1} ${+l.pct.toFixed(1)}%${outcome}` });
+    });
   }
   draft.lines.push(...trailDraft(m, side, entry, leverage));
   setTicketDraft(draft);
@@ -1005,7 +1021,7 @@ async function executeTicket(byMouse = false) {
   if (ticket.kind === "limit" && !body.price) return ticketMsg(t("Inserisci il prezzo limite."), "err");
   if (body.trail === null) return ticketMsg(t("Inserisci la distanza del trailing."), "err");
   const label = `${ticket.side === "buy" ? "LONG" : "SHORT"} ${m.symbol} · ${$("#tkNotional").textContent} · ${ticket.kind}`
-    + (body.trail ? ` · trailing ${trailLabel(trailToStop(body.trail), m)}` : "");
+    + (body.tp_levels ? ` · ${body.tp_levels.length} TP` : "") + (body.trail ? ` · trailing ${trailLabel(trailToStop(body.trail), m)}` : "");
   if (!(pendingConfirm && pendingConfirm.key === "order")) { // first click: full check, SL/TP sides included
     const r = await api("/preview", { method: "POST", body: JSON.stringify(body) }).catch((e) => ({ ok: false, error: e.message }));
     if (!r.ok) return ticketMsg(r.error, "err");
@@ -1017,7 +1033,8 @@ async function executeTicket(byMouse = false) {
   try {
     const r = await api("/order", { method: "POST", body: JSON.stringify(body) });
     ticketMsg(t("Eseguito: {side} {size} {sym}. Controlla posizioni e ordini per i fill.", { side: ticket.side, size: r.size, sym: m.symbol })
-      + (body.trail && !r.armed ? " " + t("Trailing impostato: parte quando attivi Auto.") : ""), "ok");
+      + (body.trail && !r.armed ? " " + t("Trailing impostato: parte quando attivi Auto.") : "")
+      + (body.tp_levels && !r.armed && (body.be_after_tp1 || ticket.kind === "limit") ? " " + t("Uscite scalari: il breakeven dopo TP1 (e i TP di un limit) parte quando attivi Auto.") : ""), "ok");
     previewTicket.sentKey = JSON.stringify(body);
     updateTicketSummary();
     loadOrders(true);
@@ -1075,7 +1092,9 @@ function positionStops(p) {
 function sltpCell(p, m) {
   const st = positionStops(p);
   const one = (k) => `<button class="sltp-v ${k}${st[k] ? "" : " none"}" data-psl="${p.market_id}:${k}">${st[k] ? fp(st[k].trigger_price, m) : "—"}</button>`;
-  return `${one("tp")}<span class="sltp-sep">/</span>${one("sl")}`;
+  const x = exits[p.market_id];
+  const steps = x ? `<small class="tp-step" title="${t("Uscite scalari: livelli eseguiti")}">TP ${x.levels.filter((l) => l.done).length}/${x.levels.length}</small>` : "";
+  return `${steps}${one("tp")}<span class="sltp-sep">/</span>${one("sl")}`;
 }
 
 // TP / SL edited in the row: Enter sends, Esc or clicking away cancels, an empty value removes it
@@ -1817,11 +1836,13 @@ function connect() {
       const moved = Paper.tick();
       msg.account = Paper.account();
       msg.stops = Paper.stops();
+      msg.exits = Paper.exits();
       msg.logs = Paper.logs(logSeq);
       if (moved) { fetchOpenOrders(true).catch(() => {}); if (!$("#btab-trades").classList.contains("hidden")) loadTrades(); }
     }
-    const stopsChanged = JSON.stringify(msg.stops || {}) !== JSON.stringify(stops);
+    const stopsChanged = JSON.stringify(msg.stops || {}) !== JSON.stringify(stops) || JSON.stringify(msg.exits || {}) !== JSON.stringify(exits);
     stops = msg.stops || {};
+    exits = msg.exits || {};
     const accChanged = stopsChanged || JSON.stringify(msg.account) !== JSON.stringify(account);
     account = msg.account;
     panels.forEach((p) => p.tick());
@@ -2148,6 +2169,82 @@ function clock() {
   $("#sbAge").textContent = lastTick ? t("Prezzi ricevuti {ms} ms fa", { ms: Math.max(0, Date.now() - lastTick) }) : t("In attesa di prezzi");
 }
 
+// ================= scaled exits: TP1, TP2... each closing a share of the order =================
+// One plan per market on the server (or the paper engine): sized reduce-only take-profits, and the
+// stop to breakeven once TP1 fills. Two to five levels; what the shares leave open stays in the position.
+let exits = {};
+const TP_SPLITS = { 2: [50, 50], 3: [33, 33, 34], 4: [25, 25, 25, 25], 5: [20, 20, 20, 20, 20] };
+
+function readTpLevels() {
+  const box = $("#tkTpBox");
+  if (box.classList.contains("hidden")) return null;
+  const rows = [...box.querySelectorAll(".tp-row")];
+  return rows.map((r) => ({ price: +r.querySelector("[data-tp-price]").value || null, pct: +r.querySelector("[data-tp-pct]").value || 0 }));
+}
+
+function renderTpLevels(levels) {
+  const on = !!levels, box = $("#tkTpBox");
+  $("#tkTpField").classList.toggle("hidden", on);
+  $("#tkTpField").parentElement.classList.toggle("tp-solo", on);
+  box.classList.toggle("hidden", !on);
+  if (!on) { box.innerHTML = ""; updateTicketSummary(); return; }
+  const be = $("#tkTpBe") ? $("#tkTpBe").checked : load("tpBe", true);
+  box.innerHTML = `<div class="tp-head"><span>${t("Uscite scalari")}</span><span class="tp-presets">${[2, 3, 4].map((n) =>
+      `<button type="button" data-tp-split="${n}" class="${levels.length === n ? "active" : ""}">${n} × ${Math.floor(100 / n)}%</button>`).join("")}</span>
+      <button type="button" class="tp-x" data-tp-off title="${t("Torna a un solo take-profit")}">×</button></div>
+    ${levels.map((l, i) => `<div class="tp-row"><div class="field sm"><label>TP${i + 1} · ${t("prezzo")}</label><input data-tp-price type="number" step="any" autocomplete="off" value="${l.price || ""}"></div>
+      <div class="field sm"><label>${t("Quota %")}</label><input data-tp-pct type="number" min="0" max="100" step="any" autocomplete="off" value="${l.pct}"></div>
+      ${levels.length > 2 ? `<button type="button" class="tp-x" data-tp-del="${i}" title="${t("Togli il livello")}">×</button>` : "<span></span>"}</div>`).join("")}
+    <div class="tp-foot">${levels.length < 5 ? `<button type="button" class="link" data-tp-more>+ ${t("livello")}</button>` : "<span></span>"}
+      <label><input type="checkbox" id="tkTpBe" ${be ? "checked" : ""}> ${t("Dopo TP1 stop a breakeven")}</label></div>
+    <p class="trail-hint" id="tkTpHint"></p>`;
+  tpHint();
+  updateTicketSummary();
+}
+
+// equal shares for n levels, keeping the prices already typed
+function splitTpLevels(n) {
+  const cur = readTpLevels() || [{ price: +$("#tkTp").value || null }];
+  renderTpLevels(TP_SPLITS[n].map((pct, i) => ({ price: cur[i] ? cur[i].price : null, pct })));
+}
+
+function tpHint() {
+  const levels = readTpLevels(), hint = $("#tkTpHint");
+  if (!levels || !hint) return;
+  const rest = 100 - levels.reduce((s, l) => s + l.pct, 0);
+  const parts = [];
+  if (rest > 0.05) parts.push(t("Il {pct}% resta aperto", { pct: +rest.toFixed(1) }) + ($("#tkTrail").checked ? " " + t("con il trailing.") : "."));
+  else if (rest < -0.05) parts.push(t("Le quote superano il 100%."));
+  const needsAuto = $("#tkTpBe").checked || ticket.kind === "limit";
+  if (!autoOn() && needsAuto) parts.push(t("Auto è OFF: il breakeven dopo TP1 (e i TP di un limit) parte quando lo attivi."));
+  hint.textContent = parts.join(" ");
+  hint.classList.toggle("warn", rest < -0.05 || (!autoOn() && needsAuto));
+}
+
+function wireTpLevels() {
+  $("#tkTpAdd").onclick = () => splitTpLevels(2);
+  const box = $("#tkTpBox");
+  box.addEventListener("click", (e) => {
+    const b = e.target.closest("button");
+    if (!b) return;
+    if (b.dataset.tpSplit) splitTpLevels(+b.dataset.tpSplit);
+    else if (b.dataset.tpMore !== undefined) splitTpLevels(readTpLevels().length + 1);
+    else if (b.dataset.tpDel !== undefined) {
+      const lv = readTpLevels().filter((_, i) => i !== +b.dataset.tpDel);
+      renderTpLevels(TP_SPLITS[lv.length].map((pct, i) => ({ price: lv[i].price, pct })));
+    } else if (b.dataset.tpOff !== undefined) {
+      const first = readTpLevels()[0];
+      $("#tkTp").value = first && first.price ? first.price : "";
+      renderTpLevels(null);
+    }
+  });
+  box.addEventListener("input", updateTicketSummary);
+  // Enter in a level's fields sends the order, like the other ticket fields
+  box.addEventListener("keydown", (e) => { if (e.key === "Enter" && e.target.matches("input[type=number]")) { e.preventDefault(); $("#tkExec").click(); } });
+  box.addEventListener("change", (e) => { if (e.target.id === "tkTpBe") { store("tpBe", e.target.checked); tpHint(); updateTicketSummary(); } });
+  $("#tkTrail").addEventListener("change", tpHint);
+}
+
 // ================= trailing stop (ticket + open positions) =================
 // The server keeps one managed stop per market; it trails while automations are ON (Auto).
 let stops = {};
@@ -2239,6 +2336,7 @@ function closeTrailPop() { $("#trailPop").classList.add("hidden"); }
 
 function wireTrail() {
   $("#tkTrail").onchange = renderTicketTrail;
+  wireTpLevels();
   $("#tkReduce").addEventListener("change", renderTicketTrail);
   $("#btab-positions").addEventListener("click", (e) => {
     const b = e.target.closest("[data-trail]");
@@ -2390,6 +2488,7 @@ function setPaper(on) {
   document.body.classList.toggle("paper", Paper.on);
   account = Paper.on ? Paper.account() : null;
   stops = Paper.on ? Paper.stops() : {};
+  exits = Paper.on ? Paper.exits() : {};
   openOrders = {};
   logSeq = 0;
   for (const box of [$("#btab-log"), $("#activityLog")]) box.innerHTML = `<div class="empty">${t("Nessuna attività.")}</div>`;
@@ -2751,6 +2850,7 @@ async function init() {
       if (n) toast(t("Paper: {n} esecuzioni mentre eri via", { n }));
       account = Paper.account();
       stops = Paper.stops();
+      exits = Paper.exits();
       addLogs(Paper.logs(logSeq));
       renderAccount();
       fetchOpenOrders(true).catch(() => {});

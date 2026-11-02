@@ -20,7 +20,8 @@ TICK_SECONDS = 3
 MIN_STOP_STEP_PCT = 0.05   # don't send a modify for moves smaller than this
 VERIFY_EVERY = 60          # re-check that each stop order still exists
 ATR_TF, ATR_LEN, ATR_TTL = "15m", 14, 300  # trailing by volatility: ATR(14) on 15m candles, refreshed every 5 min
-STOP_FIELDS = ("initial_stop_pct", "breakeven_at_pct", "trail_pnl", "trail_pct", "trail_price", "trail_atr", "trail_activate_pct")
+STOP_FIELDS = ("initial_stop_pct", "breakeven_at_pct", "trail_pnl", "trail_pct", "trail_price", "trail_atr", "trail_activate_pct",
+               "be_now")  # be_now: stop at breakeven right away (set when TP1 of a scaled exit fills)
 
 
 class Engine:
@@ -71,7 +72,7 @@ class Engine:
             rule["event_title"] = f"{ev['country']} {ev['title']}"
             rule["event_ts"] = ev["ts"]
             rule["status"] = "waiting"
-        elif rule["type"] != "managed_stop":
+        elif rule["type"] not in ("managed_stop", "exit_plan"):
             raise ValueError("unknown rule type")
         if int(rule["market_id"]) not in self.api.markets:
             raise ValueError("unknown market")
@@ -102,6 +103,8 @@ class Engine:
         state and the stop order already on Lighter carry over, so the order is modified, not doubled."""
         old = [r for r in self.rules.values() if r["type"] == "managed_stop" and r["market_id"] == market_id]
         state = next((dict(r["state"]) for r in old if r.get("state", {}).get("coi")), {})
+        if fields is not None and any(r.get("be_now") for r in old):
+            fields = {**fields, "be_now": True}  # a breakeven already reached by TP1 stays when the trailing changes
         for r in old:
             self.rules.pop(r["id"], None)
         if fields is None:
@@ -132,11 +135,16 @@ class Engine:
                 parts.append(f"SL {r['initial_stop_pct']}%")
             if r.get("breakeven_at_pct"):
                 parts.append(f"BE at PnL +{r['breakeven_at_pct']}%")
+            if r.get("be_now"):
+                parts.append("BE after TP1")
             trail = (f"{r['trail_pnl']:g}% PnL" if r.get("trail_pnl") else f"{r['trail_pct']}%" if r.get("trail_pct") else f"${r['trail_price']:g}" if r.get("trail_price")
                      else f"{r['trail_atr']:g}x ATR" if r.get("trail_atr") else None)
             if trail:
                 parts.append(f"trail {trail} from PnL +{r.get('trail_activate_pct', 0)}%")
             return f"{sym} managed stop: " + ", ".join(parts or ["(empty)"])
+        if r["type"] == "exit_plan":
+            return (f"{sym} scaled exits: " + ", ".join(f"TP{i + 1} {l['qty']:g} @ {l['price']:g}" for i, l in enumerate(r["levels"]))
+                    + (", BE after TP1" if r.get("be_after_tp1") else ""))
         return f"{sym} {r['mode']} on {r['event_title']} ${r['size_usd']}"
 
     # ---------- main loop ----------
@@ -164,6 +172,8 @@ class Engine:
             try:
                 if r["type"] == "managed_stop":
                     changed |= await self._managed_stop(r)
+                elif r["type"] == "exit_plan":
+                    changed |= await self._exit_plan(r)
                 else:
                     changed |= await self._event_trade(r)
             except Exception as e:
@@ -230,7 +240,7 @@ class Engine:
         candidates = []
         if r.get("initial_stop_pct"):
             candidates.append(entry * (1 - side * r["initial_stop_pct"] / 100))
-        if r.get("breakeven_at_pct") and best_profit >= r["breakeven_at_pct"]:
+        if r.get("be_now") or (r.get("breakeven_at_pct") and best_profit >= r["breakeven_at_pct"]):
             candidates.append(entry * (1 + side * r.get("breakeven_offset_pct", 0.05) / 100))
         if best_profit >= r.get("trail_activate_pct", 0):
             dist = await self._trail_distance(r, st["best"], pos.get("leverage") or 1)
@@ -267,6 +277,102 @@ class Engine:
         st["stop"] = desired
         st["size"] = pos["size"]
         return True
+
+    # ---------- scaled exits: TP1, TP2... each a reduce-only order for part of the position ----------
+    def set_exit_plan(self, market_id, levels, be_after_tp1, before=0.0, size=0.0):
+        """One plan per market. levels: [{price, qty}]; before: signed position when the order was sent;
+        size: the order's signed size. The TP orders go out once the order has filled."""
+        for r in [r for r in self.rules.values() if r["type"] == "exit_plan" and r["market_id"] == market_id]:
+            self.rules.pop(r["id"], None)
+        if not levels:
+            self.save()
+            return None
+        rule = self.add_rule({"type": "exit_plan", "market_id": market_id, "levels": [dict(l) for l in levels],
+                              "be_after_tp1": bool(be_after_tp1), "before": before, "size": size})
+        return rule
+
+    def exit_plans(self):
+        """Scaled exits per market for the UI: each level and whether it has filled."""
+        return {r["market_id"]: {"levels": [{"price": l["price"], "qty": l["qty"], "done": bool(l.get("done"))} for l in r["levels"]],
+                                 "be_after_tp1": r.get("be_after_tp1", False), "placed": bool(r["state"].get("placed"))}
+                for r in self.rules.values() if r["type"] == "exit_plan"}
+
+    async def place_exits(self, r, pos_size):
+        """Send the take-profit order of every level not placed yet; pos_size is the signed position."""
+        mid, sign = r["market_id"], (1 if pos_size > 0 else -1)
+        sym = self.api.markets[mid].symbol
+        for i, l in enumerate(r["levels"]):
+            if l.get("coi"):
+                continue
+            l["coi"] = await self.api.stop_order(mid, sign * l["qty"], l["price"], "tp")
+            self.note(f"{sym} TP{i + 1} placed @ {l['price']:g} for {l['qty']:g}", rule=r)
+        if not r["state"].get("placed"):
+            r["state"].update({"placed": True, "side": sign, "start": abs(pos_size), "size": abs(pos_size), "checked": time.time()})
+
+    def _breakeven_now(self, market_id):
+        r = self.market_stop(market_id)
+        if r:
+            r["be_now"] = True
+            r["state"]["checked"] = 0
+        else:
+            self.add_rule({"type": "managed_stop", "market_id": market_id, "auto_remove": True, "be_now": True})
+        self.note(f"{self.api.markets[market_id].symbol} TP1 filled: stop to breakeven", "warning")
+
+    async def _exit_plan(self, r):
+        st, mid = r["state"], r["market_id"]
+        pos = self._position(mid)
+        now = time.time()
+        if not st.get("placed"):
+            # waiting for the entry to fill (a limit): the position has to grow by the whole order
+            held = pos["size"] if pos else 0.0
+            if r.get("size") and (held - r.get("before", 0)) * (1 if r["size"] > 0 else -1) >= abs(r["size"]) * 0.999:
+                await self.place_exits(r, held)
+                return True
+            if now - st.get("checked", 0) < VERIFY_EVERY:
+                return False
+            st["checked"] = now
+            side_ask = r.get("size", 0) < 0
+            if not any(not o["reduce_only"] and o["is_ask"] == side_ask for o in await self.api.active_orders(mid)):
+                self.note(f"{self.describe(r)}: the entry order is gone, plan removed", rule=r)
+                self.rules.pop(r["id"], None)
+                return True
+            return False
+
+        if not pos or (1 if pos["size"] > 0 else -1) != st["side"]:
+            # position closed or flipped: the take-profits left over go with it
+            for l in r["levels"]:
+                if l.get("coi") and not l.get("done"):
+                    try:
+                        order = next((o for o in await self.api.active_orders(mid) if o["client_order_index"] == l["coi"]), None)
+                        if order:
+                            await self.api.cancel_order(mid, order["order_index"])
+                    except Exception as e:
+                        log.info("exit plan: TP not cancelled: %s", e)
+            self.note(f"{self.describe(r)}: position closed", rule=r)
+            self.rules.pop(r["id"], None)
+            return True
+
+        if any(not l.get("coi") for l in r["levels"]):  # a take-profit that failed to go out at entry
+            await self.place_exits(r, pos["size"])
+            return True
+        size = abs(pos["size"])
+        if size == st.get("size") and now - st.get("checked", 0) < VERIFY_EVERY:
+            return False
+        st["size"], st["checked"] = size, now
+        active = {o["client_order_index"] for o in await self.api.active_orders(mid)}
+        changed = False
+        for l in r["levels"]:
+            if l.get("done") or l["coi"] in active:
+                continue
+            l["done"] = True  # gone: filled if the position shrank, cancelled by hand otherwise
+            l["filled"] = size < st["start"] - 1e-12
+            changed = True
+        first = r["levels"][0]
+        if r.get("be_after_tp1") and first.get("filled") and not st.get("be_done"):
+            st["be_done"] = True
+            self._breakeven_now(mid)
+            changed = True
+        return changed
 
     # ---------- event trade ----------
     async def _event_trade(self, r):

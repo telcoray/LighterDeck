@@ -20,7 +20,7 @@ from engine import Engine
 from feed import PriceFeed
 from lighter_api import LighterAPI
 from logos import Logos
-from risk import Blocked, RiskGuard
+from risk import Blocked, RiskGuard, sltp_trigger_error
 from i18n import L, set_lang
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
@@ -48,7 +48,7 @@ async def broadcast_loop():
         sent = engine.log_seq
         msg = json.dumps({
             "type": "tick", "prices": feed.stats, "account": engine.account,
-            "armed": engine.armed, "logs": new_logs, "stops": engine.market_stops(),
+            "armed": engine.armed, "logs": new_logs, "stops": engine.market_stops(), "exits": engine.exit_plans(),
         })
         for ws in list(clients):
             try:
@@ -359,6 +359,11 @@ def trail_fields(t: TrailReq):
     return {f"trail_{t.mode}": t.value, "trail_activate_pct": t.activate_pct, "breakeven_at_pct": t.breakeven_at_pct}
 
 
+class TpLevel(BaseModel):
+    price: float | None = None
+    pct: float                  # share of the order's size this level closes
+
+
 class OrderReq(BaseModel):
     market_id: int
     side: str                   # "buy" | "sell"
@@ -372,6 +377,37 @@ class OrderReq(BaseModel):
     tp_price: float | None = None
     slippage_bps: float | None = None
     trail: TrailReq | None = None     # managed stop to start once the order fills
+    tp_levels: list[TpLevel] | None = None   # scaled exits instead of tp_price: 2 to 5 levels
+    be_after_tp1: bool = True                # with tp_levels: stop to breakeven once TP1 fills
+
+
+def exit_levels(o: OrderReq, m, size, side, ref, mark, check_sides):
+    """Scaled exits: each level's price and size. The last one takes what is left when they add up to 100%."""
+    lv = o.tp_levels
+    if not 2 <= len(lv) <= 5:
+        raise Blocked(L("Da 2 a 5 livelli di take-profit", "From 2 to 5 take-profit levels"))
+    total = sum(l.pct for l in lv)
+    if any(l.pct <= 0 for l in lv) or total > 100.0001:
+        raise Blocked(L("Le quote dei TP vanno sopra lo 0% e in totale fino al 100%",
+                        "TP shares must be above 0% and add up to 100% at most"))
+    out = []
+    for i, l in enumerate(lv):
+        name = f"TP{i + 1}"
+        if not l.price and check_sides:
+            raise Blocked(L(f"{name}: inserisci il prezzo", f"{name}: enter the price"))
+        price = m.round_price(l.price) if l.price else ref
+        if l.price and check_sides:
+            err = sltp_trigger_error(side, ref, mark, None, price)
+            if err:
+                raise Blocked(f"{name}: {err}")
+        last = i == len(lv) - 1 and total > 99.9999
+        qty = round(size - sum(x["qty"] for x in out) if last else size * l.pct / 100, m.size_decimals)
+        if qty < m.min_base or qty * price < m.min_quote:
+            q, mb = f"{qty:.{m.size_decimals}f}", f"{m.min_base:.{m.size_decimals}f}"
+            raise Blocked(L(f"{name}: {q} {m.symbol} è sotto il minimo dell'exchange ({mb} {m.symbol} o {m.min_quote:g} USD). Usa meno livelli o una size più grande.",
+                            f"{name}: {q} {m.symbol} is below the exchange minimum ({mb} {m.symbol} or {m.min_quote:g} USD). Use fewer levels or a larger size."))
+        out.append({"price": price, "qty": qty})
+    return out
 
 
 async def plan_order(o: OrderReq, check_sides=True):
@@ -406,15 +442,18 @@ async def plan_order(o: OrderReq, check_sides=True):
         raise Blocked(L("Size sotto la precisione del mercato", "Size is below market precision"))
     slip_bps = o.slippage_bps if o.slippage_bps is not None else risk.limits["slippage_bps_cap"]
     worst = ref if o.kind == "limit" else ref * (1 + side * slip_bps / 10000)
-    if o.reduce_only and (o.sl_price or o.tp_price or o.trail):
+    if o.reduce_only and (o.sl_price or o.tp_price or o.trail or o.tp_levels):
         raise Blocked(L("Le chiusure reduce-only non possono avere SL/TP", "Reduce-only closes cannot attach SL/TP"))
     if o.trail:
         trail_fields(o.trail)
     mark = feed.mark(o.market_id) if o.kind == "market" else None
+    if o.tp_levels and o.tp_price:
+        raise Blocked(L("Usa un solo take-profit o i livelli, non entrambi", "Use one take-profit or the levels, not both"))
+    levels = exit_levels(o, m, size, side, ref, mark, check_sides) if o.tp_levels else None
     await risk.review(acc, o.market_id, side, size, ref, o.sl_price, o.tp_price, slip_bps, o.reduce_only, mark,
                       check_sides=check_sides)
     return {"size": size, "side": side, "ref": ref, "worst": m.round_price(worst), "notional": size * ref,
-            "slippage_bps": slip_bps}
+            "slippage_bps": slip_bps, **({"tp_levels": levels} if levels else {})}
 
 
 @app.post("/api/preview")
@@ -453,6 +492,15 @@ async def place_order(o: OrderReq):
     if o.trail:
         rule = engine.set_market_stop(o.market_id, trail_fields(o.trail))
         engine.note(f"{engine.describe(rule)} (from the ticket)", "warning")
+    if plan.get("tp_levels"):
+        held = (engine._position(o.market_id) or {}).get("size", 0.0)
+        rule = engine.set_exit_plan(o.market_id, plan["tp_levels"], o.be_after_tp1, before=held, size=signed)
+        if o.kind == "market":  # filled already: the take-profits go now, Auto or not
+            try:
+                await engine.place_exits(rule, held + signed)
+            except Exception as e:
+                engine.note(f"{m.symbol} scaled TPs not all placed: {e} (Auto retries)", "error", rule)
+            engine.save()
     return {"ok": True, "size": plan["size"], "armed": engine.armed}
 
 

@@ -11,10 +11,11 @@ const Paper = (() => {
 
   const fresh = (balance) => ({
     v: 1, balance, cash: balance, start: Date.now(), seen: Date.now(), hour: Math.floor(Date.now() / 3600000),
-    positions: {}, orders: [], trades: [], stops: {}, settings: {}, logs: [], next: 1, logSeq: 0,
+    positions: {}, orders: [], trades: [], stops: {}, exits: {}, settings: {}, logs: [], next: 1, logSeq: 0,
   });
   let S;
   try { S = JSON.parse(localStorage.getItem(KEY)) || fresh(10000); } catch { S = fresh(10000); }
+  S.exits ||= {};
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch {} };
 
   let replay = null;      // prices while the time away is replayed: { [market]: {mark, bid, ask} }
@@ -88,6 +89,7 @@ const Paper = (() => {
       S.orders = S.orders.filter((o) => !(o.market_id === +id && o.trigger_price));
       if (S.stops[id]) S.stops[id].state = {};
       if (!newSize) delete S.stops[id];
+      delete S.exits[id];
     }
     S.trades.unshift({ ts: now(), market_id: +id, symbol: m.symbol, side: qty > 0 ? "buy" : "sell", size: Math.abs(qty),
       price, usd: Math.abs(qty) * price, role, pnl, fee, order_id: orderId || S.next++ });
@@ -101,6 +103,61 @@ const Paper = (() => {
       S.orders.push({ order_index: S.next++, client_order_index: 0, market_id: +id, is_ask: isAsk, type, price: trigger,
         trigger_price: trigger, remaining: 0, reduce_only: true, status: "open", ts: now() });
     }
+  }
+
+  // scaled exits: one sized reduce-only take-profit per level (isAsk: the closing side)
+  function addExits(id, isAsk, levels, be) {
+    if (!levels) return;
+    S.exits[id] = { be_after_tp1: !!be, be_done: false, levels: levels.map((l) => {
+      const oi = S.next++;
+      S.orders.push({ order_index: oi, client_order_index: 0, market_id: +id, is_ask: isAsk, type: "take-profit", price: l.price,
+        trigger_price: l.price, remaining: l.qty, reduce_only: true, status: "open", ts: now() });
+      return { price: l.price, qty: l.qty, oi, done: false };
+    }) };
+  }
+
+  function exitFilled(id, oi) {
+    const x = S.exits[id], lv = x && x.levels.find((l) => l.oi === oi);
+    if (!lv) return;
+    lv.done = true;
+    if (x.be_after_tp1 && !x.be_done && lv === x.levels[0]) {
+      x.be_done = true;
+      if (S.stops[id]) { S.stops[id].be_now = true; S.stops[id].state.stop = S.stops[id].state.stop ?? null; }
+      else S.stops[id] = { id: "paper-" + id, be_now: true, state: {} };
+      note(t("Paper: TP1 eseguito su {sym}, stop a breakeven", { sym: byId[id].symbol }), "warning");
+    }
+  }
+
+  function exits() {
+    const out = {};
+    for (const [id, x] of Object.entries(S.exits))
+      out[id] = { levels: x.levels.map(({ price, qty, done }) => ({ price, qty, done })), be_after_tp1: x.be_after_tp1, placed: true };
+    return out;
+  }
+
+  // the server's exit_levels(): 2-5 levels, shares up to 100%, the last takes what is left
+  function exitLevels(o, m, size, side, ref, mark, checkSides) {
+    const lv = o.tp_levels;
+    if (!(lv.length >= 2 && lv.length <= 5)) err(t("Da 2 a 5 livelli di take-profit"));
+    const total = lv.reduce((s, l) => s + l.pct, 0);
+    if (lv.some((l) => !(l.pct > 0)) || total > 100.0001) err(t("Le quote dei TP vanno sopra lo 0% e in totale fino al 100%"));
+    const out = [];
+    lv.forEach((l, i) => {
+      const name = `TP${i + 1}`;
+      if (!l.price && checkSides) err(`${name}: ${t("inserisci il prezzo")}`);
+      const price = l.price ? roundPrice(l.price, m) : ref;
+      if (l.price && checkSides) {
+        for (const [refName, r] of [[t("prezzo d'entrata"), ref], ...(mark ? [["mark price", mark]] : [])])
+          if (side > 0 ? price <= r : price >= r)
+            err(`${name}: ` + t(side > 0 ? "{what} deve stare sopra il {ref} ({price})" : "{what} deve stare sotto il {ref} ({price})", { what: t("Il take-profit"), ref: refName, price: +r.toPrecision(10) }));
+      }
+      const last = i === lv.length - 1 && total > 99.9999;
+      const qty = roundSize(last ? size - out.reduce((s, x) => s + x.qty, 0) : size * l.pct / 100, m);
+      if (qty < m.min_base || qty * price < m.min_quote)
+        err(t("{name}: {qty} {sym} è sotto il minimo dell'exchange ({base} {sym} o {quote} USD). Usa meno livelli o una size più grande.", { name, qty, sym: m.symbol, base: m.min_base, quote: m.min_quote }));
+      out.push({ price, qty });
+    });
+    return out;
   }
 
   // margin needed for the exposure an order adds (reducing needs none)
@@ -137,7 +194,8 @@ const Paper = (() => {
     } else size = o.size / ref;
     size = roundSize(size, m);
     if (size <= 0) err(t("Size sotto la precisione del mercato"));
-    if (o.reduce_only && (o.sl_price || o.tp_price || o.trail)) err(t("Le chiusure reduce-only non possono avere SL/TP"));
+    if (o.reduce_only && (o.sl_price || o.tp_price || o.trail || o.tp_levels)) err(t("Le chiusure reduce-only non possono avere SL/TP"));
+    if (o.tp_levels && o.tp_price) err(t("Usa un solo take-profit o i livelli, non entrambi"));
     if (!o.reduce_only && (size < m.min_base || size * ref < m.min_quote))
       err(t("Ordine sotto il minimo dell'exchange ({base} {sym} o {quote} USD)", { base: m.min_base, sym: m.symbol, quote: m.min_quote }));
     if (checkSides) {
@@ -153,9 +211,10 @@ const Paper = (() => {
         }
       }
     }
+    const levels = o.tp_levels ? exitLevels(o, m, size, side, ref, o.kind === "market" ? markOf(m.id) : null, checkSides) : null;
     const slip = o.slippage_bps ?? 50;
     const worst = o.kind === "limit" ? ref : ref * (1 + side * slip / 10000);
-    return { size, side, ref, worst: roundPrice(worst, m), notional: size * ref, slippage_bps: slip };
+    return { size, side, ref, worst: roundPrice(worst, m), notional: size * ref, slippage_bps: slip, ...(levels ? { tp_levels: levels } : {}) };
   }
 
   function placeOrder(o) {
@@ -172,7 +231,8 @@ const Paper = (() => {
     if (o.kind === "limit" && !crosses) {
       S.orders.push({ order_index: S.next++, client_order_index: 0, market_id: id, is_ask: pl.side < 0, type: "limit",
         price: roundPrice(o.price, m), trigger_price: 0, remaining: pl.size, reduce_only: !!o.reduce_only, status: "open",
-        post_only: !!o.post_only, sl: o.sl_price || null, tp: o.tp_price || null, trail: o.trail || null, ts: now() });
+        post_only: !!o.post_only, sl: o.sl_price || null, tp: o.tp_price || null, trail: o.trail || null,
+        exits: pl.tp_levels || null, be: o.be_after_tp1 !== false, ts: now() });
       note(t("Paper: limit {side} {size} {sym} a {price}", { side: o.side, size: pl.size, sym: m.symbol, price: fp(o.price, m) }));
     } else {
       if (crosses && o.post_only) err(t("Il post-only attraverserebbe il prezzo e verrebbe eseguito subito"));
@@ -180,6 +240,7 @@ const Paper = (() => {
       fill(id, fillQty, price, "taker");
       if (!o.reduce_only) {
         addTriggers(id, pl.side > 0, o.sl_price, o.tp_price); // a long closes by selling
+        addExits(id, pl.side > 0, pl.tp_levels, o.be_after_tp1 !== false);
         if (o.trail) setStop(id, o.trail);
       }
       note(t("Paper: {side} {size} {sym} a {price}", { side: o.side, size: Math.abs(fillQty), sym: m.symbol, price: fp(price, m) }));
@@ -297,7 +358,7 @@ const Paper = (() => {
   function setStop(id, tr) {
     if (!tr) { delete S.stops[id]; changed = true; return; }
     const old = S.stops[id];
-    S.stops[id] = { id: "paper-" + id, ...trailFields(tr), state: old ? { ...old.state, stop: null } : {} };
+    S.stops[id] = { id: "paper-" + id, ...trailFields(tr), ...(old && old.be_now ? { be_now: true } : {}), state: old ? { ...old.state, stop: null } : {} };
     changed = true;
   }
 
@@ -331,13 +392,14 @@ const Paper = (() => {
       const m = byId[id], p = px(id);
       const price = replayFill ? replayFill(st.stop, mark) : (side > 0 ? p.bid : p.ask) || mark;
       fill(id, -pos.size, price, "taker");
-      note(t("Paper: trailing stop eseguito su {sym} a {price}", { sym: m.symbol, price: fp(price, m) }), "warning");
+      const trails = s.trail_pnl || s.trail_pct || s.trail_price || s.trail_atr;
+      note(t(trails ? "Paper: trailing stop eseguito su {sym} a {price}" : "Paper: stop a breakeven eseguito su {sym} a {price}", { sym: m.symbol, price: fp(price, m) }), "warning");
       return;
     }
     st.best = side > 0 ? Math.max(st.best, mark) : Math.min(st.best, mark);
     const profit = (st.best - pos.entry) / pos.entry * 100 * side * lev(id); // PnL % on margin, like the server
     const cands = [];
-    if (s.breakeven_at_pct && profit >= s.breakeven_at_pct) cands.push(pos.entry * (1 + side * 0.05 / 100));
+    if (s.be_now || (s.breakeven_at_pct && profit >= s.breakeven_at_pct)) cands.push(pos.entry * (1 + side * 0.05 / 100));
     if (profit >= (s.trail_activate_pct || 0)) {
       let dist = null;
       if (s.trail_pnl) dist = st.best * s.trail_pnl / 100 / lev(id);
@@ -376,6 +438,7 @@ const Paper = (() => {
         fill(o.market_id, qty, o.price, "maker", o.order_index);
         if (!o.reduce_only) {
           addTriggers(o.market_id, !o.is_ask, o.sl, o.tp);
+          addExits(o.market_id, !o.is_ask, o.exits, o.be);
           if (o.trail) setStop(o.market_id, o.trail);
         }
         note(t("Paper: limit eseguito {side} {size} {sym} a {price}", { side: o.is_ask ? "sell" : "buy", size: Math.abs(qty), sym: m.symbol, price: fp(o.price, m) }));
@@ -387,8 +450,10 @@ const Paper = (() => {
       if (!(below ? p.mark <= o.trigger_price : p.mark >= o.trigger_price)) continue;
       S.orders.splice(S.orders.indexOf(o), 1);
       const price = replayFill ? replayFill(o.trigger_price, p.mark) : (o.is_ask ? p.bid : p.ask) || p.mark;
-      fill(o.market_id, -pos.size, price, "taker", o.order_index);
+      // a sized trigger (a scaled exit) closes its part; a position-tied one the whole position
+      fill(o.market_id, o.remaining ? -Math.sign(pos.size) * Math.min(o.remaining, Math.abs(pos.size)) : -pos.size, price, "taker", o.order_index);
       note(t(isSl ? "Paper: stop-loss eseguito su {sym} a {price}" : "Paper: take-profit eseguito su {sym} a {price}", { sym: m.symbol, price: fp(price, m) }), isSl ? "warning" : "info");
+      if (!isSl) exitFilled(o.market_id, o.order_index);
     }
     for (const [id, s] of Object.entries(S.stops)) {
       if (S.positions[id]) stepStop(id, s);
@@ -484,7 +549,7 @@ const Paper = (() => {
 
   return {
     on: false,
-    route, account, stops, catchUp,
+    route, account, stops, exits, catchUp,
     tick() { // once a second with the live prices; true when orders or positions changed
       changed = false;
       step();
