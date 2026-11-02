@@ -1592,6 +1592,8 @@ function switchBottom(t) {
 
 function wire() {
   $$("#views button").forEach((b) => (b.onclick = () => switchView(b.dataset.view)));
+  // the logo goes back to Trade without reloading (a real link, so a new tab still works)
+  $("#logoHome").onclick = (e) => { if (e.ctrlKey || e.metaKey || e.shiftKey || e.button) return; e.preventDefault(); switchView("trade"); };
   $("#tfs").onclick = (e) => { const b = e.target.closest("[data-tf]"); if (b) setTf(b.dataset.tf); };
   $("#tfMoreBtn").onclick = (e) => { e.stopPropagation(); toggleTfMenu(); };
   $("#tfMenu").onclick = (e) => {

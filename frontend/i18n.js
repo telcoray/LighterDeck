@@ -328,6 +328,7 @@ const EN = {
   "Controlla titolo, data e mercati.": "Check the title, date and markets.",
   "Calendario completo →": "Full calendar →",
   "Apri la pagina Calendario": "Open the Calendar page",
+  "Torna a Trade": "Back to Trade",
   "Prossimi eventi per {sym}": "Next events for {sym}",
   "Cerca evento o mercato…": "Search event or market…",
   "Uno": "One",
