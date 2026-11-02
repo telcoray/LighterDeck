@@ -1135,7 +1135,7 @@ function renderPositions() {
         <td class="r liq">${fp(p.liq, m)}</td><td class="r pnl ${cls(p.upnl)}">${fusd(p.upnl)}<small>${isFinite(pct) ? fpct(pct) : ""}</small></td>
         <td class="r sltp">${sltpCell(p, m)}</td>
         <td>${trailButton(p.market_id, m)}</td>
-        <td><span class="qbtn">${[25, 50, 75, 100].map((f) => `<button data-close="${p.market_id}" data-f="${f}"${f === 100 ? ` class="all" data-ck="close:${p.market_id}" data-key="F" title="${t("Chiudi tutto · F")}"` : f === 50 ? ` title="${t("Chiudi metà · H")}"` : ""}>${f}%</button>`).join("")}</span></td></tr>`;
+        <td><span class="qbtn">${[25, 50, 75, 100].map((f) => `<button data-close="${p.market_id}" data-f="${f}"${f === 100 ? ` class="all" data-ck="close:${p.market_id}" data-key="F" title="${t("Chiudi tutto · F")}"` : f === 50 ? ` title="${t("Chiudi metà · H")}"` : ""}>${f}%</button>`).join("")}<button class="rev" data-reverse="${p.market_id}" data-ck="reverse:${p.market_id}" data-key="R" title="${t("Reverse: chiude e apre il lato opposto, stessa size · R")}">⇄ Reverse</button></span></td></tr>`;
     }).join("")}</tbody></table>`;
   markConfirm();
 }
@@ -1980,6 +1980,8 @@ function wire() {
   $("#btab-positions").onclick = async (e) => {
     const v = e.target.closest("[data-psl]");
     if (v && info.trading) return editPositionStop(v);
+    const r = e.target.closest("[data-reverse]");
+    if (r) return reversePosition(+r.dataset.reverse);
     const b = e.target.closest("[data-close]");
     if (!b) return;
     const mid = +b.dataset.close, f = +b.dataset.f;
@@ -2451,6 +2453,7 @@ const HOTKEYS = [
   ["Enter", "Invia l'ordine dal ticket (di nuovo per confermare)"],
   ["F", "Chiudi la posizione del mercato (due volte)"],
   ["H", "Chiudi metà posizione (due volte)"],
+  ["R", "Reverse della posizione (due volte)"],
   ["C", "Annulla i limit del mercato (due volte)"],
   ["1–4", "Seleziona il grafico"],
   ["[ ]", "Timeframe precedente / successivo"],
@@ -2506,6 +2509,18 @@ async function hotkeyClose(m, fraction) {
   catch (err) { toast(err.message, true); }
 }
 
+// one market order for twice the size: the other side, same size; a second click or press confirms
+async function reversePosition(mid, viaKey = false) {
+  const m = byId[mid], pos = account && account.positions.find((p) => p.market_id === mid);
+  if (!pos) return toast(t("Nessuna posizione su {sym}", { sym: m.symbol }), true);
+  const to = pos.size > 0 ? "Short" : "Long";
+  const ok = viaKey ? hotkeyConfirm(`reverse:${mid}`, t("Premi di nuovo R: reverse {sym} a {side}", { sym: m.symbol, side: to }))
+    : askConfirm(`reverse:${mid}`, t("Conferma → {side}", { side: to }));
+  if (!ok) return;
+  try { await api(`/reverse?market_id=${mid}`, { method: "POST" }); toast(t("Reverse inviato: {sym} {side}", { sym: m.symbol, side: to })); loadOrders(true); }
+  catch (err) { toast(err.message, true); }
+}
+
 async function hotkeyCancel(m) {
   const armed = pendingConfirm && pendingConfirm.key === `hk:cancel:${m.id}`;
   if (!armed) await fetchOpenOrders(true).catch(() => {});
@@ -2550,6 +2565,7 @@ function wireHotkeys() {
       l: () => { ticket.kind = "limit"; fillMid(); renderTicket(); },
       f: () => m && hotkeyClose(m, 1),
       h: () => m && hotkeyClose(m, 0.5),
+      r: () => m && reversePosition(m.id, true),
       c: () => m && hotkeyCancel(m),
       "/": openPalette,
       "?": () => toggleHotkeys(),

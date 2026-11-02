@@ -202,6 +202,20 @@ const Paper = (() => {
     return { ok: true };
   }
 
+  // close and open the other side, same size, in one market order (as Lighter's Reverse)
+  function reversePosition(id) {
+    const m = mkt(id), pos = S.positions[id];
+    if (!pos) err(t("Nessuna posizione"));
+    const p = px(id), price = (pos.size > 0 ? p && p.bid : p && p.ask) || markOf(id);
+    if (!price) err(t("Nessun prezzo per questo mercato in questo momento"));
+    const size = pos.size;
+    fill(id, -2 * size, price, "taker"); // the flip ends the old SL/TP
+    delete S.stops[id];
+    note(t("Paper: reverse {sym} a {price}", { sym: m.symbol, price: fp(price, m) }));
+    save();
+    return { ok: true, size: -size };
+  }
+
   const findOrder = (id, oi) => S.orders.find((o) => o.market_id === +id && o.order_index === +oi)
     || err(t("Ordine non trovato: forse è già stato eseguito o annullato"));
 
@@ -448,6 +462,7 @@ const Paper = (() => {
     const run = (fn) => { try { const r = fn(); save(); return Promise.resolve(r); } catch (e) { return Promise.reject(e); } };
     if (p === "/preview" && method === "POST") return run(() => { try { return { ok: true, ...plan(body(), qs.get("live") !== "true") }; } catch (e) { return { ok: false, error: e.message }; } });
     if (p === "/order" && method === "POST") return run(() => placeOrder(body()));
+    if (p === "/reverse" && method === "POST") return run(() => reversePosition(+qs.get("market_id")));
     if (p === "/close" && method === "POST") return run(() => closePosition(+qs.get("market_id"), +qs.get("fraction") || 1));
     if (p === "/cancel_order" && method === "POST") return run(() => cancelOrder(+qs.get("market_id"), +qs.get("order_index")));
     if (p === "/cancel_all" && method === "POST") return run(() => { S.orders = []; changed = true; return { ok: true }; });

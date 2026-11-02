@@ -582,6 +582,36 @@ async def close_position(market_id: int, fraction: float = 1.0):
     return {"ok": True}
 
 
+@app.post("/api/reverse")
+async def reverse_position(market_id: int):
+    """Close the position and open the opposite one of the same size in one market order, like Lighter's
+    Reverse. The old SL/TP and managed stop end with it: the new position starts without protection."""
+    pos = engine._position(market_id)
+    if not pos:
+        raise HTTPException(400, L("Nessuna posizione", "No position"))
+    m = api.markets[market_id]
+    size = pos["size"]
+    # the reduce-only triggers that close the old side would sit on the wrong side after the flip
+    old = [o for o in await api.active_orders(market_id) if o["reduce_only"] and o["trigger_price"]]
+    try:
+        try:
+            ref = risk.quote(market_id, -1 if size > 0 else 1)
+        except Blocked:
+            ref = feed.mark(market_id)
+        await api.market_order(market_id, -2 * size, ref, reduce_only=False)
+    except Exception as e:
+        raise HTTPException(400, str(e))
+    engine.set_market_stop(market_id, None)
+    for o in old:
+        try:
+            await api.cancel_order(market_id, o["order_index"])
+        except Exception as e:  # position-tied SL/TP are already gone with the flip
+            log.info("reverse: order %s not cancelled: %s", o["order_index"], e)
+    _orders_cache.pop(market_id, None)
+    engine.note(f"manual reverse {pos['symbol']}: {size} -> {-size}", "warning")
+    return {"ok": True, "size": -size}
+
+
 class MoveReq(BaseModel):
     market_id: int
     order_index: int

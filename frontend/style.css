@@ -328,6 +328,8 @@ body.resizing { cursor: row-resize; user-select: none; }
 /* 100% closes the whole position: same look as the partial closes, slightly brighter text */
 .qbtn button.all { color: var(--text); }
 .qbtn button.all:hover { color: var(--red); }
+.qbtn button.rev { margin-left: 6px; color: var(--amber); }
+.qbtn button.rev:hover { border-color: var(--amber); color: var(--amber); background: color-mix(in srgb, var(--amber) 10%, transparent); }
 .xbtn { color: var(--muted); padding: 2px 6px; border-radius: 4px; }
 .xbtn:hover { color: var(--red); background: var(--red-soft); }
 
