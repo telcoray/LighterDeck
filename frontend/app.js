@@ -514,6 +514,7 @@ function buildCharts() {
     p.load();
   }
   $$("#layouts button").forEach((b) => b.classList.toggle("active", b.dataset.layout === layout));
+  applyKeyHints();
   setActive(activeIdx);
 }
 
@@ -995,7 +996,7 @@ function ticketMsg(text, kind) {
   el.className = "ticket-msg " + kind;
 }
 
-async function executeTicket() {
+async function executeTicket(byMouse = false) {
   const m = activeMarket();
   const size = +$("#tkSize").value;
   if (!m || !(size > 0)) return ticketMsg(t("Inserisci una size valida."), "err");
@@ -1019,6 +1020,7 @@ async function executeTicket() {
     previewTicket.sentKey = JSON.stringify(body);
     updateTicketSummary();
     loadOrders(true);
+    if (byMouse) keyboardTip();
   } catch (e) {
     ticketMsg(e.message, "err");
   } finally {
@@ -1132,7 +1134,7 @@ function renderPositions() {
         <td class="r liq">${fp(p.liq, m)}</td><td class="r pnl ${cls(p.upnl)}">${fusd(p.upnl)}<small>${isFinite(pct) ? fpct(pct) : ""}</small></td>
         <td class="r sltp">${sltpCell(p, m)}</td>
         <td>${trailButton(p.market_id, m)}</td>
-        <td><span class="qbtn">${[25, 50, 75, 100].map((f) => `<button data-close="${p.market_id}" data-f="${f}"${f === 100 ? ` class="all" data-ck="close:${p.market_id}"` : ""}>${f}%</button>`).join("")}</span></td></tr>`;
+        <td><span class="qbtn">${[25, 50, 75, 100].map((f) => `<button data-close="${p.market_id}" data-f="${f}"${f === 100 ? ` class="all" data-ck="close:${p.market_id}" data-key="F" title="${t("Chiudi tutto · F")}"` : f === 50 ? ` title="${t("Chiudi metà · H")}"` : ""}>${f}%</button>`).join("")}</span></td></tr>`;
     }).join("")}</tbody></table>`;
   markConfirm();
 }
@@ -1932,7 +1934,7 @@ function wire() {
   ["#tkSize", "#tkPrice"].forEach((s) => ($(s).oninput = updateTicketSummary));
   $("#tkChips").onclick = (e) => { const b = e.target.closest("[data-v]"); if (b) { $("#tkSize").value = b.dataset.v; updateTicketSummary(); } };
   $("#tkMid").onclick = fillMid;
-  $("#tkExec").onclick = () => (info.trading ? executeTicket() : openKeyDialog());
+  $("#tkExec").onclick = (e) => (info.trading ? executeTicket(e.detail > 0) : openKeyDialog());
   ["#tkSl", "#tkTp", "#tkSlip"].forEach((s) => ($(s).oninput = updateTicketSummary));
   ["#tkReduce", "#tkPost"].forEach((s) => ($(s).onchange = updateTicketSummary));
   $("#tkLev").onclick = openLeverage;
@@ -2443,6 +2445,27 @@ const HOTKEYS = [
   ["?", "Questo elenco"],
 ];
 
+// the key next to the control it drives: a small badge (desktop only, via CSS) and the tooltip
+function applyKeyHints() {
+  const hint = (el, key, title) => { if (!el) return; if (key) el.dataset.key = key; if (title) el.title = title; };
+  hint($('#sideSel [data-side="buy"]'), "B", t("Buy / Long · B"));
+  hint($('#sideSel [data-side="sell"]'), "S", t("Sell / Short · S"));
+  hint($('#kindSel [data-kind="market"]'), "M", t("Market · M"));
+  hint($('#kindSel [data-kind="limit"]'), "L", t("Limit al prezzo medio · L"));
+  hint($("#tkExec"), "↵", t("Invia · Enter"));
+  hint($("#mktSelect"), null, t("Cerca mercato · / o Ctrl+K"));
+  hint($("#tfs"), null, t("Timeframe · [ e ]"));
+  panels.forEach((p) => hint($(".ttl", p.el), null, t("Grafico {n} · tasto {n} · clic per cambiare mercato", { n: p.idx + 1 })));
+  hint($("#hkOpen"), null, t("Scorciatoie da tastiera · ?"));
+}
+
+// once, after the first order sent with the mouse on a computer
+function keyboardTip() {
+  if (load("kbdTip", false) || !matchMedia("(hover: hover) and (pointer: fine)").matches) return;
+  store("kbdTip", true);
+  setTimeout(() => toast(t("Puoi farlo da tastiera: premi ? per le scorciatoie")), 1500);
+}
+
 function renderHotkeys() {
   $("#hkList").innerHTML = HOTKEYS.map(([k, d]) => `<dt>${k.split(" ").map((x) => `<kbd>${esc(x)}</kbd>`).join(" ")}</dt><dd>${esc(t(d))}</dd>`).join("");
 }
@@ -2610,6 +2633,7 @@ function rerenderLanguage() {
   renderTfs();
   renderTicket();
   renderAccount();
+  applyKeyHints();
   renderSessions();
   renderEcon();
   renderEventSelect();
@@ -2662,6 +2686,7 @@ async function init() {
   wireKeyDialog();
   wirePaper();
   wireHotkeys();
+  applyKeyHints();
   wireBottomSplit();
   wireTrail();
   applyTheme(load("theme", "fosforo")); // first visit: Phosphor

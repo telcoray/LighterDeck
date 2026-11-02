@@ -134,6 +134,20 @@ body.paper [data-view="auto"], body.paper [data-view="activity"], body.paper [da
 .hk-list dd { margin: 0; color: var(--text-2); }
 .hk-list kbd { display: inline-block; min-width: 20px; padding: 2px 6px; border: 1px solid var(--line-3); border-bottom-width: 2px; border-radius: 4px; background: var(--bg); font-family: var(--mono); font-size: 11px; text-align: center; color: var(--text); }
 @media (hover: none) { .sb-keys { display: none; } }
+/* the shortcut's key inside the control, faint; computers only */
+@media (hover: hover) and (pointer: fine) {
+  .sidesel button[data-key], .kindsel button[data-key], #tkExec[data-key], .qbtn button[data-key] { position: relative; }
+  .sidesel button[data-key]::after, .kindsel button[data-key]::after, #tkExec[data-key]::after, .qbtn button[data-key]::after {
+    content: attr(data-key); position: absolute; top: 50%; transform: translateY(-50%); right: 7px;
+    font: 500 9px/1 var(--mono); padding: 2px 4px; border: 1px solid currentColor; border-radius: 3px; opacity: .45; pointer-events: none;
+  }
+  .kindsel button[data-key]::after { position: static; display: inline-block; transform: none; margin-left: 6px; vertical-align: 1px; }
+  .qbtn button[data-key] { padding-right: 22px; }
+  .qbtn button[data-key]::after { right: 4px; font-size: 8px; padding: 1px 3px; }
+  #tkExec[data-key]::after { right: 12px; }
+  .confirming[data-key]::after { display: none; }
+  .qbtn button.confirming[data-key] { padding-right: 8px; }
+}
 .modal-veil { position: fixed; inset: 0; z-index: 19; background: rgba(0,0,0,.55); }
 .res-text { margin: 0 0 14px; font-size: 12.5px; line-height: 1.5; color: var(--text-2); }
 .res-actions { display: flex; gap: 8px; }
