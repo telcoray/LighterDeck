@@ -617,9 +617,10 @@ class Panel {
       if (!this.drag) return;
       const p = this.series.coordinateToPrice(yOf(e));
       if (p === null || p <= 0) return;
-      const price = +p.toFixed(decimals(this.market));
+      const fm = this.market || { price_decimals: this.pairDec || 6 }; // a spread's ratio has its own decimals
+      const price = +p.toFixed(decimals(fm));
       this.drag.to = price;
-      this.drag.line.applyOptions({ price, title: `${this.drag.label} → ${fp(price, this.market)}` });
+      this.drag.line.applyOptions({ price, title: `${this.drag.label} → ${fp(price, fm)}` });
     });
     document.addEventListener("mouseup", (e) => {
       const d = this.drag;
@@ -1972,7 +1973,7 @@ function pairRow(x) {
     <td class="r"><span class="up">L ${esc(ml.symbol)}</span> / <span class="down">S ${esc(ms.symbol)}</span></td>
     <td class="r main">${fusd(sum("value"))}<small class="pos-lev" title="${t("Funding all'ora delle due gambe insieme")}">funding ${fsmall(fundH)}/h</small></td>
     <td class="r">${margin ? fusd(margin) : "—"}</td><td class="r" title="${t("Rapporto all'entrata")}">${fmt(entry)}</td><td class="r main" title="${t("Rapporto attuale")}">${fmt(now)}</td>
-    <td class="r liq" title="${t("La liquidazione più vicina fra le due gambe")}">${near ? `<span class="${near.pct < BADGE_LIQ ? "down" : ""}">${near.pct.toFixed(1)}%</span><small class="pos-lev">${esc(near.m.symbol)}</small>` : "—"}</td>
+    <td class="r liq" title="${t("La liquidazione più vicina fra le due gambe")}">${near ? `<span class="${near.pct < BADGE_LIQ ? "down" : ""}">${near.pct > 100 ? "> 100%" : near.pct.toFixed(1) + "%"}</span><small class="pos-lev">${esc(near.m.symbol)}</small>` : "—"}</td>
     <td class="r pnl ${cls(upnl)}">${fusd(upnl)}<small>${isFinite(pct) ? fpct(pct) : ""}</small></td>
     <td class="r sltp">${stop("tp")}<span class="sltp-sep">/</span>${stop("sl")}</td><td></td>
     <td><span class="qbtn">${[50, 100].map((f) => `<button data-pclose="${x.id}" data-f="${f}"${f === 100 ? ` class="all" data-ck="pclose:${x.id}"` : ""}>${f}%</button>`).join("")}<button class="unpair" data-unpair="${x.id}" title="${t("Separa: le due posizioni restano aperte, non più come coppia")}">${t("Separa")}</button></span></td></tr>`
