@@ -290,27 +290,56 @@ const Paper = (() => {
     for (const o of legs) {
       try {
         const res = placeOrder(o);
-        done.push({ market_id: o.market_id, symbol: mkt(o.market_id).symbol, side: o.side, size: res.size });
+        done.push({ market_id: o.market_id, symbol: mkt(o.market_id).symbol, side: o.side, size: res.size, price: S.trades[0].price });
       } catch (e) {
         if (!done.length) throw e;
         return { ok: false, error: e.message, filled: done, failed: { market_id: o.market_id, symbol: mkt(o.market_id).symbol } };
       }
     }
-    addPair(r.long_id, r.short_id);
+    addPair(r.long_id, r.short_id, done[0].size, done[1].size, done[0].price, done[1].price);
     return { ok: true, legs: done };
   }
 
-  // pairs: which long and short positions go together (as the server's /api/pairs)
-  function addPair(longId, shortId) {
-    S.pairs = S.pairs.filter((p) => ![longId, shortId].includes(p.long_id) && ![longId, shortId].includes(p.short_id));
-    S.pairs.push({ id: `${longId}-${shortId}-${Date.now()}`, long_id: longId, short_id: shortId, at: now() / 1000 });
+  // pairs, as the server's /api/pairs: each with its own quantities and entry prices, since a market's
+  // position can be bigger than the pair's leg
+  function addPair(longId, shortId, lq, sq, le, se) {
+    S.pairs.push({ id: `${longId}-${shortId}-${Date.now()}`, long_id: longId, short_id: shortId,
+      long_qty: lq, short_qty: sq, long_entry: le, short_entry: se, at: now() / 1000 });
     changed = true;
   }
 
   function pairs() {
-    const size = (id) => (S.positions[id] ? S.positions[id].size : 0);
-    S.pairs = S.pairs.filter((p) => size(p.long_id) > 0 && size(p.short_id) < 0);
+    const pos = (id) => S.positions[id] || { size: 0, entry: 0 };
+    // a pair recorded before quantities were kept: its legs are the fills in the 20 seconds before it (both legs go out within a second or two)
+    for (const p of S.pairs) {
+      if (p.long_qty !== undefined) continue;
+      for (const [key, id, side] of [["long", p.long_id, "buy"], ["short", p.short_id, "sell"]]) {
+        const fs = S.trades.filter((x) => x.market_id === +id && x.side === side && x.ts >= p.at * 1000 - 20000 && x.ts <= p.at * 1000 + 5000);
+        const qty = fs.reduce((s, x) => s + x.size, 0);
+        p[`${key}_qty`] = qty || Math.abs(pos(id).size);
+        p[`${key}_entry`] = qty ? fs.reduce((s, x) => s + x.size * x.price, 0) / qty : pos(id).entry;
+      }
+    }
+    S.pairs = S.pairs.filter((p) => pos(p.long_id).size > 0 && pos(p.short_id).size < 0);
+    for (const p of S.pairs) { p.long_qty = Math.min(p.long_qty, pos(p.long_id).size); p.short_qty = Math.min(p.short_qty, -pos(p.short_id).size); }
     return S.pairs.map((p) => ({ ...p }));
+  }
+
+  // close a share of a pair: that share of each leg's own quantity, at the bid/ask
+  function closePair(id, fraction) {
+    const p = pairs().find((x) => x.id === id) || err(t("Coppia non trovata"));
+    const f = Math.min(Math.max(fraction, 0), 1);
+    for (const [key, mid, sign] of [["long", p.long_id, 1], ["short", p.short_id, -1]]) {
+      const m = mkt(mid), size = roundSize(p[`${key}_qty`] * f, m), q = px(mid);
+      if (!(size > 0)) continue;
+      fill(mid, -sign * size, (sign > 0 ? q && q.bid : q && q.ask) || markOf(mid), "taker");
+      const rec = S.pairs.find((x) => x.id === id);
+      if (rec) rec[`${key}_qty`] = roundSize(rec[`${key}_qty`] - size, m);
+    }
+    if (f >= 0.999) S.pairs = S.pairs.filter((x) => x.id !== id);
+    note(t("Paper: chiuso {pct}% della coppia {sym}", { pct: Math.round(f * 100), sym: `${mkt(p.long_id).symbol}/${mkt(p.short_id).symbol}` }));
+    save();
+    return { ok: true };
   }
 
   const findOrder = (id, oi) => S.orders.find((o) => o.market_id === +id && o.order_index === +oi)
@@ -568,9 +597,12 @@ const Paper = (() => {
     if (p === "/pairs" && method === "POST") return run(() => {
       const b = body(), size = (id) => (S.positions[id] ? S.positions[id].size : 0);
       if (!(size(b.long_id) > 0 && size(b.short_id) < 0)) err(t("Serve una posizione long e una short aperte"));
-      addPair(b.long_id, b.short_id);
+      const l = S.positions[b.long_id], s = S.positions[b.short_id];
+      addPair(b.long_id, b.short_id, l.size, -s.size, l.entry, s.entry);
       return pairs();
     });
+    const pairClose = p.match(/^\/pairs\/(.+)\/close$/);
+    if (pairClose && method === "POST") return run(() => closePair(decodeURIComponent(pairClose[1]), +qs.get("fraction") || 1));
     const pairDel = p.match(/^\/pairs\/(.+)$/);
     if (pairDel && method === "DELETE") return run(() => { S.pairs = S.pairs.filter((x) => x.id !== decodeURIComponent(pairDel[1])); return pairs(); });
     if (p === "/reverse" && method === "POST") return run(() => reversePosition(+qs.get("market_id")));

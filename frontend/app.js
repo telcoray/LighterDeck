@@ -987,6 +987,20 @@ function setBadges(box, m, max = 6) {
   if (box.dataset.html !== html) { box.dataset.html = html; box.innerHTML = html; }
 }
 
+function wirePairGroup() {
+  const pop = $("#pairGroupPop");
+  pop.addEventListener("click", async (e) => {
+    const b = e.target.closest("[data-group]");
+    if (!b) return;
+    const [l, s] = b.dataset.group.split(":").map(Number);
+    pop.classList.add("hidden");
+    try { pairs = await api("/pairs", { method: "POST", body: JSON.stringify({ long_id: l, short_id: s }) }); renderPositions(); }
+    catch (err) { toast(err.message, true); }
+  });
+  document.addEventListener("mousedown", (e) => { if (!e.target.closest("#pairGroupPop, #pairGroupBtn")) pop.classList.add("hidden"); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") pop.classList.add("hidden"); });
+}
+
 function wireBadges() {
   document.addEventListener("click", (e) => {
     const b = e.target.closest(".ctx[data-go]");
@@ -1839,15 +1853,12 @@ function renderPositions() {
   }
   const sizeOf = (id) => { const p = list.find((x) => x.market_id === id); return p ? p.size : 0; };
   const live = pairs.filter((x) => sizeOf(x.long_id) > 0 && sizeOf(x.short_id) < 0);
-  const inPair = new Set(live.flatMap((x) => [x.long_id, x.short_id]));
-  const longs = list.filter((p) => p.size > 0 && !inPair.has(p.market_id)), shorts = list.filter((p) => p.size < 0 && !inPair.has(p.market_id));
-  const groupBar = longs.length && shorts.length ? `<div class="btab-bar pair-group"><span class="muted">${t("Raggruppa in coppia")}</span>
-    <select id="pairGroupSel">${longs.flatMap((l) => shorts.map((s) => `<option value="${l.market_id}:${s.market_id}">Long ${esc(l.symbol)} / Short ${esc(s.symbol)}</option>`)).join("")}</select>
-    <button class="xbtn" id="pairGroupBtn">${t("Raggruppa")}</button></div>` : "";
-  const byMarket = (id) => list.find((x) => x.market_id === id);
-  const rows = [...live.flatMap((x) => [pairRow(x, byMarket(x.long_id), byMarket(x.short_id)), byMarket(x.long_id), byMarket(x.short_id)]),
-    ...list.filter((p) => !inPair.has(p.market_id))];
-  box.innerHTML = groupBar + `<table class="table"><thead><tr><th>${t("Mercato")}</th><th class="r">Size</th><th class="r">${t("Valore")}</th><th class="r" title="${t("Il tuo capitale impegnato: valore all'entrata diviso la leva.")}">${t("Margine")}</th><th class="r">Entry</th><th class="r">Mark</th><th class="r">${t("Liquidazione")}</th><th class="r" title="${t("La percentuale è calcolata sul margine iniziale.")}">${t("PnL non realizzato")}</th><th class="r">TP / SL</th><th>${t("Trailing")}</th><th>${t("Chiudi a mercato")}</th></tr></thead><tbody>${
+  // how much of each market's position belongs to pairs, shown under its size
+  const paired = {};
+  for (const x of live) { paired[x.long_id] = (paired[x.long_id] || 0) + x.long_qty; paired[x.short_id] = (paired[x.short_id] || 0) + x.short_qty; }
+  const canGroup = list.some((p) => p.size > 0) && list.some((p) => p.size < 0);
+  const rows = [...live.map((x) => pairRow(x)), ...list];
+  box.innerHTML = `<table class="table"><thead><tr><th>${t("Mercato")}${canGroup ? `<button class="pair-group-btn" id="pairGroupBtn" title="${t("Raggruppa un long e uno short in una coppia")}">+ ${t("Coppia")}</button>` : ""}</th><th class="r">Size</th><th class="r">${t("Valore")}</th><th class="r" title="${t("Il tuo capitale impegnato: valore all'entrata diviso la leva.")}">${t("Margine")}</th><th class="r">Entry</th><th class="r">Mark</th><th class="r">${t("Liquidazione")}</th><th class="r" title="${t("La percentuale è calcolata sul margine iniziale.")}">${t("PnL non realizzato")}</th><th class="r">TP / SL</th><th>${t("Trailing")}</th><th>${t("Chiudi a mercato")}</th></tr></thead><tbody>${
     rows.map((p) => {
       if (typeof p === "string") return p; // a pair's own row
       const m = byId[p.market_id];
@@ -1855,8 +1866,8 @@ function renderPositions() {
       // PnL % on the initial margin (entry value / leverage), as Lighter and the ticket show it
       const margin = p.leverage ? (Math.abs(p.size) * p.entry) / p.leverage : 0;
       const pct = margin ? (p.upnl / margin) * 100 : 0;
-      return `<tr class="${inPair.has(p.market_id) ? "leg" : ""}"><td class="mk">${gotoBtn(p.symbol)}<small class="${p.size > 0 ? "up" : "down"}">${p.size > 0 ? "Long" : "Short"}</small></td>
-        <td class="r ${p.size > 0 ? "up" : "down"}">${fsize(p.size, m)} <span class="unit-sym">${esc(p.symbol)}</span></td><td class="r main">${fusd(p.value)}</td>
+      return `<tr><td class="mk">${gotoBtn(p.symbol)}<small class="${p.size > 0 ? "up" : "down"}">${p.size > 0 ? "Long" : "Short"}</small></td>
+        <td class="r ${p.size > 0 ? "up" : "down"}">${fsize(p.size, m)} <span class="unit-sym">${esc(p.symbol)}</span>${paired[p.market_id] ? `<small class="pos-lev">${t("di cui {q} in coppia", { q: fsize(paired[p.market_id], m) })}</small>` : ""}</td><td class="r main">${fusd(p.value)}</td>
         <td class="r">${margin ? fusd(margin) : "—"}${p.leverage ? `<small class="pos-lev">${p.leverage}x${p.cross === false ? " isolated" : ""}</small>` : ""}</td><td class="r">${fp(p.entry, m)}</td><td class="r main">${fp(mark, m)}</td>
         <td class="r liq">${fp(p.liq, m)}</td><td class="r pnl ${cls(p.upnl)}">${fusd(p.upnl)}<small>${isFinite(pct) ? fpct(pct) : ""}</small></td>
         <td class="r sltp">${sltpCell(p, m)}</td>
@@ -1870,24 +1881,47 @@ function renderPositions() {
 let pairs = [];
 const pairPrice = (m) => { const q = prices[m.id]; return q ? q.mark || q.last : null; };
 
-// one row for the pair: values summed, entry and current ratio, combined PnL on the combined margin,
-// funding per hour for the two together (the long pays a positive rate, the short receives it)
-function pairRow(x, l, s) {
-  const ml = byId[l.market_id], ms = byId[s.market_id];
-  const marginOf = (p) => (p.leverage ? (Math.abs(p.size) * p.entry) / p.leverage : 0);
-  const margin = marginOf(l) + marginOf(s), upnl = l.upnl + s.upnl, pct = margin ? (upnl / margin) * 100 : 0;
-  const entry = l.entry / s.entry, pl = pairPrice(ml), ps = pairPrice(ms), now = pl && ps ? pl / ps : null;
+// The pair's own row and its two legs: each leg is the pair's quantity at the pair's entry price (the
+// market's whole position can be bigger), so PnL, value and margin are the pair's alone. Funding per hour
+// for the two together: the long pays a positive rate, the short receives it.
+function pairRow(x) {
+  const ml = byId[x.long_id], ms = byId[x.short_id];
+  if (!ml || !ms) return "";
+  const lev = (m) => { const s = account && account.settings && account.settings[m.id]; return (s && s.leverage) || m.default_leverage || 1; };
+  const pl = pairPrice(ml), ps = pairPrice(ms);
+  const legs = [[ml, x.long_qty, x.long_entry, pl, 1], [ms, x.short_qty, x.short_entry, ps, -1]].map(([m, qty, entry, mark, side]) =>
+    ({ m, qty, entry, mark, side, value: qty * (mark || entry), margin: qty * entry / lev(m), upnl: mark ? (mark - entry) * qty * side : 0 }));
+  const sum = (k) => legs[0][k] + legs[1][k];
+  const margin = sum("margin"), upnl = sum("upnl"), pct = margin ? (upnl / margin) * 100 : 0;
+  const entry = x.long_entry / x.short_entry, now = pl && ps ? pl / ps : null;
   const fmt = (r) => (r ? fp(r, { price_decimals: ratioDecimals(r) }) : "—");
   const fl = prices[ml.id] ? prices[ml.id].funding : 0, fs = prices[ms.id] ? prices[ms.id].funding : 0;
-  const fundH = (-l.value * fl + s.value * fs) / 100;
+  const fundH = (-legs[0].value * fl + legs[1].value * fs) / 100;
   const sym = `${ml.symbol}/${ms.symbol}`;
+  const legRow = (g) => `<tr class="leg"><td class="mk">${esc(g.m.symbol)}<small class="${g.side > 0 ? "up" : "down"}">${g.side > 0 ? "Long" : "Short"}</small></td>
+    <td class="r ${g.side > 0 ? "up" : "down"}">${fsize(g.qty, g.m)} <span class="unit-sym">${esc(g.m.symbol)}</span></td><td class="r">${fusd(g.value)}</td><td class="r">${fusd(g.margin)}</td>
+    <td class="r">${fp(g.entry, g.m)}</td><td class="r">${fp(g.mark, g.m)}</td><td></td><td class="r pnl ${cls(g.upnl)}">${fusd(g.upnl)}</td><td></td><td></td><td></td></tr>`;
   return `<tr class="pair-row"><td class="mk">${gotoBtn(sym)}<small class="up">${t("Coppia")}</small></td>
-    <td class="r"><span class="up">L ${esc(ml.symbol)}</span> / <span class="down">S ${esc(ms.symbol)}</span></td><td class="r main">${fusd(l.value + s.value)}</td>
+    <td class="r"><span class="up">L ${esc(ml.symbol)}</span> / <span class="down">S ${esc(ms.symbol)}</span></td><td class="r main">${fusd(sum("value"))}</td>
     <td class="r">${margin ? fusd(margin) : "—"}</td><td class="r" title="${t("Rapporto all'entrata")}">${fmt(entry)}</td><td class="r main" title="${t("Rapporto attuale")}">${fmt(now)}</td>
     <td class="r muted" title="${t("Funding all'ora delle due gambe insieme")}"><span class="${cls(fundH)}">${fsigned(fundH)}</span>/h</td>
     <td class="r pnl ${cls(upnl)}">${fusd(upnl)}<small>${isFinite(pct) ? fpct(pct) : ""}</small></td>
     <td class="r muted">—</td><td></td>
-    <td><span class="qbtn">${[50, 100].map((f) => `<button data-pclose="${x.id}" data-f="${f}"${f === 100 ? ` class="all" data-ck="pclose:${x.id}"` : ""}>${f}%</button>`).join("")}<button class="unpair" data-unpair="${x.id}" title="${t("Separa: le due posizioni restano aperte, non più come coppia")}">${t("Separa")}</button></span></td></tr>`;
+    <td><span class="qbtn">${[50, 100].map((f) => `<button data-pclose="${x.id}" data-f="${f}"${f === 100 ? ` class="all" data-ck="pclose:${x.id}"` : ""}>${f}%</button>`).join("")}<button class="unpair" data-unpair="${x.id}" title="${t("Separa: le due posizioni restano aperte, non più come coppia")}">${t("Separa")}</button></span></td></tr>`
+    + legs.map(legRow).join("");
+}
+
+// "+ Pair": a small list of every long/short combination, shown next to the button
+function openPairGroup(anchor) {
+  const list = account ? account.positions : [];
+  const longs = list.filter((p) => p.size > 0), shorts = list.filter((p) => p.size < 0);
+  const pop = $("#pairGroupPop");
+  pop.innerHTML = `<div class="caps muted">${t("Raggruppa in coppia")}</div>` + longs.flatMap((l) => shorts.map((s) =>
+    `<button data-group="${l.market_id}:${s.market_id}"><span class="up">Long ${esc(l.symbol)}</span> / <span class="down">Short ${esc(s.symbol)}</span></button>`)).join("");
+  pop.classList.remove("hidden");
+  const r = anchor.getBoundingClientRect();
+  pop.style.left = Math.min(r.left, innerWidth - pop.offsetWidth - 12) + "px";
+  pop.style.top = (r.bottom + 6 + pop.offsetHeight > innerHeight ? r.top - pop.offsetHeight - 6 : r.bottom + 6) + "px";
 }
 
 async function loadPairs() {
@@ -1897,13 +1931,10 @@ async function loadPairs() {
 }
 
 async function closePair(id, f) {
-  const x = pairs.find((p) => p.id === id);
-  if (!x) return;
-  const legs = [x.long_id, x.short_id];
-  const res = await Promise.allSettled(legs.map((mid) => api(`/close?market_id=${mid}&fraction=${f / 100}`, { method: "POST" })));
-  const bad = res.map((r, i) => (r.status === "rejected" ? `${byId[legs[i]].symbol}: ${r.reason.message}` : null)).filter(Boolean);
-  if (bad.length) toast(bad.join(" · "), true);
-  else toast(t("Chiusura {f}% della coppia inviata", { f }));
+  try {
+    await api(`/pairs/${encodeURIComponent(id)}/close?fraction=${f / 100}`, { method: "POST" });
+    toast(t("Chiusura {f}% della coppia inviata", { f }));
+  } catch (err) { toast(err.message, true); }
   loadOrders(true);
 }
 
@@ -2761,12 +2792,8 @@ function wire() {
     }
     const up = e.target.closest("[data-unpair]");
     if (up) { pairs = await api(`/pairs/${encodeURIComponent(up.dataset.unpair)}`, { method: "DELETE" }).catch((err) => { toast(err.message, true); return pairs; }); return renderPositions(); }
-    if (e.target.closest("#pairGroupBtn")) {
-      const [l, s] = $("#pairGroupSel").value.split(":").map(Number);
-      try { pairs = await api("/pairs", { method: "POST", body: JSON.stringify({ long_id: l, short_id: s }) }); renderPositions(); }
-      catch (err) { toast(err.message, true); }
-      return;
-    }
+    const gb = e.target.closest("#pairGroupBtn");
+    if (gb) { e.stopPropagation(); return openPairGroup(gb); }
     const v = e.target.closest("[data-psl]");
     if (v && info.trading) return editPositionStop(v);
     const r = e.target.closest("[data-reverse]");
@@ -3110,6 +3137,7 @@ function wireTrail() {
   $("#tkTrail").onchange = renderTicketTrail;
   wireTpLevels();
   wireBadges();
+  wirePairGroup();
   $("#mktSpread").onclick = openSpreadPicker;
   $("#alertCount").textContent = alerts.length || "";
   $("#tkReduce").addEventListener("change", renderTicketTrail);

@@ -546,14 +546,15 @@ async def pair_order(r: PairReq):
             if not done:
                 raise HTTPException(400, str(e))
             return {"ok": False, "error": str(e), "filled": done, "failed": {"market_id": o.market_id, "symbol": m.symbol}}
-        done.append({"market_id": o.market_id, "symbol": m.symbol, "side": o.side, "size": plan["size"]})
+        done.append({"market_id": o.market_id, "symbol": m.symbol, "side": o.side, "size": plan["size"], "price": plan["ref"]})
     engine.note(f"manual pair: long {done[0]['size']} {done[0]['symbol']} / short {done[1]['size']} {done[1]['symbol']}", "warning")
-    _add_pair(r.long_id, r.short_id)
+    _add_pair(r.long_id, r.short_id, done[0]["size"], done[1]["size"], done[0]["price"], done[1]["price"])
     return {"ok": True, "legs": done}
 
 
-# Which positions form a pair: Lighter only knows two separate positions, so LighterDeck keeps the record.
-# A pair lasts while its long leg is long and its short leg short; then it is dropped.
+# Pairs: Lighter keeps one position per market, so a pair's leg can be part of a bigger position (a WTI
+# long already open, plus the pair's WTI). LighterDeck records each pair's own quantities and entry prices;
+# a pair shrinks when its market's position gets smaller than its leg, and ends when a leg is gone or flips.
 PAIRS_FILE = config.DATA_DIR / "pairs.json"
 
 
@@ -568,22 +569,54 @@ def _save_pairs(pairs):
     PAIRS_FILE.write_text(json.dumps(pairs, indent=1))
 
 
-def _add_pair(long_id, short_id):
-    pairs = [p for p in _pairs() if p["long_id"] not in (long_id, short_id) and p["short_id"] not in (long_id, short_id)]
-    pairs.append({"id": f"{long_id}-{short_id}-{int(time.time())}", "long_id": long_id, "short_id": short_id, "at": time.time()})
+def _add_pair(long_id, short_id, long_qty, short_qty, long_entry, short_entry):
+    pairs = _pairs()
+    pairs.append({"id": f"{long_id}-{short_id}-{int(time.time() * 1000)}", "long_id": long_id, "short_id": short_id,
+                  "long_qty": long_qty, "short_qty": short_qty, "long_entry": long_entry, "short_entry": short_entry,
+                  "at": time.time()})
     _save_pairs(pairs)
+
+
+async def _legs_from_fills(p, positions):
+    """A pair recorded without its quantities (before they were kept): its legs are the fills on each market
+    in the 20 seconds before it was recorded (both legs go out within a second or two); without them, the whole position."""
+    for key, mid, side in (("long", p["long_id"], "buy"), ("short", p["short_id"], "sell")):
+        qty = cost = 0.0
+        try:
+            for f in await api.trades(market_id=mid):
+                if f["side"] == side and p["at"] * 1000 - 20000 <= f["ts"] <= p["at"] * 1000 + 5000:
+                    qty += f["size"]
+                    cost += f["size"] * f["price"]
+        except Exception as e:
+            log.info("pair %s: fills not read: %s", p["id"], e)
+        pos = positions.get(mid) or {}
+        p[f"{key}_qty"] = qty or abs(pos.get("size", 0))
+        p[f"{key}_entry"] = cost / qty if qty else pos.get("entry", 0)
 
 
 @app.get("/api/pairs")
 async def get_pairs():
-    sizes = {p["market_id"]: p["size"] for p in (engine.account or {}).get("positions", [])}
     pairs = _pairs()
     if engine.account is None:
         return pairs
-    live = [p for p in pairs if sizes.get(p["long_id"], 0) > 0 and sizes.get(p["short_id"], 0) < 0]
-    if len(live) != len(pairs):
-        _save_pairs(live)
-    return live
+    positions = {p["market_id"]: p for p in engine.account.get("positions", [])}
+    out, changed = [], False
+    for p in pairs:
+        if "long_qty" not in p:
+            await _legs_from_fills(p, positions)
+            changed = True
+        lp, sp = positions.get(p["long_id"]), positions.get(p["short_id"])
+        if not (lp and lp["size"] > 0 and sp and sp["size"] < 0):
+            changed = True
+            continue
+        lq, sq = min(p["long_qty"], lp["size"]), min(p["short_qty"], -sp["size"])
+        if (lq, sq) != (p["long_qty"], p["short_qty"]):
+            p["long_qty"], p["short_qty"] = lq, sq
+            changed = True
+        out.append(p)
+    if changed:
+        _save_pairs(out)
+    return out
 
 
 class PairGroupReq(BaseModel):
@@ -593,11 +626,12 @@ class PairGroupReq(BaseModel):
 
 @app.post("/api/pairs")
 async def group_pair(r: PairGroupReq):
-    """Group a long and a short position already open into a pair."""
-    sizes = {p["market_id"]: p["size"] for p in (engine.account or {}).get("positions", [])}
-    if not (sizes.get(r.long_id, 0) > 0 and sizes.get(r.short_id, 0) < 0):
+    """Group a long and a short position already open into a pair: their whole sizes, at their entry prices."""
+    positions = {p["market_id"]: p for p in (engine.account or {}).get("positions", [])}
+    lp, sp = positions.get(r.long_id), positions.get(r.short_id)
+    if not (lp and lp["size"] > 0 and sp and sp["size"] < 0):
         raise HTTPException(400, L("Serve una posizione long e una short aperte", "It needs an open long and an open short position"))
-    _add_pair(r.long_id, r.short_id)
+    _add_pair(r.long_id, r.short_id, lp["size"], -sp["size"], lp["entry"], sp["entry"])
     return await get_pairs()
 
 
@@ -605,6 +639,39 @@ async def group_pair(r: PairGroupReq):
 async def ungroup_pair(pair_id: str):
     _save_pairs([p for p in _pairs() if p["id"] != pair_id])
     return await get_pairs()
+
+
+@app.post("/api/pairs/{pair_id}/close")
+async def close_pair(pair_id: str, fraction: float = 1.0):
+    """Close a share of the pair: a reduce-only market order on each leg for that share of the pair's own
+    quantity, so the rest of a bigger position on the same market stays open."""
+    pairs = await get_pairs()
+    p = next((x for x in pairs if x["id"] == pair_id), None)
+    if not p:
+        raise HTTPException(400, L("Coppia non trovata", "Pair not found"))
+    f = min(max(fraction, 0.0), 1.0)
+    errors = []
+    for key, mid, sign in (("long", p["long_id"], 1), ("short", p["short_id"], -1)):
+        m = api.markets[mid]
+        size = round(p[f"{key}_qty"] * f, m.size_decimals)
+        if size <= 0:
+            continue
+        try:
+            try:
+                ref = risk.quote(mid, -sign)
+            except Blocked:
+                ref = feed.mark(mid)
+            await api.market_order(mid, -sign * size, ref, reduce_only=True)
+            p[f"{key}_qty"] = round(p[f"{key}_qty"] - size, m.size_decimals)
+        except Exception as e:
+            errors.append(f"{m.symbol}: {e}")
+    keep = [x for x in pairs if x["id"] != pair_id] + ([p] if p["long_qty"] > 0 and p["short_qty"] > 0 and f < 0.999 else [])
+    _save_pairs(keep)
+    engine.note(f"manual close {int(f * 100)}% of pair {api.markets[p['long_id']].symbol}/{api.markets[p['short_id']].symbol}"
+                + (f" ({'; '.join(errors)})" if errors else ""), "warning" if not errors else "error")
+    if errors:
+        raise HTTPException(400, "; ".join(errors))
+    return {"ok": True}
 
 
 # ---------- trailing stop on an open position ----------

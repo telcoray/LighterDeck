@@ -775,8 +775,12 @@ kbd { font-family: var(--mono); font-size: 9.5px; border: 1px solid var(--line-2
 .table tr.leg td:first-child { padding-left: 26px; }
 .table tr.leg td { color: var(--text-2); }
 .qbtn button.unpair { margin-left: 6px; color: var(--muted); }
-.btab-bar.pair-group { display: flex; align-items: center; gap: 8px; }
-.btab-bar.pair-group select { background: var(--bg); border: 1px solid var(--line-2); border-radius: 5px; color: var(--text-2); padding: 3px 6px; font-size: 11px; }
+.pair-group-btn { margin-left: 8px; height: 18px; padding: 0 6px; border-radius: 9px; border: 1px solid var(--line-2); color: var(--muted); font-size: 10px; font-weight: 400; }
+.pair-group-btn:hover { color: var(--text); border-color: var(--line-3); }
+.pair-pop { position: fixed; z-index: 30; min-width: 200px; max-height: 260px; overflow-y: auto; padding: 6px; background: var(--surface); border: 1px solid var(--line-3); border-radius: 8px; box-shadow: 0 12px 30px rgba(0,0,0,.45); }
+.pair-pop .caps { padding: 4px 8px 6px; }
+.pair-pop button { display: block; width: 100%; padding: 6px 8px; border-radius: 5px; text-align: left; font-size: 12px; }
+.pair-pop button:hover { background: var(--raised); }
 .table td small.tp-step { display: block; margin-bottom: 2px; font-size: 10px; color: var(--green); }
 
 /* theme switcher */
