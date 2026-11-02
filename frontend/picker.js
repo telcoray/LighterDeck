@@ -26,6 +26,9 @@ let recents = load("recents", []);
 
 function pickerRows() {
   const q = $("#pkSearch").value.trim().toUpperCase();
+  // "ETH/BTC" (or ETH-BTC, ETH:BTC): the spread chart of the two
+  const pm = q.match(/^([A-Z0-9]+)\s*[/:-]\s*([A-Z0-9]+)$/);
+  if (pm && pairOf(`${pm[1]}/${pm[2]}`)) return [{ symbol: `${pm[1]}/${pm[2]}`, pair: pairOf(`${pm[1]}/${pm[2]}`), id: -1 }];
   let list = markets.filter((m) => {
     if (q) return m.symbol.toUpperCase().includes(q) || (m.name || "").toUpperCase().includes(q);
     if (pk.tab === "favs" && !favs.includes(m.symbol)) return false;
@@ -68,9 +71,10 @@ function renderPickerChrome() {
   $("#pkCats").innerHTML = `<button data-cat="" class="${pk.cat ? "" : "active"}">${t("Tutte")}</button>` +
     cats.map(([k, label]) => `<button data-cat="${k}" class="${pk.cat === k ? "active" : ""}">${t(label)}</button>`).join("");
   requestAnimationFrame(updateCatArrows);
-  $("#pkRecents").innerHTML = recents.filter((s) => bySymbol[s]).map((s) =>
-    `<span class="chip" data-sym="${s}">${ico(s, "sm")}${esc(s)}<button data-unrecent="${s}" title="${t("Rimuovi")}">×</button></span>`).join("");
-  $("#pkRecentsRow").classList.toggle("hidden", !recents.some((s) => bySymbol[s]));
+  const known = (s) => bySymbol[s] || pairOf(s);
+  $("#pkRecents").innerHTML = recents.filter(known).map((s) =>
+    `<span class="chip" data-sym="${s}">${ico(s.split("/")[0], "sm")}${esc(s)}<button data-unrecent="${s}" title="${t("Rimuovi")}">×</button></span>`).join("");
+  $("#pkRecentsRow").classList.toggle("hidden", !recents.some(known));
   $("#pkSort").value = pk.sort.key;
   $("#pkDir").textContent = pk.sort.dir < 0 ? "↓" : "↑";
   $$("#pkViews button").forEach((b) => b.classList.toggle("active", b.dataset.view === pk.view));
@@ -86,6 +90,14 @@ function renderPickerList() {
   const box = $("#pkList");
   box.className = "pk-list " + pk.view;
   if (!pk.rows.length) { box.innerHTML = `<div class="empty">${t("Nessun mercato trovato.")}</div>`; return; }
+  if (pk.rows[0].pair) {
+    const [a, b] = pk.rows[0].pair, pa = prices[a.id] || {}, pb = prices[b.id] || {};
+    const r = (pa.last || pa.mark) / (pb.last || pb.mark);
+    box.className = "pk-list list";
+    box.innerHTML = `<div class="pk-row pk-pair sel" data-i="0"><span></span><span class="sym"><span class="pair-ico">${ico(a.symbol)}${ico(b.symbol)}</span><b>${esc(pk.rows[0].symbol)}</b><small>${t("Spread: {a} diviso {b}", { a: a.symbol, b: b.symbol })}</small></span>
+      <span class="r num">${r ? fp(r, { price_decimals: ratioDecimals(r) }) : "—"}</span><span></span><span></span><span></span><span></span></div>`;
+    return;
+  }
   const star = (m) => `<button class="star${favs.includes(m.symbol) ? " on" : ""}" data-star="${m.symbol}" title="${t("Preferito")}">★</button>`;
   if (pk.view === "grid") {
     box.innerHTML = pk.rows.map((m, i) => {

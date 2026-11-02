@@ -265,6 +265,11 @@ body.reordering { cursor: grabbing; user-select: none; }
 .legend .ohlc { font-family: var(--mono); font-size: 11px; color: var(--muted); }
 .legend .ohlc span { margin-right: 6px; }
 .legend .ohlc em { font-style: normal; }
+.legend .zval { margin-left: 8px; color: var(--muted); }
+.legend .zval b { color: var(--text-2); font-weight: 500; }
+.legend .zval b.hot { color: var(--amber); }
+.pair-ico { display: inline-flex; }
+.pair-ico .mk-ico + .mk-ico { margin-left: -6px; box-shadow: 0 0 0 2px var(--bg); }
 .ctx-badges { display: flex; align-items: center; gap: 6px; flex: none; }
 .ctx-badges:empty { display: none; }
 .chart-ctx { position: absolute; top: 32px; left: 12px; right: 84px; z-index: 2; flex-wrap: wrap; }

@@ -131,6 +131,20 @@ function ico(sym, size = "") {
 }
 const fsize = (v, m) => Math.abs(v).toLocaleString("en-US", { maximumFractionDigits: m ? m.size_decimals : 4 });
 
+// "ETH/BTC": a spread chart, one market's price over another's; "ETH-BTC" in the address
+const pairOf = (sym) => {
+  if (!sym || !sym.includes("/")) return null;
+  const [a, b] = sym.split("/");
+  return bySymbol[a] && bySymbol[b] && a !== b ? [bySymbol[a], bySymbol[b]] : null;
+};
+const ratioDecimals = (r) => Math.min(6, Math.max(2, Math.ceil(4 - Math.log10(r))));
+const Z_LEN = 50; // z-score: mean and standard deviation of the last 50 closes
+function zStats(closes) {
+  const mean = closes.reduce((s, v) => s + v, 0) / closes.length;
+  const sd = Math.sqrt(closes.reduce((s, v) => s + (v - mean) ** 2, 0) / closes.length);
+  return { mean, sd };
+}
+
 // ================= charts =================
 class Panel {
   constructor(idx) {
@@ -193,8 +207,11 @@ class Panel {
 
   get cfg() { return panelCfg[this.idx]; }
   get market() { return bySymbol[this.cfg.symbol]; }
+  get pair() { return pairOf(this.cfg.symbol); }
 
   async load() {
+    if (this.pair) return this.loadPair();
+    this.clearZ();
     const m = this.market;
     if (!m) return;
     const d = decimals(m);
@@ -222,10 +239,13 @@ class Panel {
   }
 
   renderLegend() {
-    const m = this.market;
+    const pair = this.pair;
+    const m = this.market || (pair && { price_decimals: this.pairDec || 6 });
     if (this.ttlFor !== this.cfg.symbol + this.cfg.tf) { // avoid reloading the logo on every tick
       this.ttlFor = this.cfg.symbol + this.cfg.tf;
-      $(".ttl", this.el).innerHTML = `${ico(this.cfg.symbol, "sm")}<b>${esc(this.cfg.symbol)}</b> · ${tfLabel(this.cfg.tf)} · Lighter`;
+      $(".ttl", this.el).innerHTML = pair
+        ? `<span class="pair-ico">${ico(pair[0].symbol, "sm")}${ico(pair[1].symbol, "sm")}</span><b>${esc(this.cfg.symbol)}</b> · ${tfLabel(this.cfg.tf)} · Spread`
+        : `${ico(this.cfg.symbol, "sm")}<b>${esc(this.cfg.symbol)}</b> · ${tfLabel(this.cfg.tf)} · Lighter`;
     }
     const b = this.hover || this.last;
     if (!b) { $(".ohlc", this.el).textContent = ""; return; }
@@ -234,10 +254,105 @@ class Panel {
     $(".ohlc", this.el).innerHTML =
       `<span>O<em class="${c}">${fp(b.open, m)}</em></span><span>H<em class="${c}">${fp(b.high, m)}</em></span>` +
       `<span>L<em class="${c}">${fp(b.low, m)}</em></span><span>C<em class="${c}">${fp(b.close, m)}</em></span>` +
-      `<em class="${c}">${ch >= 0 ? "+" : ""}${fp(ch, m).replace("—", "0")} (${fpct(pct)})</em>`;
+      `<em class="${c}">${ch >= 0 ? "+" : ""}${fp(ch, m).replace("—", "0")} (${fpct(pct)})</em>` +
+      (pair && this.z !== undefined && this.z !== null ? `<span class="zval" title="${t("Distanza dalla media delle ultime {n} candele, in deviazioni standard", { n: Z_LEN })}">z <b class="${Math.abs(this.z) >= 2 ? "hot" : ""}">${this.z >= 0 ? "+" : "−"}${Math.abs(this.z).toFixed(2)}</b></span>` : "");
+  }
+
+  // ---------- spread chart: candles of A / B, z-score bands ----------
+  async loadPair() {
+    const [a, b] = this.pair;
+    const token = (this.loadToken = Symbol());
+    this.last = null;
+    if (this.loadedSym !== this.cfg.symbol) {
+      this.loadedSym = this.cfg.symbol;
+      this.data = new Map();
+      this.series.setData([]);
+      this.vol.setData([]);
+      this.fills = [];
+      this.fillBars = new Map();
+      this.eventBars = new Map();
+      this.series.setMarkers([]);
+      $(".chart-ctx", this.el).innerHTML = "";
+      $(".chart-ctx", this.el).dataset.html = "";
+    }
+    const get = (m) => api(`/candles?market_id=${m.id}&resolution=${this.cfg.tf}&count=600`).catch((e) => { toast(e.message, true); return []; });
+    const [ca, cb] = await Promise.all([get(a), get(b)]);
+    if (token !== this.loadToken) return;
+    // bars both markets have; a ratio's true high and low aren't known, so they come from the bar's
+    // open, close and the two highs and lows over each other
+    const byTime = new Map(cb.map((c) => [c.time, c]));
+    const candles = [];
+    for (const x of ca) {
+      const y = byTime.get(x.time);
+      if (!y || !y.open || !y.close || !y.high || !y.low) continue;
+      const o = x.open / y.open, c = x.close / y.close, h = x.high / y.high, l = x.low / y.low;
+      candles.push({ time: x.time, open: o, close: c, high: Math.max(o, c, h, l), low: Math.min(o, c, h, l) });
+    }
+    const d = (this.pairDec = candles.length ? ratioDecimals(candles[candles.length - 1].close) : 6);
+    this.series.applyOptions({ priceFormat: { type: "price", precision: d, minMove: 1 / 10 ** d } });
+    this.data = new Map(candles.map((c) => [c.time, c]));
+    this.series.setData(candles);
+    this.vol.setData([]);
+    this.last = candles[candles.length - 1] || null;
+    this.drawZ();
+    this.drawLines();
+    this.renderLegend();
+  }
+
+  clearZ() {
+    for (const s of this.zSeries || []) this.chart.removeSeries(s);
+    this.zSeries = null;
+    this.z = null;
+  }
+
+  // mean and ±2 standard deviations of the last Z_LEN closes, at every bar
+  drawZ() {
+    this.clearZ();
+    if (!this.pair || !chartEls.zscore) return;
+    const d = this.pairDec || 6, muted = cssVar("--muted");
+    const line = (style, title) => this.chart.addLineSeries({ color: muted, lineWidth: 1, lineStyle: style, title, priceLineVisible: false,
+      lastValueVisible: false, crosshairMarkerVisible: false, priceFormat: { type: "price", precision: d, minMove: 1 / 10 ** d } });
+    this.zSeries = [line(2, ""), line(1, "+2σ"), line(1, "−2σ")];
+    const bars = [...this.data.values()], rows = [[], [], []];
+    for (let i = Z_LEN - 1; i < bars.length; i++) {
+      const { mean, sd } = zStats(bars.slice(i - Z_LEN + 1, i + 1).map((x) => x.close));
+      rows[0].push({ time: bars[i].time, value: mean });
+      rows[1].push({ time: bars[i].time, value: mean + 2 * sd });
+      rows[2].push({ time: bars[i].time, value: mean - 2 * sd });
+    }
+    this.zSeries.forEach((s, k) => s.setData(rows[k]));
+    this.updateZ();
+  }
+
+  // the live bar moves the last point of the bands and the z value in the legend
+  updateZ() {
+    if (!this.zSeries || !this.last) { this.z = null; return; }
+    const closes = [...this.data.values()].slice(-Z_LEN).map((x) => x.close);
+    if (closes.length < Z_LEN) { this.z = null; return; }
+    const { mean, sd } = zStats(closes), time = this.last.time;
+    this.zSeries[0].update({ time, value: mean });
+    this.zSeries[1].update({ time, value: mean + 2 * sd });
+    this.zSeries[2].update({ time, value: mean - 2 * sd });
+    this.z = sd ? (this.last.close - mean) / sd : 0;
+  }
+
+  tickPair() {
+    const [a, b] = this.pair;
+    const pa = prices[a.id], pb = prices[b.id];
+    const xa = pa && (pa.last || pa.mark), xb = pb && (pb.last || pb.mark);
+    if (!xa || !xb || !this.last) return;
+    const price = xa / xb;
+    const barTime = barStart(this.cfg.tf, Math.floor(Date.now() / 1000));
+    if (barTime > this.last.time) this.last = { time: barTime, open: price, high: price, low: price, close: price };
+    else this.last = { ...this.last, close: price, high: Math.max(this.last.high, price), low: Math.min(this.last.low, price) };
+    this.data.set(this.last.time, this.last);
+    this.series.update(this.last);
+    this.updateZ();
+    if (!this.hover) this.renderLegend();
   }
 
   tick() {
+    if (this.pair) return this.tickPair();
     const m = this.market;
     const p = m && prices[m.id];
     if (!p || !this.last) return;
@@ -636,9 +751,9 @@ function savePanels() { store("panels", panelCfg); }
 // ---------- Chart elements menu: which lines and marks every chart draws ----------
 const CHART_ELEMENTS = [
   ["orders", "Linee ordini"], ["stop", "Stop gestito"], ["position", "Linea posizione"],
-  ["liq", "Prezzo di liquidazione"], ["mark", "Linea prezzo mark"], ["events", "Eventi macro"], ["fills", "I tuoi fill"], ["alerts", "Alert di prezzo"], ["preview", "Anteprima ticket"],
+  ["liq", "Prezzo di liquidazione"], ["mark", "Linea prezzo mark"], ["events", "Eventi macro"], ["fills", "I tuoi fill"], ["alerts", "Alert di prezzo"], ["zscore", "Z-score degli spread"], ["preview", "Anteprima ticket"],
 ];
-let chartEls = { orders: true, stop: true, position: true, liq: true, mark: false, events: true, fills: true, alerts: true, preview: true, ...load("chartEls", {}) };
+let chartEls = { orders: true, stop: true, position: true, liq: true, mark: false, events: true, fills: true, alerts: true, zscore: true, preview: true, ...load("chartEls", {}) };
 let openOrders = {}; // market id -> open orders on Lighter, shared by the chart lines and the Orders tab
 const fade = (c) => (/^#[0-9a-f]{6}$/i.test(c) ? c + "b0" : c); // hex colour at ~70% for provisional lines
 const orderKind = (o) => (/stop/i.test(o.type) ? "SL" : /take/i.test(o.type) ? "TP" : "LIMIT");
@@ -654,6 +769,7 @@ function toggleChartEl(k) {
   store("chartEls", chartEls);
   renderChartEls();
   panels.forEach((p) => { p.drawLines(); p.drawMarkers(); });
+  if (k === "zscore") panels.forEach((p) => { p.drawZ(); p.renderLegend(); });
   if (k === "preview") updateTicketSummary();
   if (k === "orders" && chartEls.orders) fetchOpenOrders().catch(() => {});
   if (k === "fills") panels.forEach((p) => p.loadFills(true));
@@ -723,15 +839,23 @@ function setActive(i) {
 
 // browser tab: last price of the selected chart, like Lighter's own tab
 function renderTitle() {
+  const pr = activePair();
+  if (pr) {
+    const pa = prices[pr[0].id], pb = prices[pr[1].id], xa = pa && (pa.last || pa.mark), xb = pb && (pb.last || pb.mark);
+    document.title = xa && xb ? `${fp(xa / xb, { price_decimals: ratioDecimals(xa / xb) })} • ${pr[0].symbol}/${pr[1].symbol} • LighterDeck` : "LighterDeck";
+    return;
+  }
   const m = activeMarket(), q = m && prices[m.id];
   const px = q && (q.last || q.mark);
   document.title = px ? `${fp(px, m)} • ${m.symbol} • LighterDeck` : "LighterDeck";
 }
 
-const activeMarket = () => bySymbol[panelCfg[activeIdx].symbol];
+// a spread chart's ticket, order book and calendar follow its first market
+const activeMarket = () => { const s = panelCfg[activeIdx].symbol; return bySymbol[s] || (pairOf(s) || [])[0]; };
+const activePair = () => pairOf(panelCfg[activeIdx].symbol);
 
 function setSymbol(sym) {
-  if (!bySymbol[sym]) return;
+  if (!bySymbol[sym] && !pairOf(sym)) return;
   panelCfg[activeIdx].symbol = sym;
   savePanels();
   panels[activeIdx] && panels[activeIdx].load();
@@ -741,6 +865,8 @@ function setSymbol(sym) {
 
 // ================= market bar / ticker =================
 function renderMarketBar() {
+  const pr = activePair();
+  if (pr) return renderPairBar(pr);
   const m = activeMarket();
   if (!m) return;
   $("#mkSym").textContent = m.symbol;
@@ -761,6 +887,26 @@ function renderMarketBar() {
   if (fundView.open && $("#fundPop").dataset.mid !== String(m.id)) { $("#fundPop").dataset.mid = m.id; loadFundingHistory(); }
   $("#stOi").textContent = fcompact(p.oi);
   setBadges($("#mkCtx"), m);
+}
+
+// a spread in the market bar: the ratio and its 24h change; the rest belongs to each market
+function renderPairBar([a, b]) {
+  const sym = `${a.symbol}/${b.symbol}`;
+  $("#mkSym").textContent = sym;
+  if ($("#mkIco").dataset.sym !== a.symbol) {
+    $("#mkIco").outerHTML = ico(a.symbol).replace('<i class="mk-ico"', `<i class="mk-ico" id="mkIco" data-sym="${a.symbol}"`);
+  }
+  const pa = prices[a.id], pb = prices[b.id];
+  const xa = pa && (pa.last || pa.mark), xb = pb && (pb.last || pb.mark);
+  const r = xa && xb ? xa / xb : null;
+  $("#stMark").textContent = r ? fp(r, { price_decimals: ratioDecimals(r) }) : "—";
+  const chg = pa && pb ? ((1 + pa.change / 100) / (1 + pb.change / 100) - 1) * 100 : null;
+  const ch = $("#stChg");
+  ch.textContent = chg !== null ? fpct(chg) : "—";
+  ch.className = chg !== null ? cls(chg) : "";
+  for (const id of ["#stVol", "#stIdx", "#stFund", "#stOi"]) { $(id).textContent = "—"; $(id).className = ""; }
+  $("#mkCtx").innerHTML = "";
+  $("#mkCtx").dataset.html = "";
 }
 
 // ---------- context badges: what matters about a market right now ----------
@@ -2308,11 +2454,14 @@ const PATH_OF = Object.fromEntries(Object.entries(ROUTES).map(([path, view]) => 
 let curView = "trade";
 function routeFromUrl() {
   const [, page, sym] = location.pathname.split("/");
-  return { view: ROUTES[page] || null, sym: sym ? decodeURIComponent(sym).toUpperCase() : null };
+  return { view: ROUTES[page] || null, sym: sym ? symFromUrl(decodeURIComponent(sym).toUpperCase()) : null };
 }
+// the market in the address: a symbol, or "ETH-BTC" for a spread
+const symFromUrl = (s) => (s && s.includes("-") && pairOf(s.replace("-", "/")) ? s.replace("-", "/") : s);
 function syncUrl(push) {
-  const m = activeMarket();
-  const path = "/" + PATH_OF[curView] + (curView === "trade" && m ? "/" + encodeURIComponent(m.symbol) : "");
+  const m = activeMarket(), pr = activePair();
+  const name = pr ? `${pr[0].symbol}-${pr[1].symbol}` : m && m.symbol;
+  const path = "/" + PATH_OF[curView] + (curView === "trade" && name ? "/" + encodeURIComponent(name) : "");
   if (location.pathname !== path) history[push ? "pushState" : "replaceState"](null, "", path + location.search);
 }
 
@@ -3270,7 +3419,7 @@ async function init() {
   document.addEventListener("click", () => $("#themeMenu").classList.add("hidden"));
   // the address decides the page and the market: /trade/WTI opens WTI on the selected chart
   const route = routeFromUrl();
-  if (route.sym && bySymbol[route.sym]) panelCfg[activeIdx].symbol = route.sym;
+  if (route.sym && (bySymbol[route.sym] || pairOf(route.sym))) panelCfg[activeIdx].symbol = route.sym;
   buildCharts();
   toggleBook(showBook);
   renderAccount();
@@ -3278,7 +3427,7 @@ async function init() {
   syncUrl(false);
   window.addEventListener("popstate", () => {
     const r = routeFromUrl();
-    if (r.sym && bySymbol[r.sym] && activeMarket() && activeMarket().symbol !== r.sym) setSymbol(r.sym);
+    if (r.sym && (bySymbol[r.sym] || pairOf(r.sym)) && panelCfg[activeIdx].symbol !== r.sym) setSymbol(r.sym);
     switchView(r.view || "trade", { fromUrl: true });
   });
   renderSessions();

@@ -207,7 +207,7 @@ const EN = {
     "Turn automations on?\n\nFrom now on the server can send real orders according to the rules.",
   // ---- market picker ----
   "Seleziona mercato": "Select market",
-  "Cerca mercato o nome…": "Search market or name…",
+  "Cerca mercato o nome… (ETH/BTC per uno spread)": "Search market or name… (ETH/BTC for a spread)",
   "Chiudi (Esc)": "Close (Esc)",
   "Recenti": "Recent",
   "Rimuovi": "Remove",
@@ -274,6 +274,9 @@ const EN = {
   "Breakeven a PnL +%": "Breakeven at PnL +%",
   "Parte da PnL +%": "Starts at PnL +%",
   "% prezzo": "% price",
+  "Z-score degli spread": "Spread z-score",
+  "Distanza dalla media delle ultime {n} candele, in deviazioni standard": "Distance from the mean of the last {n} bars, in standard deviations",
+  "Spread: {a} diviso {b}": "Spread: {a} divided by {b}",
   "{ev} tra {d}": "{ev} in {d}",
   "{ev} {d} fa": "{ev} {d} ago",
   "Evento ad alto impatto per {sym}": "High-impact event for {sym}",
