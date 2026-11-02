@@ -76,7 +76,7 @@ let panelCfg = load("panels", [
 ]);
 let layout = load("layout", "4");
 let activeIdx = Math.min(load("active", 0), 3);
-let favs = load("favs", ["BTC", "ETH", "SOL", "HYPE", "XRP"]);
+let favs = load("favs", ["BTC", "ETH", "LIT", "WTI", "XAU"]); // first visit
 let showBook = load("book", false);
 const ticket = { side: "buy", kind: "market" };
 
