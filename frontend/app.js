@@ -1393,6 +1393,7 @@ async function executePair(byMouse) {
     const r = await api("/pair_order", { method: "POST", body: JSON.stringify(b) });
     if (r.ok) {
       ticketMsg(t("Eseguito: long {a} {qa} / short {b} {qb}.", { a: r.legs[0].symbol, qa: r.legs[0].size, b: r.legs[1].symbol, qb: r.legs[1].size }), "ok");
+      switchBottom("positions");
       if (byMouse) keyboardTip();
     } else pairLegFailed(r);
     loadOrders(true);
@@ -1836,14 +1837,25 @@ function renderPositions() {
     box.innerHTML = `<div class="empty">${info.trading ? t("Nessuna posizione aperta.") : t("Sola lettura: collega un'API key per vedere posizioni e ordini.")}</div>`;
     return;
   }
-  box.innerHTML = `<table class="table"><thead><tr><th>${t("Mercato")}</th><th class="r">Size</th><th class="r">${t("Valore")}</th><th class="r" title="${t("Il tuo capitale impegnato: valore all'entrata diviso la leva.")}">${t("Margine")}</th><th class="r">Entry</th><th class="r">Mark</th><th class="r">${t("Liquidazione")}</th><th class="r" title="${t("La percentuale è calcolata sul margine iniziale.")}">${t("PnL non realizzato")}</th><th class="r">TP / SL</th><th>${t("Trailing")}</th><th>${t("Chiudi a mercato")}</th></tr></thead><tbody>${
-    list.map((p) => {
+  const sizeOf = (id) => { const p = list.find((x) => x.market_id === id); return p ? p.size : 0; };
+  const live = pairs.filter((x) => sizeOf(x.long_id) > 0 && sizeOf(x.short_id) < 0);
+  const inPair = new Set(live.flatMap((x) => [x.long_id, x.short_id]));
+  const longs = list.filter((p) => p.size > 0 && !inPair.has(p.market_id)), shorts = list.filter((p) => p.size < 0 && !inPair.has(p.market_id));
+  const groupBar = longs.length && shorts.length ? `<div class="btab-bar pair-group"><span class="muted">${t("Raggruppa in coppia")}</span>
+    <select id="pairGroupSel">${longs.flatMap((l) => shorts.map((s) => `<option value="${l.market_id}:${s.market_id}">Long ${esc(l.symbol)} / Short ${esc(s.symbol)}</option>`)).join("")}</select>
+    <button class="xbtn" id="pairGroupBtn">${t("Raggruppa")}</button></div>` : "";
+  const byMarket = (id) => list.find((x) => x.market_id === id);
+  const rows = [...live.flatMap((x) => [pairRow(x, byMarket(x.long_id), byMarket(x.short_id)), byMarket(x.long_id), byMarket(x.short_id)]),
+    ...list.filter((p) => !inPair.has(p.market_id))];
+  box.innerHTML = groupBar + `<table class="table"><thead><tr><th>${t("Mercato")}</th><th class="r">Size</th><th class="r">${t("Valore")}</th><th class="r" title="${t("Il tuo capitale impegnato: valore all'entrata diviso la leva.")}">${t("Margine")}</th><th class="r">Entry</th><th class="r">Mark</th><th class="r">${t("Liquidazione")}</th><th class="r" title="${t("La percentuale è calcolata sul margine iniziale.")}">${t("PnL non realizzato")}</th><th class="r">TP / SL</th><th>${t("Trailing")}</th><th>${t("Chiudi a mercato")}</th></tr></thead><tbody>${
+    rows.map((p) => {
+      if (typeof p === "string") return p; // a pair's own row
       const m = byId[p.market_id];
       const mark = prices[p.market_id] ? prices[p.market_id].mark : 0;
       // PnL % on the initial margin (entry value / leverage), as Lighter and the ticket show it
       const margin = p.leverage ? (Math.abs(p.size) * p.entry) / p.leverage : 0;
       const pct = margin ? (p.upnl / margin) * 100 : 0;
-      return `<tr><td class="mk">${gotoBtn(p.symbol)}<small class="${p.size > 0 ? "up" : "down"}">${p.size > 0 ? "Long" : "Short"}</small></td>
+      return `<tr class="${inPair.has(p.market_id) ? "leg" : ""}"><td class="mk">${gotoBtn(p.symbol)}<small class="${p.size > 0 ? "up" : "down"}">${p.size > 0 ? "Long" : "Short"}</small></td>
         <td class="r ${p.size > 0 ? "up" : "down"}">${fsize(p.size, m)} <span class="unit-sym">${esc(p.symbol)}</span></td><td class="r main">${fusd(p.value)}</td>
         <td class="r">${margin ? fusd(margin) : "—"}${p.leverage ? `<small class="pos-lev">${p.leverage}x${p.cross === false ? " isolated" : ""}</small>` : ""}</td><td class="r">${fp(p.entry, m)}</td><td class="r main">${fp(mark, m)}</td>
         <td class="r liq">${fp(p.liq, m)}</td><td class="r pnl ${cls(p.upnl)}">${fusd(p.upnl)}<small>${isFinite(pct) ? fpct(pct) : ""}</small></td>
@@ -1854,6 +1866,47 @@ function renderPositions() {
   markConfirm();
 }
 
+// ---------- pairs: a long and a short position that go together ----------
+let pairs = [];
+const pairPrice = (m) => { const q = prices[m.id]; return q ? q.mark || q.last : null; };
+
+// one row for the pair: values summed, entry and current ratio, combined PnL on the combined margin,
+// funding per hour for the two together (the long pays a positive rate, the short receives it)
+function pairRow(x, l, s) {
+  const ml = byId[l.market_id], ms = byId[s.market_id];
+  const marginOf = (p) => (p.leverage ? (Math.abs(p.size) * p.entry) / p.leverage : 0);
+  const margin = marginOf(l) + marginOf(s), upnl = l.upnl + s.upnl, pct = margin ? (upnl / margin) * 100 : 0;
+  const entry = l.entry / s.entry, pl = pairPrice(ml), ps = pairPrice(ms), now = pl && ps ? pl / ps : null;
+  const fmt = (r) => (r ? fp(r, { price_decimals: ratioDecimals(r) }) : "—");
+  const fl = prices[ml.id] ? prices[ml.id].funding : 0, fs = prices[ms.id] ? prices[ms.id].funding : 0;
+  const fundH = (-l.value * fl + s.value * fs) / 100;
+  const sym = `${ml.symbol}/${ms.symbol}`;
+  return `<tr class="pair-row"><td class="mk">${gotoBtn(sym)}<small class="up">${t("Coppia")}</small></td>
+    <td class="r"><span class="up">L ${esc(ml.symbol)}</span> / <span class="down">S ${esc(ms.symbol)}</span></td><td class="r main">${fusd(l.value + s.value)}</td>
+    <td class="r">${margin ? fusd(margin) : "—"}</td><td class="r" title="${t("Rapporto all'entrata")}">${fmt(entry)}</td><td class="r main" title="${t("Rapporto attuale")}">${fmt(now)}</td>
+    <td class="r muted" title="${t("Funding all'ora delle due gambe insieme")}"><span class="${cls(fundH)}">${fsigned(fundH)}</span>/h</td>
+    <td class="r pnl ${cls(upnl)}">${fusd(upnl)}<small>${isFinite(pct) ? fpct(pct) : ""}</small></td>
+    <td class="r muted">—</td><td></td>
+    <td><span class="qbtn">${[50, 100].map((f) => `<button data-pclose="${x.id}" data-f="${f}"${f === 100 ? ` class="all" data-ck="pclose:${x.id}"` : ""}>${f}%</button>`).join("")}<button class="unpair" data-unpair="${x.id}" title="${t("Separa: le due posizioni restano aperte, non più come coppia")}">${t("Separa")}</button></span></td></tr>`;
+}
+
+async function loadPairs() {
+  if (!info.trading) { pairs = []; return; }
+  const list = await api("/pairs").catch(() => null);
+  if (list && JSON.stringify(list) !== JSON.stringify(pairs)) { pairs = list; renderPositions(); }
+}
+
+async function closePair(id, f) {
+  const x = pairs.find((p) => p.id === id);
+  if (!x) return;
+  const legs = [x.long_id, x.short_id];
+  const res = await Promise.allSettled(legs.map((mid) => api(`/close?market_id=${mid}&fraction=${f / 100}`, { method: "POST" })));
+  const bad = res.map((r, i) => (r.status === "rejected" ? `${byId[legs[i]].symbol}: ${r.reason.message}` : null)).filter(Boolean);
+  if (bad.length) toast(bad.join(" · "), true);
+  else toast(t("Chiusura {f}% della coppia inviata", { f }));
+  loadOrders(true);
+}
+
 // open orders on the markets in use (positions + charts); fresh skips the server's few-second cache
 async function fetchOpenOrders(fresh = false) {
   if (!info.trading) { openOrders = {}; panels.forEach((p) => p.drawLines()); return []; }
@@ -1862,6 +1915,7 @@ async function fetchOpenOrders(fresh = false) {
   openOrders = {};
   for (const o of list) (openOrders[o.market_id] ||= []).push(o);
   panels.forEach((p) => { p.drawLines(); p.loadFills(fresh); });
+  await loadPairs();
   renderPositions();
   return list;
 }
@@ -1895,7 +1949,7 @@ async function loadTrades() {
 const gotoBtn = (sym) => `<button class="goto" data-goto="${esc(sym)}" title="${t("Apri il grafico di {sym}", { sym: esc(sym) })}">${esc(sym)}</button>`;
 
 function goToMarket(sym) {
-  if (!bySymbol[sym]) return;
+  if (!bySymbol[sym] && !pairOf(sym)) return;
   const shown = panels.find((p) => panelCfg[p.idx].symbol === sym);
   if (shown) setActive(shown.idx);
   else setSymbol(sym);
@@ -2699,6 +2753,20 @@ function wire() {
   // bottom tables
   $$("#bottomTabs button").forEach((b) => (b.onclick = () => switchBottom(b.dataset.btab)));
   $("#btab-positions").onclick = async (e) => {
+    const pc = e.target.closest("[data-pclose]");
+    if (pc) {
+      const f = +pc.dataset.f;
+      if (f === 100 && !askConfirm(`pclose:${pc.dataset.pclose}`, t("Chiudi la coppia"))) return;
+      return closePair(pc.dataset.pclose, f);
+    }
+    const up = e.target.closest("[data-unpair]");
+    if (up) { pairs = await api(`/pairs/${encodeURIComponent(up.dataset.unpair)}`, { method: "DELETE" }).catch((err) => { toast(err.message, true); return pairs; }); return renderPositions(); }
+    if (e.target.closest("#pairGroupBtn")) {
+      const [l, s] = $("#pairGroupSel").value.split(":").map(Number);
+      try { pairs = await api("/pairs", { method: "POST", body: JSON.stringify({ long_id: l, short_id: s }) }); renderPositions(); }
+      catch (err) { toast(err.message, true); }
+      return;
+    }
     const v = e.target.closest("[data-psl]");
     if (v && info.trading) return editPositionStop(v);
     const r = e.target.closest("[data-reverse]");
@@ -3196,6 +3264,7 @@ function setPaper(on) {
   account = Paper.on ? Paper.account() : null;
   stops = Paper.on ? Paper.stops() : {};
   exits = Paper.on ? Paper.exits() : {};
+  pairs = [];
   openOrders = {};
   logSeq = 0;
   for (const box of [$("#btab-log"), $("#activityLog")]) box.innerHTML = `<div class="empty">${t("Nessuna attività.")}</div>`;

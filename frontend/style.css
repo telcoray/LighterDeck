@@ -771,6 +771,12 @@ kbd { font-family: var(--mono); font-size: 9.5px; border: 1px solid var(--line-2
 .tp-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 2px; }
 .tp-foot label { display: flex; align-items: center; gap: 6px; color: var(--text-2); font-size: 11px; cursor: pointer; }
 .tp-levels .trail-hint:empty { display: none; }
+.table tr.pair-row td { background: color-mix(in srgb, var(--green) 4%, transparent); }
+.table tr.leg td:first-child { padding-left: 26px; }
+.table tr.leg td { color: var(--text-2); }
+.qbtn button.unpair { margin-left: 6px; color: var(--muted); }
+.btab-bar.pair-group { display: flex; align-items: center; gap: 8px; }
+.btab-bar.pair-group select { background: var(--bg); border: 1px solid var(--line-2); border-radius: 5px; color: var(--text-2); padding: 3px 6px; font-size: 11px; }
 .table td small.tp-step { display: block; margin-bottom: 2px; font-size: 10px; color: var(--green); }
 
 /* theme switcher */

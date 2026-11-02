@@ -11,11 +11,12 @@ const Paper = (() => {
 
   const fresh = (balance) => ({
     v: 1, balance, cash: balance, start: Date.now(), seen: Date.now(), hour: Math.floor(Date.now() / 3600000),
-    positions: {}, orders: [], trades: [], stops: {}, exits: {}, settings: {}, logs: [], next: 1, logSeq: 0,
+    positions: {}, orders: [], trades: [], stops: {}, exits: {}, pairs: [], settings: {}, logs: [], next: 1, logSeq: 0,
   });
   let S;
   try { S = JSON.parse(localStorage.getItem(KEY)) || fresh(10000); } catch { S = fresh(10000); }
   S.exits ||= {};
+  S.pairs ||= [];
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch {} };
 
   let replay = null;      // prices while the time away is replayed: { [market]: {mark, bid, ask} }
@@ -295,7 +296,21 @@ const Paper = (() => {
         return { ok: false, error: e.message, filled: done, failed: { market_id: o.market_id, symbol: mkt(o.market_id).symbol } };
       }
     }
+    addPair(r.long_id, r.short_id);
     return { ok: true, legs: done };
+  }
+
+  // pairs: which long and short positions go together (as the server's /api/pairs)
+  function addPair(longId, shortId) {
+    S.pairs = S.pairs.filter((p) => ![longId, shortId].includes(p.long_id) && ![longId, shortId].includes(p.short_id));
+    S.pairs.push({ id: `${longId}-${shortId}-${Date.now()}`, long_id: longId, short_id: shortId, at: now() / 1000 });
+    changed = true;
+  }
+
+  function pairs() {
+    const size = (id) => (S.positions[id] ? S.positions[id].size : 0);
+    S.pairs = S.pairs.filter((p) => size(p.long_id) > 0 && size(p.short_id) < 0);
+    return S.pairs.map((p) => ({ ...p }));
   }
 
   const findOrder = (id, oi) => S.orders.find((o) => o.market_id === +id && o.order_index === +oi)
@@ -549,6 +564,15 @@ const Paper = (() => {
     if (p === "/preview" && method === "POST") return run(() => { try { return { ok: true, ...plan(body(), qs.get("live") !== "true") }; } catch (e) { return { ok: false, error: e.message }; } });
     if (p === "/order" && method === "POST") return run(() => placeOrder(body()));
     if (p === "/pair_order" && method === "POST") return run(() => pairOrder(body()));
+    if (p === "/pairs" && method === "GET") return run(pairs);
+    if (p === "/pairs" && method === "POST") return run(() => {
+      const b = body(), size = (id) => (S.positions[id] ? S.positions[id].size : 0);
+      if (!(size(b.long_id) > 0 && size(b.short_id) < 0)) err(t("Serve una posizione long e una short aperte"));
+      addPair(b.long_id, b.short_id);
+      return pairs();
+    });
+    const pairDel = p.match(/^\/pairs\/(.+)$/);
+    if (pairDel && method === "DELETE") return run(() => { S.pairs = S.pairs.filter((x) => x.id !== decodeURIComponent(pairDel[1])); return pairs(); });
     if (p === "/reverse" && method === "POST") return run(() => reversePosition(+qs.get("market_id")));
     if (p === "/close" && method === "POST") return run(() => closePosition(+qs.get("market_id"), +qs.get("fraction") || 1));
     if (p === "/cancel_order" && method === "POST") return run(() => cancelOrder(+qs.get("market_id"), +qs.get("order_index")));

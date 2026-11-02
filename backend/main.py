@@ -548,7 +548,63 @@ async def pair_order(r: PairReq):
             return {"ok": False, "error": str(e), "filled": done, "failed": {"market_id": o.market_id, "symbol": m.symbol}}
         done.append({"market_id": o.market_id, "symbol": m.symbol, "side": o.side, "size": plan["size"]})
     engine.note(f"manual pair: long {done[0]['size']} {done[0]['symbol']} / short {done[1]['size']} {done[1]['symbol']}", "warning")
+    _add_pair(r.long_id, r.short_id)
     return {"ok": True, "legs": done}
+
+
+# Which positions form a pair: Lighter only knows two separate positions, so LighterDeck keeps the record.
+# A pair lasts while its long leg is long and its short leg short; then it is dropped.
+PAIRS_FILE = config.DATA_DIR / "pairs.json"
+
+
+def _pairs():
+    try:
+        return json.loads(PAIRS_FILE.read_text())
+    except (OSError, ValueError):
+        return []
+
+
+def _save_pairs(pairs):
+    PAIRS_FILE.write_text(json.dumps(pairs, indent=1))
+
+
+def _add_pair(long_id, short_id):
+    pairs = [p for p in _pairs() if p["long_id"] not in (long_id, short_id) and p["short_id"] not in (long_id, short_id)]
+    pairs.append({"id": f"{long_id}-{short_id}-{int(time.time())}", "long_id": long_id, "short_id": short_id, "at": time.time()})
+    _save_pairs(pairs)
+
+
+@app.get("/api/pairs")
+async def get_pairs():
+    sizes = {p["market_id"]: p["size"] for p in (engine.account or {}).get("positions", [])}
+    pairs = _pairs()
+    if engine.account is None:
+        return pairs
+    live = [p for p in pairs if sizes.get(p["long_id"], 0) > 0 and sizes.get(p["short_id"], 0) < 0]
+    if len(live) != len(pairs):
+        _save_pairs(live)
+    return live
+
+
+class PairGroupReq(BaseModel):
+    long_id: int
+    short_id: int
+
+
+@app.post("/api/pairs")
+async def group_pair(r: PairGroupReq):
+    """Group a long and a short position already open into a pair."""
+    sizes = {p["market_id"]: p["size"] for p in (engine.account or {}).get("positions", [])}
+    if not (sizes.get(r.long_id, 0) > 0 and sizes.get(r.short_id, 0) < 0):
+        raise HTTPException(400, L("Serve una posizione long e una short aperte", "It needs an open long and an open short position"))
+    _add_pair(r.long_id, r.short_id)
+    return await get_pairs()
+
+
+@app.delete("/api/pairs/{pair_id}")
+async def ungroup_pair(pair_id: str):
+    _save_pairs([p for p in _pairs() if p["id"] != pair_id])
+    return await get_pairs()
 
 
 # ---------- trailing stop on an open position ----------
