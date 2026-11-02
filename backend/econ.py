@@ -281,6 +281,27 @@ def option_expiries(start, end):
     return out
 
 
+# Which events move a market: the same rules as marketFocus / eventFor / impactFor in frontend/app.js
+CURRENCIES = ("USD", "EUR", "GBP", "JPY", "CHF", "CAD", "AUD", "NZD", "CNY", "HKD", "KRW")
+MARKET_ASSETS = {"WTI": ["oil"], "BRENTOIL": ["oil"], "NATGAS": ["natgas"]}
+IMPACT_RANK = {"Low": 0, "Medium": 1, "High": 2}
+
+
+def market_focus(symbol, categories):
+    fx = len(symbol) == 6 and symbol[:3] in CURRENCIES and symbol[3:] in CURRENCIES
+    assets = [f"sym:{symbol}", *MARKET_ASSETS.get(symbol, []),
+              *([f"stock:{symbol}"] if "STOCK" in categories else []), *(["index"] if "ETF" in categories else [])]
+    return assets, ([symbol[:3], symbol[3:]] if fx else ["USD"])
+
+
+def impact_for(e, assets, ccy):
+    """The event's impact on a market, or None when it doesn't move it."""
+    if e.get("assets"):
+        mine = [a for a in e["assets"] if a in assets]
+        return max(((e.get("impact_by") or {}).get(a, "High") for a in mine), key=IMPACT_RANK.get, default=None)
+    return e["impact"] if e["country"] in ccy else None
+
+
 class Calendar:
     def __init__(self):
         self.events = {}  # id -> event
@@ -338,6 +359,17 @@ class Calendar:
             if _assets(e["title"]):
                 e["assets"] = _assets(e["title"])
         return sorted(rows, key=lambda e: e["ts"])
+
+    def next_for(self, symbol, categories, now=None):
+        """The next event for a market: its own (an oil report, its earnings…) within 30 days first,
+        then the next high-impact release, then a medium one in the coming week."""
+        now = now or time.time()
+        assets, ccy = market_focus(symbol, categories)
+        upcoming = [(e, impact_for(e, assets, ccy)) for e in self.listing(days_back=0) if e["ts"] > now]
+        own = [e for e, imp in upcoming if imp == "High" and e.get("assets") and e["ts"] < now + 30 * 86400]
+        high = [e for e, imp in upcoming if imp == "High"]
+        medium = [e for e, imp in upcoming if imp == "Medium" and e["ts"] < now + 7 * 86400]
+        return (own or high or medium or [None])[0]
 
     async def _fetch(self, s, url, as_json=False):
         try:

@@ -797,9 +797,16 @@ async def trade_page(symbol: str):
         return Response(html, media_type="text/html")
     price, change = _market_quote(m)
     title = f"{m.symbol} · LighterDeck"
-    move = f", {change:+.2f}% in 24h" if change is not None else ""
-    desc = (f"{m.symbol}{f' ({m.name})' if m.name != m.symbol else ''} on Lighter{f': {price}' if price else ''}{move}. "
-            "Charts, the events that move it, funding.")
+    quote = ", ".join(x for x in (price, f"{change:+.2f}% in 24h" if change is not None else None) if x)
+    desc = f"{m.name if m.name != m.symbol else m.symbol} · {quote}." if quote else f"{m.name} on Lighter."
+    nxt = calendar.next_for(m.symbol, m.categories)
+    if nxt:  # the next event that moves it, from the calendar (UTC, for readers anywhere)
+        when = time.strftime("%a %d %b", time.gmtime(nxt["ts"]))
+        if nxt.get("approx"):
+            when += f", {nxt['when']}"
+        elif nxt["ts"] % 300 == 0:  # a real release time (all-day items come with odd minutes)
+            when += time.strftime(" %H:%M UTC", time.gmtime(nxt["ts"]))
+        desc += f" Next: {(nxt['country'] + ' ') if nxt['country'] and not nxt.get('assets') else ''}{nxt['title']}, {when}."
     url = f"{config.SITE_URL}/trade/{m.symbol}"
     html = html.replace("<title>LighterDeck</title>", f"<title>{title}</title>", 1)
     for key, value in (("og:title", title), ("twitter:title", title), ("og:description", desc), ("twitter:description", desc),
