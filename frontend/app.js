@@ -139,6 +139,7 @@ class Panel {
     this.el.className = "panel";
     this.el.innerHTML = `<div class="chart"></div>
       <div class="legend"><span class="ttl"></span><i class="dot"></i><span class="ohlc"></span></div>
+      <div class="ctx-badges chart-ctx"></div>
       <div class="ev-tip hidden"></div>
       <div class="drag-ok hidden"></div>
       <div class="chart-menu hidden"></div>`;
@@ -248,6 +249,7 @@ class Panel {
     this.data.set(this.last.time, this.last);
     this.series.update(this.last);
     if (!this.hover) this.renderLegend();
+    setBadges($(".chart-ctx", this.el), m, 3);
     const s = stops[m.id];
     if (this.stopLine && s && s.stop) this.stopLine.applyOptions({ title: this.stopTitle(s) });
     if (this.markLine && p.mark) this.markLine.applyOptions({ price: p.mark });
@@ -758,6 +760,96 @@ function renderMarketBar() {
   f.className = p.funding >= 0 ? "" : "down";
   if (fundView.open && $("#fundPop").dataset.mid !== String(m.id)) { $("#fundPop").dataset.mid = m.id; loadFundingHistory(); }
   $("#stOi").textContent = fcompact(p.oi);
+  setBadges($("#mkCtx"), m);
+}
+
+// ---------- context badges: what matters about a market right now ----------
+// Each badge has a stable key (event:<id>, funding, session, liq), so it can later drive an alert too.
+const BADGE_EVENT_BEFORE = 3600, BADGE_EVENT_AFTER = 900; // high-impact event: from 1 h before to 15 min after
+const BADGE_FUNDING = 0.01;                               // % per hour (about 88% a year)
+const BADGE_LIQ = 10;                                     // liquidation within 10% of the mark
+// where a stock or ETF trades; anything not listed here or in US_EXTRA has no session badge
+const MARKET_EXCHANGE = { XIAOMI: "XHKG", TENCENT: "XHKG", POPMART: "XHKG", BYD: "XHKG", SMIC: "XHKG", KIOXIA: "XTKS" };
+const US_EXTRA = ["AVGO", "ARM", "QCOM", "NOK", "AAOI"];
+const NO_SESSION = ["SHEIN", "UNITREE", "CXMT", "ZHIPU", "MINIMAX", "STABLECOINX", "WEN", "SPCX", "BOT", "STONK", "TUR30"];
+
+function marketSession(m) {
+  const cats = m.categories || [];
+  if (NO_SESSION.includes(m.symbol) || cats.some((c) => ["PRE_IPO", "PRE_LAUNCH", "KRW"].includes(c))) return null;
+  const code = MARKET_EXCHANGE[m.symbol] || ((cats.includes("STOCK") || cats.includes("ETF") || US_EXTRA.includes(m.symbol)) ? "XNYS" : null);
+  if (code) return SESSIONS.find((s) => s.code === code);
+  // FX and the CME futures behind metals, energy and bonds: Sunday evening to Friday 17:00 New York
+  if ((cats.includes("FX") || cats.includes("COMMODITIES") || cats.includes("BONDS")) && m.symbol !== "PAXG") return { weekly: cats.includes("FX") ? 17 : 18 };
+  return null;
+}
+
+// FX / CME: closed from Friday 17:00 to Sunday 17:00 (FX) or 18:00 (CME) New York time
+function weeklyStatus(openHour, now) {
+  const z = zoned(now, "America/New_York");
+  const closed = z.wd === "Sat" || (z.wd === "Fri" && z.h >= 17) || (z.wd === "Sun" && z.h < openHour);
+  if (!closed) return null;
+  const add = { Fri: 2, Sat: 1, Sun: 0 }[z.wd];
+  const d = new Date(Date.UTC(z.y, z.mo - 1, z.d + add));
+  return wallToUtc(d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate(), openHour, 0, "America/New_York");
+}
+
+function contextBadges(m) {
+  const out = [], now = Date.now(), p = prices[m.id];
+  // the next high-impact event for this market, or one just out
+  const ev = events.filter((e) => eventFor(e, m.symbol) && impactFor(e, m.symbol) === "High" && e.when !== "time not given"
+    && e.ts > now / 1000 - BADGE_EVENT_AFTER && e.ts < now / 1000 + BADGE_EVENT_BEFORE).sort((a, b) => a.ts - b.ts)[0];
+  if (ev) {
+    const left = ev.ts * 1000 - now, name = `${ev.country && ev.source !== "Nasdaq" ? ev.country + " " : ""}${ev.title}`;
+    // earnings come with the session only, so no countdown to a made-up minute
+    const text = ev.approx && WHEN[ev.when] ? `${name} · ${t(WHEN[ev.when])}` : left > 0 ? t("{ev} tra {d}", { ev: name, d: dur(left) }) : t("{ev} {d} fa", { ev: name, d: dur(-left) });
+    out.push({ key: `event:${ev.id || ev.ts}`, cls: left > 0 && left < 900000 && !ev.approx ? "warn hot" : "warn", text,
+      title: t("Evento ad alto impatto per {sym}", { sym: m.symbol }), go: "calendar" });
+  }
+  // funding far from the usual
+  if (p && Math.abs(p.funding) >= BADGE_FUNDING) {
+    const pos = account && account.positions.find((x) => x.market_id === m.id);
+    const pays = pos && Math.sign(pos.size) === Math.sign(p.funding);
+    out.push({ key: "funding", cls: pays ? "bad" : "warn", text: t("Funding {r}/h", { r: fpctf(p.funding) }) + (pays ? " · " + t("lo paghi") : ""),
+      title: p.funding > 0 ? t("Funding alto: i long pagano gli short ogni ora") : t("Funding alto: gli short pagano i long ogni ora"), go: "funding" });
+  }
+  // the underlying market: closed, at lunch, or about to close
+  const s = marketSession(m);
+  if (s && s.weekly) {
+    const opens = weeklyStatus(s.weekly, now);
+    if (opens) out.push({ key: "session", cls: "info", text: t("Chiuso · apre tra {d}", { d: dur(opens - now) }), title: t("Il mercato sottostante è chiuso nel weekend: il prezzo può muoversi poco o saltare alla riapertura") });
+  } else if (s) {
+    const st = sessionStatus(s, now);
+    if (st.state === "closed") out.push({ key: "session", cls: "info", text: t("{ex} chiusa · apre tra {d}", { ex: s.ex, d: st.at ? dur(st.at - now) : "—" }),
+      title: t("La borsa del sottostante è chiusa: il prezzo può muoversi poco o saltare alla riapertura") });
+    else if (st.state === "lunch") out.push({ key: "session", cls: "info", text: t("{ex} in pausa · riprende tra {d}", { ex: s.ex, d: dur(st.at - now) }), title: t("Pausa pranzo della borsa del sottostante") });
+    else if (!st.lunchNext && st.at - now < 1800000) out.push({ key: "session", cls: "warn", text: t("{ex} chiude tra {d}", { ex: s.ex, d: dur(st.at - now) }), title: t("La borsa del sottostante sta per chiudere") });
+  }
+  // your position close to liquidation
+  const pos = account && account.positions.find((x) => x.market_id === m.id);
+  const mark = p && p.mark;
+  if (pos && pos.liq && mark) {
+    const gap = Math.abs(mark - pos.liq) / mark * 100;
+    if (gap < BADGE_LIQ) out.push({ key: "liq", cls: "bad", text: t("Liquidazione a {g}%", { g: gap.toFixed(1) }), title: t("Il prezzo di liquidazione della tua posizione è a {price}", { price: fp(pos.liq, m) }) });
+  }
+  return out;
+}
+
+function setBadges(box, m, max = 6) {
+  if (!box || !m) return;
+  const list = contextBadges(m).slice(0, max);
+  const html = list.map((b) => `<button class="ctx ${b.cls}" data-go="${b.go || ""}" title="${esc(b.title || "")}">${esc(b.text)}</button>`).join("");
+  if (box.dataset.html !== html) { box.dataset.html = html; box.innerHTML = html; }
+}
+
+function wireBadges() {
+  document.addEventListener("click", (e) => {
+    const b = e.target.closest(".ctx[data-go]");
+    if (!b || !b.dataset.go) return;
+    const panel = b.closest(".panel");
+    if (panel) { const p = panels.find((x) => x.el === panel); if (p) setActive(p.idx); }
+    if (b.dataset.go === "funding") toggleFunding(true);
+    else if (b.dataset.go === "calendar") switchView("calendar");
+  });
 }
 
 // ---------- funding details ----------
@@ -2682,6 +2774,7 @@ function closeTrailPop() { $("#trailPop").classList.add("hidden"); }
 function wireTrail() {
   $("#tkTrail").onchange = renderTicketTrail;
   wireTpLevels();
+  wireBadges();
   $("#alertCount").textContent = alerts.length || "";
   $("#tkReduce").addEventListener("change", renderTicketTrail);
   $("#btab-positions").addEventListener("click", (e) => {

@@ -265,6 +265,16 @@ body.reordering { cursor: grabbing; user-select: none; }
 .legend .ohlc { font-family: var(--mono); font-size: 11px; color: var(--muted); }
 .legend .ohlc span { margin-right: 6px; }
 .legend .ohlc em { font-style: normal; }
+.ctx-badges { display: flex; align-items: center; gap: 6px; flex: none; }
+.ctx-badges:empty { display: none; }
+.chart-ctx { position: absolute; top: 32px; left: 12px; right: 84px; z-index: 2; flex-wrap: wrap; }
+.ctx { height: 22px; padding: 0 8px; border-radius: 11px; border: 1px solid var(--line-2); background: var(--surface); color: var(--text-2); font-size: 10.5px; white-space: nowrap; cursor: default; }
+.ctx[data-go="funding"], .ctx[data-go="calendar"] { cursor: pointer; }
+.ctx.warn { color: var(--amber); border-color: color-mix(in srgb, var(--amber) 35%, transparent); }
+.ctx.warn.hot { background: color-mix(in srgb, var(--amber) 12%, transparent); }
+.ctx.bad { color: var(--red); border-color: color-mix(in srgb, var(--red) 35%, transparent); background: var(--red-soft); }
+.ctx.info { color: var(--blue); border-color: color-mix(in srgb, var(--blue) 30%, transparent); }
+.chart-ctx .ctx { height: 19px; padding: 0 7px; font-size: 10px; }
 .legend .dot { width: 6px; height: 6px; box-shadow: 0 0 0 3px var(--green-soft); }
 
 /* ---------- order book ---------- */
