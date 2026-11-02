@@ -231,10 +231,10 @@ function closePalette() {
 }
 
 // a spread from the market bar's button: the current market over the one picked
-function openSpreadPicker() {
+function openSpreadPicker(base) {
   const pr = activePair(), m = activeMarket();
-  if (!m) return;
-  pk.base = pr ? pr[0].symbol : m.symbol;
+  if (!m && !base) return;
+  pk.base = typeof base === "string" ? base : pr ? pr[0].symbol : m.symbol;
   openPalette();
 }
 

@@ -320,8 +320,17 @@ const Paper = (() => {
         p[`${key}_entry`] = qty ? fs.reduce((s, x) => s + x.size * x.price, 0) / qty : pos(id).entry;
       }
     }
-    S.pairs = S.pairs.filter((p) => pos(p.long_id).size > 0 && pos(p.short_id).size < 0);
-    for (const p of S.pairs) { p.long_qty = Math.min(p.long_qty, pos(p.long_id).size); p.short_qty = Math.min(p.short_qty, -pos(p.short_id).size); }
+    // what each position still has for the pairs, oldest first: two pairs never count the same units
+    const free = {};
+    for (const [id, p] of Object.entries(S.positions)) free[id] = Math.abs(p.size);
+    S.pairs = S.pairs.filter((p) => {
+      p.long_qty = pos(p.long_id).size > 0 ? Math.min(p.long_qty, free[p.long_id] || 0) : 0;
+      p.short_qty = pos(p.short_id).size < 0 ? Math.min(p.short_qty, free[p.short_id] || 0) : 0;
+      if (p.long_qty <= 1e-12 || p.short_qty <= 1e-12) return false;
+      free[p.long_id] -= p.long_qty;
+      free[p.short_id] -= p.short_qty;
+      return true;
+    });
     return S.pairs.map((p) => ({ ...p }));
   }
 
@@ -597,8 +606,11 @@ const Paper = (() => {
     if (p === "/pairs" && method === "POST") return run(() => {
       const b = body(), size = (id) => (S.positions[id] ? S.positions[id].size : 0);
       if (!(size(b.long_id) > 0 && size(b.short_id) < 0)) err(t("Serve una posizione long e una short aperte"));
-      const l = S.positions[b.long_id], s = S.positions[b.short_id];
-      addPair(b.long_id, b.short_id, l.size, -s.size, l.entry, s.entry);
+      const l = S.positions[b.long_id], s = S.positions[b.short_id], taken = {};
+      for (const p of pairs()) { taken[p.long_id] = (taken[p.long_id] || 0) + p.long_qty; taken[p.short_id] = (taken[p.short_id] || 0) + p.short_qty; }
+      const lq = l.size - (taken[b.long_id] || 0), sq = -s.size - (taken[b.short_id] || 0);
+      if (lq <= 1e-12 || sq <= 1e-12) err(t("Queste posizioni sono già tutte in coppia"));
+      addPair(b.long_id, b.short_id, lq, sq, l.entry, s.entry);
       return pairs();
     });
     const pairClose = p.match(/^\/pairs\/(.+)\/close$/);

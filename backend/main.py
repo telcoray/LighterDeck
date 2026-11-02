@@ -600,19 +600,24 @@ async def get_pairs():
     if engine.account is None:
         return pairs
     positions = {p["market_id"]: p for p in engine.account.get("positions", [])}
+    # what each position still has for the pairs, oldest pair first: two pairs never count the same units
+    free = {mid: abs(p["size"]) for mid, p in positions.items()}
     out, changed = [], False
     for p in pairs:
         if "long_qty" not in p:
             await _legs_from_fills(p, positions)
             changed = True
         lp, sp = positions.get(p["long_id"]), positions.get(p["short_id"])
-        if not (lp and lp["size"] > 0 and sp and sp["size"] < 0):
+        lq = min(p["long_qty"], free.get(p["long_id"], 0)) if lp and lp["size"] > 0 else 0
+        sq = min(p["short_qty"], free.get(p["short_id"], 0)) if sp and sp["size"] < 0 else 0
+        if lq <= 1e-12 or sq <= 1e-12:
             changed = True
             continue
-        lq, sq = min(p["long_qty"], lp["size"]), min(p["short_qty"], -sp["size"])
         if (lq, sq) != (p["long_qty"], p["short_qty"]):
             p["long_qty"], p["short_qty"] = lq, sq
             changed = True
+        free[p["long_id"]] -= lq
+        free[p["short_id"]] -= sq
         out.append(p)
     if changed:
         _save_pairs(out)
@@ -626,12 +631,20 @@ class PairGroupReq(BaseModel):
 
 @app.post("/api/pairs")
 async def group_pair(r: PairGroupReq):
-    """Group a long and a short position already open into a pair: their whole sizes, at their entry prices."""
+    """Group a long and a short position already open into a pair: what each has outside other pairs, at
+    their entry prices."""
     positions = {p["market_id"]: p for p in (engine.account or {}).get("positions", [])}
     lp, sp = positions.get(r.long_id), positions.get(r.short_id)
     if not (lp and lp["size"] > 0 and sp and sp["size"] < 0):
         raise HTTPException(400, L("Serve una posizione long e una short aperte", "It needs an open long and an open short position"))
-    _add_pair(r.long_id, r.short_id, lp["size"], -sp["size"], lp["entry"], sp["entry"])
+    taken = {}
+    for p in await get_pairs():
+        taken[p["long_id"]] = taken.get(p["long_id"], 0) + p["long_qty"]
+        taken[p["short_id"]] = taken.get(p["short_id"], 0) + p["short_qty"]
+    lq, sq = lp["size"] - taken.get(r.long_id, 0), -sp["size"] - taken.get(r.short_id, 0)
+    if lq <= 1e-12 or sq <= 1e-12:
+        raise HTTPException(400, L("Queste posizioni sono già tutte in coppia", "These positions are already all in pairs"))
+    _add_pair(r.long_id, r.short_id, lq, sq, lp["entry"], sp["entry"])
     return await get_pairs()
 
 
