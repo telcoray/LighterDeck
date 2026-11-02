@@ -179,6 +179,10 @@ class Panel {
     this.fills = [];          // this market's latest fills, grouped by order
     this.fillBars = new Map(); // bar time -> the fill groups drawn on it
     this.chart.subscribeCrosshairMove((p) => {
+      const at = p && p.point ? this.series.coordinateToPrice(p.point.y) : null;
+      this.pointerPrice = at > 0 ? at : null;
+      if (this.pointerPrice) hoverPanel = this;
+      else if (hoverPanel === this) hoverPanel = null;
       const bar = p && p.time ? this.data.get(p.time) : null;
       this.hover = bar || null;
       this.renderLegend();
@@ -385,6 +389,12 @@ class Panel {
       else if (s.trail_activate_pct) add({ price: pos.entry * (1 + dir * s.trail_activate_pct / 100 / lev), color: amber, lineStyle: 2, title: t("trailing da qui") });
       if (s.breakeven_at_pct && (!s.stop || (s.stop - pos.entry) * dir < 0)) add({ price: pos.entry * (1 + dir * s.breakeven_at_pct / 100 / lev), color: amber, lineStyle: 3, title: "BE" });
     }
+    if (chartEls.alerts) {
+      for (const a of alerts.filter((x) => x.market_id === m.id)) {
+        const line = add({ price: a.price, color: cssVar("--blue"), lineStyle: 1, title: `ALERT ${a.dir > 0 ? "≥" : "≤"}` });
+        this.dragOrders.push({ line, price: a.price, label: "ALERT", alert: a });
+      }
+    }
     const q = prices[m.id];
     if (chartEls.mark && q && q.mark) this.markLine = add({ price: q.mark, color: cssVar("--muted"), lineStyle: 3, title: "MARK" });
   }
@@ -453,6 +463,7 @@ class Panel {
       this.chart.applyOptions({ handleScroll: true, handleScale: true });
       document.body.classList.remove("dragging-line");
       if (d.to === d.from) { this.drawLines(); this.drawPreview(); return; }
+      if (d.alert) { moveAlert(d.alert.id, d.to); return; }
       if (d.preview) {
         (d.input || $({ sl: "#tkSl", tp: "#tkTp", limit: "#tkPrice" }[d.kind])).value = d.to;
         this.drawLines();
@@ -500,7 +511,7 @@ class Panel {
     const box = $(".chart", this.el), menu = $(".chart-menu", this.el);
     box.addEventListener("contextmenu", (e) => {
       e.preventDefault();
-      if (!info.trading || this.hold || this.drag) return;
+      if (this.hold || this.drag) return;
       const y = e.clientY - box.getBoundingClientRect().top;
       const raw = this.series.coordinateToPrice(y);
       const m = this.market;
@@ -536,27 +547,33 @@ class Panel {
     const q = prices[m.id], last = (q && (q.last || q.mark)) || (this.last && this.last.close);
     if (!last) return [];
     const above = price > last, at = fp(price, m), items = [];
-    // a limit buys below the price and sells above it (the other way it would fill at once)
-    items.push({ label: t(above ? "Sell limit a {price}" : "Buy limit a {price}", { price: at }), cls: above ? "down" : "up", note: t("nel ticket"),
-      run: () => chartLimit(above ? "sell" : "buy", price) });
-    // the ticket's protection on its own side of the entry
-    const ref = ticket.kind === "limit" && +$("#tkPrice").value ? +$("#tkPrice").value : last;
-    const side = ticket.side === "buy" ? 1 : -1;
-    const isTp = (price - ref) * side > 0;
-    const levels = readTpLevels();
-    if (isTp && levels) {
-      const n = levels.findIndex((l) => !l.price);
-      if (n >= 0) items.push({ label: t("TP{n} del ticket a {price}", { n: n + 1, price: at }), note: `${ticket.side === "buy" ? "Long" : "Short"}`, run: () => chartTicketStop("tp", price, n) });
-    } else items.push({ label: t(isTp ? "TP del ticket a {price}" : "SL del ticket a {price}", { price: at }), note: `${ticket.side === "buy" ? "Long" : "Short"}`, run: () => chartTicketStop(isTp ? "tp" : "sl", price) });
-    // the open position's SL/TP: set now, or moved if it has one
-    const pos = account && account.positions.find((p) => p.market_id === m.id);
-    if (pos) {
-      const k = (price - last) * Math.sign(pos.size) > 0 ? "tp" : "sl";
-      const cur = positionStops(pos)[k];
-      const label = cur ? t(k === "tp" ? "Sposta il TP della posizione a {price}" : "Sposta lo SL della posizione a {price}", { price: at })
-        : t(k === "tp" ? "TP della posizione a {price}" : "SL della posizione a {price}", { price: at });
-      items.push({ label, cls: "pos " + k, note: t("subito"), run: () => chartPositionStop(pos, k, price, cur) });
+    if (info.trading) {
+      // a limit buys below the price and sells above it (the other way it would fill at once)
+      items.push({ label: t(above ? "Sell limit a {price}" : "Buy limit a {price}", { price: at }), cls: above ? "down" : "up", note: t("nel ticket"),
+        run: () => chartLimit(above ? "sell" : "buy", price) });
+      // the ticket's protection on its own side of the entry
+      const ref = ticket.kind === "limit" && +$("#tkPrice").value ? +$("#tkPrice").value : last;
+      const side = ticket.side === "buy" ? 1 : -1;
+      const isTp = (price - ref) * side > 0;
+      const levels = readTpLevels();
+      if (isTp && levels) {
+        const n = levels.findIndex((l) => !l.price);
+        if (n >= 0) items.push({ label: t("TP{n} del ticket a {price}", { n: n + 1, price: at }), note: `${ticket.side === "buy" ? "Long" : "Short"}`, run: () => chartTicketStop("tp", price, n) });
+      } else items.push({ label: t(isTp ? "TP del ticket a {price}" : "SL del ticket a {price}", { price: at }), note: `${ticket.side === "buy" ? "Long" : "Short"}`, run: () => chartTicketStop(isTp ? "tp" : "sl", price) });
+      // the open position's SL/TP: set now, or moved if it has one
+      const pos = account && account.positions.find((p) => p.market_id === m.id);
+      if (pos) {
+        const k = (price - last) * Math.sign(pos.size) > 0 ? "tp" : "sl";
+        const cur = positionStops(pos)[k];
+        const label = cur ? t(k === "tp" ? "Sposta il TP della posizione a {price}" : "Sposta lo SL della posizione a {price}", { price: at })
+          : t(k === "tp" ? "TP della posizione a {price}" : "SL della posizione a {price}", { price: at });
+        items.push({ label, cls: "pos " + k, note: t("subito"), run: () => chartPositionStop(pos, k, price, cur) });
+      }
     }
+    // a price alert, with or without trading; one already near this price can be removed instead
+    const near = alerts.find((a) => a.market_id === m.id && Math.abs(a.price - price) / price < 0.0015);
+    items.push(near ? { label: t("Togli l'alert a {price}", { price: fp(near.price, m) }), cls: "alert", run: () => removeAlert(near.id) }
+      : { label: t("Alert a {price}", { price: at }), cls: "alert", note: "A", run: () => addAlert(m, price) });
     return items;
   }
 
@@ -575,9 +592,9 @@ function savePanels() { store("panels", panelCfg); }
 // ---------- Chart elements menu: which lines and marks every chart draws ----------
 const CHART_ELEMENTS = [
   ["orders", "Linee ordini"], ["stop", "Stop gestito"], ["position", "Linea posizione"],
-  ["liq", "Prezzo di liquidazione"], ["mark", "Linea prezzo mark"], ["events", "Eventi macro"], ["fills", "I tuoi fill"], ["preview", "Anteprima ticket"],
+  ["liq", "Prezzo di liquidazione"], ["mark", "Linea prezzo mark"], ["events", "Eventi macro"], ["fills", "I tuoi fill"], ["alerts", "Alert di prezzo"], ["preview", "Anteprima ticket"],
 ];
-let chartEls = { orders: true, stop: true, position: true, liq: true, mark: false, events: true, fills: true, preview: true, ...load("chartEls", {}) };
+let chartEls = { orders: true, stop: true, position: true, liq: true, mark: false, events: true, fills: true, alerts: true, preview: true, ...load("chartEls", {}) };
 let openOrders = {}; // market id -> open orders on Lighter, shared by the chart lines and the Orders tab
 const fade = (c) => (/^#[0-9a-f]{6}$/i.test(c) ? c + "b0" : c); // hex colour at ~70% for provisional lines
 const orderKind = (o) => (/stop/i.test(o.type) ? "SL" : /take/i.test(o.type) ? "TP" : "LIMIT");
@@ -1195,6 +1212,102 @@ async function chartPositionStop(pos, k, price, cur) {
     toast(t("{kind} a {price}", { kind: k.toUpperCase(), price: fp(price, byId[pos.market_id]) }));
     await fetchOpenOrders(true).catch(() => {});
   } catch (err) { toast(err.message, true); }
+}
+
+// ================= price alerts =================
+// Kept in this browser and checked on every price tick while LighterDeck is open: an alert fires when the
+// last price reaches its level from the side it was on when set. One-shot; the last 20 stay listed.
+let alerts = load("alerts", []);
+let alertsFired = load("alertsFired", []);
+let hoverPanel = null; // the chart under the pointer, for the A key
+
+function saveAlerts() {
+  store("alerts", alerts);
+  store("alertsFired", alertsFired);
+  $("#alertCount").textContent = alerts.length || "";
+  panels.forEach((p) => p.drawLines());
+  if (!$("#btab-alerts").classList.contains("hidden")) renderAlerts();
+}
+
+const lastPrice = (id) => { const q = prices[id]; return q ? q.last || q.mark : null; };
+
+function addAlert(m, price) {
+  const px = lastPrice(m.id);
+  if (!m || !px) return toast(t("Nessun prezzo per questo mercato in questo momento"), true);
+  price = +(+price).toFixed(decimals(m));
+  alerts.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), market_id: m.id, symbol: m.symbol,
+    price, dir: price >= px ? 1 : -1, created: Date.now() });
+  saveAlerts();
+  toast(t("Alert su {sym} a {price}", { sym: m.symbol, price: fp(price, m) }));
+  if ("Notification" in window && Notification.permission === "default") Notification.requestPermission().catch(() => {});
+}
+
+function moveAlert(id, price) {
+  const a = alerts.find((x) => x.id === id), px = a && lastPrice(a.market_id);
+  if (!a) return;
+  a.price = price;
+  if (px) a.dir = price >= px ? 1 : -1;
+  saveAlerts();
+  toast(t("Alert su {sym} spostato a {price}", { sym: a.symbol, price: fp(price, byId[a.market_id]) }));
+}
+
+function removeAlert(id) {
+  alerts = alerts.filter((x) => x.id !== id);
+  saveAlerts();
+}
+
+function checkAlerts() {
+  const hit = alerts.filter((a) => { const px = lastPrice(a.market_id); return px && (a.dir > 0 ? px >= a.price : px <= a.price); });
+  if (!hit.length) return;
+  alerts = alerts.filter((a) => !hit.includes(a));
+  for (const a of hit) {
+    const m = byId[a.market_id], px = lastPrice(a.market_id);
+    alertsFired.unshift({ ...a, at: Date.now(), px });
+    const msg = t("Alert {sym}: {price} raggiunto (ora {px})", { sym: a.symbol, price: m ? fp(a.price, m) : a.price, px: m ? fp(px, m) : px });
+    toast(msg);
+    if ("Notification" in window && Notification.permission === "granted") {
+      try { new Notification("LighterDeck", { body: msg, tag: a.id }); } catch {}
+    }
+  }
+  alertsFired.length = Math.min(alertsFired.length, 20);
+  alertSound();
+  saveAlerts();
+}
+
+// two short tones
+function alertSound() {
+  try {
+    const ctx = alertSound.ctx ||= new (window.AudioContext || window.webkitAudioContext)();
+    [880, 1320].forEach((f, i) => {
+      const o = ctx.createOscillator(), g = ctx.createGain(), at = ctx.currentTime + i * 0.18;
+      o.frequency.value = f;
+      g.gain.setValueAtTime(0.0001, at);
+      g.gain.exponentialRampToValueAtTime(0.15, at + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, at + 0.16);
+      o.connect(g).connect(ctx.destination);
+      o.start(at);
+      o.stop(at + 0.17);
+    });
+  } catch {}
+}
+
+function renderAlerts() {
+  const box = $("#btab-alerts");
+  const row = (a, fired) => {
+    const m = byId[a.market_id], px = lastPrice(a.market_id);
+    const dist = !fired && px ? ((a.price - px) / px) * 100 : null;
+    return `<tr><td class="mk">${gotoBtn(a.symbol)}</td><td>${a.dir > 0 ? t("sale a") : t("scende a")}</td><td class="r main">${m ? fp(a.price, m) : a.price}</td>
+      <td class="r">${fired ? (m ? fp(a.px, m) : a.px) : px && m ? fp(px, m) : "—"}</td><td class="r ${dist !== null ? cls(dist) : ""}">${dist !== null ? fpct(dist) : "—"}</td>
+      <td class="r muted">${new Date(fired ? a.at : a.created).toLocaleString(LOCALE, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</td>
+      <td class="r">${fired ? `<span class="muted">${t("scattato")}</span>` : `<button class="xbtn" data-alert-del="${a.id}">${t("Togli")}</button>`}</td></tr>`;
+  };
+  const head = `<thead><tr><th>${t("Mercato")}</th><th>${t("Quando il prezzo")}</th><th class="r">${t("Livello")}</th><th class="r">${t("Prezzo")}</th><th class="r">${t("Distanza")}</th><th class="r">${t("Creato / scattato")}</th><th></th></tr></thead>`;
+  if (!alerts.length && !alertsFired.length) {
+    box.innerHTML = `<div class="empty">${t("Nessun alert. Click destro sul grafico → Alert, oppure punta il mouse a un prezzo e premi A.")}</div>`;
+    return;
+  }
+  box.innerHTML = `<table class="table">${head}<tbody>${alerts.map((a) => row(a, false)).join("")}${alertsFired.map((a) => row(a, true)).join("")}</tbody></table>`
+    + (alertsFired.length ? `<div class="alerts-foot"><button class="link" data-alert-clear>${t("Svuota gli alert scattati")}</button></div>` : "");
 }
 
 // ================= account / bottom tables =================
@@ -2005,6 +2118,7 @@ function connect() {
     else if (account) renderPositions();
     if (msg.armed !== info.armed) renderArmed(msg.armed);
     if (msg.logs.length) addLogs(msg.logs);
+    checkAlerts();
     if (!$("#view-markets").classList.contains("hidden") && Date.now() - (renderMarkets.at || 0) > 2000) {
       renderMarkets.at = Date.now();
       renderMarkets();
@@ -2054,6 +2168,7 @@ function switchBottom(t) {
   $$(".btab").forEach((s) => s.classList.toggle("hidden", s.id !== "btab-" + t));
   if (t === "orders") loadOrders();
   if (t === "trades") loadTrades();
+  if (t === "alerts") renderAlerts();
 }
 
 function wire() {
@@ -2160,6 +2275,11 @@ function wire() {
     const mid = +b.dataset.close, f = +b.dataset.f;
     if (f === 100 && !askConfirm(`close:${mid}`, t("Chiudi tutto"))) return;
     try { await api(`/close?market_id=${mid}&fraction=${f / 100}`, { method: "POST" }); toast(t("Chiusura {f}% inviata", { f })); } catch (err) { toast(err.message, true); }
+  };
+  $("#btab-alerts").onclick = (e) => {
+    const x = e.target.closest("[data-alert-del]");
+    if (x) removeAlert(x.dataset.alertDel);
+    if (e.target.closest("[data-alert-clear]")) { alertsFired = []; store("alertsFired", alertsFired); renderAlerts(); }
   };
   $("#btab-orders").onclick = async (e) => {
     const b = e.target.closest("[data-cancel]");
@@ -2488,6 +2608,7 @@ function closeTrailPop() { $("#trailPop").classList.add("hidden"); }
 function wireTrail() {
   $("#tkTrail").onchange = renderTicketTrail;
   wireTpLevels();
+  $("#alertCount").textContent = alerts.length || "";
   $("#tkReduce").addEventListener("change", renderTicketTrail);
   $("#btab-positions").addEventListener("click", (e) => {
     const b = e.target.closest("[data-trail]");
@@ -2706,6 +2827,7 @@ const HOTKEYS = [
   ["H", "Chiudi metà posizione (due volte)"],
   ["R", "Reverse della posizione (due volte)"],
   ["C", "Annulla i limit del mercato (due volte)"],
+  ["A", "Alert al prezzo sotto il mouse"],
   ["1–4", "Seleziona il grafico"],
   ["[ ]", "Timeframe precedente / successivo"],
   ["/", "Cerca mercato"],
@@ -2818,6 +2940,7 @@ function wireHotkeys() {
       h: () => m && hotkeyClose(m, 0.5),
       r: () => m && reversePosition(m.id, true),
       c: () => m && hotkeyCancel(m),
+      a: () => (hoverPanel && hoverPanel.pointerPrice ? addAlert(hoverPanel.market, hoverPanel.pointerPrice) : toast(t("Punta il mouse sul grafico, al prezzo dell'alert, e premi A."))),
       "/": openPalette,
       "?": () => toggleHotkeys(),
       "[": () => stepTf(-1),
