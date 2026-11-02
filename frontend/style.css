@@ -407,6 +407,14 @@ select option, select optgroup { background-color: var(--surface); color: var(--
 .drag-ok button { height: 22px; padding: 0 9px; border-radius: 4px; border: 1px solid var(--line-2); color: var(--text-2); }
 .drag-ok button[data-mv="ok"] { border-color: var(--amber); color: var(--amber); }
 .drag-ok button:hover { color: var(--text); background: var(--raised); }
+.chart-menu { position: absolute; z-index: 7; min-width: 220px; padding: 4px; background: var(--surface); border: 1px solid var(--line-3); border-radius: 8px; box-shadow: 0 12px 30px rgba(0,0,0,.45); font-size: 12px; }
+.chart-menu .cm-price { padding: 5px 9px 6px; font-family: var(--mono); font-size: 11px; color: var(--muted); border-bottom: 1px solid var(--line); margin-bottom: 3px; }
+.chart-menu button { display: flex; justify-content: space-between; align-items: center; gap: 12px; width: 100%; padding: 7px 9px; border-radius: 5px; text-align: left; color: var(--text-2); }
+.chart-menu button:hover { background: var(--raised); color: var(--text); }
+.chart-menu button.up { color: var(--green); }
+.chart-menu button.down { color: var(--red); }
+.chart-menu button small { color: var(--faint); font-size: 10px; }
+.chart-menu button.pos { border-top: 1px solid var(--line); border-radius: 0 0 5px 5px; margin-top: 3px; }
 body.dragging-line, body.dragging-line * { cursor: ns-resize !important; user-select: none; }
 /* waiting for the second click */
 .execute.confirming { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--amber); }

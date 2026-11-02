@@ -140,7 +140,8 @@ class Panel {
     this.el.innerHTML = `<div class="chart"></div>
       <div class="legend"><span class="ttl"></span><i class="dot"></i><span class="ohlc"></span></div>
       <div class="ev-tip hidden"></div>
-      <div class="drag-ok hidden"></div>`;
+      <div class="drag-ok hidden"></div>
+      <div class="chart-menu hidden"></div>`;
     this.el.addEventListener("mousedown", () => setActive(this.idx));
     $(".ttl", this.el).addEventListener("click", (e) => { e.stopPropagation(); setActive(this.idx); openPalette(); });
     this.chart = LightweightCharts.createChart($(".chart", this.el), {
@@ -172,6 +173,7 @@ class Panel {
       return { ...r, priceRange: { minValue: Math.min(r.priceRange.minValue, ...keep), maxValue: Math.max(r.priceRange.maxValue, ...keep) } };
     } });
     this.wireDrag();
+    this.wireOrderMenu();
     this.data = new Map();
     this.eventBars = new Map();
     this.chart.subscribeCrosshairMove((p) => {
@@ -433,6 +435,72 @@ class Panel {
     chip.classList.add("hidden");
     this.drawLines(); // back to where the order really is until the refresh below shows the new level
     if (ok) loadOrders(true);
+  }
+
+  // Right-click on the chart: what can go at that price. A limit entry and the ticket's SL/TP fill the
+  // ticket (sent from there, with its confirm); the open position's SL/TP is set or moved at once.
+  wireOrderMenu() {
+    const box = $(".chart", this.el), menu = $(".chart-menu", this.el);
+    box.addEventListener("contextmenu", (e) => {
+      e.preventDefault();
+      if (!info.trading || this.hold || this.drag) return;
+      const y = e.clientY - box.getBoundingClientRect().top;
+      const raw = this.series.coordinateToPrice(y);
+      const m = this.market;
+      if (raw === null || raw <= 0 || !m) return;
+      setActive(this.idx);
+      this.menuPrice = +raw.toFixed(decimals(m));
+      const items = this.orderMenuItems(m, this.menuPrice);
+      if (!items.length) return;
+      menu.innerHTML = `<div class="cm-price">${fp(this.menuPrice, m)}</div>` + items.map((it, i) =>
+        `<button data-cm="${i}" class="${it.cls || ""}">${esc(it.label)}${it.note ? `<small>${esc(it.note)}</small>` : ""}</button>`).join("");
+      this.menuItems = items;
+      menu.classList.remove("hidden");
+      const r = this.el.getBoundingClientRect(), w = menu.offsetWidth, h = menu.offsetHeight;
+      menu.style.left = Math.max(4, Math.min(r.width - w - 4, e.clientX - r.left + 2)) + "px";
+      menu.style.top = Math.max(4, Math.min(r.height - h - 4, e.clientY - r.top + 2)) + "px";
+    });
+    menu.addEventListener("click", (e) => {
+      const b = e.target.closest("[data-cm]");
+      if (!b) return;
+      const it = this.menuItems[+b.dataset.cm];
+      this.closeOrderMenu();
+      it.run();
+    });
+    menu.addEventListener("mousedown", (e) => e.stopPropagation());
+    document.addEventListener("mousedown", (e) => { if (!e.target.closest(".chart-menu")) this.closeOrderMenu(); });
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape") this.closeOrderMenu(); });
+    box.addEventListener("wheel", () => this.closeOrderMenu(), { passive: true });
+  }
+
+  closeOrderMenu() { $(".chart-menu", this.el).classList.add("hidden"); }
+
+  orderMenuItems(m, price) {
+    const q = prices[m.id], last = (q && (q.last || q.mark)) || (this.last && this.last.close);
+    if (!last) return [];
+    const above = price > last, at = fp(price, m), items = [];
+    // a limit buys below the price and sells above it (the other way it would fill at once)
+    items.push({ label: t(above ? "Sell limit a {price}" : "Buy limit a {price}", { price: at }), cls: above ? "down" : "up", note: t("nel ticket"),
+      run: () => chartLimit(above ? "sell" : "buy", price) });
+    // the ticket's protection on its own side of the entry
+    const ref = ticket.kind === "limit" && +$("#tkPrice").value ? +$("#tkPrice").value : last;
+    const side = ticket.side === "buy" ? 1 : -1;
+    const isTp = (price - ref) * side > 0;
+    const levels = readTpLevels();
+    if (isTp && levels) {
+      const n = levels.findIndex((l) => !l.price);
+      if (n >= 0) items.push({ label: t("TP{n} del ticket a {price}", { n: n + 1, price: at }), note: `${ticket.side === "buy" ? "Long" : "Short"}`, run: () => chartTicketStop("tp", price, n) });
+    } else items.push({ label: t(isTp ? "TP del ticket a {price}" : "SL del ticket a {price}", { price: at }), note: `${ticket.side === "buy" ? "Long" : "Short"}`, run: () => chartTicketStop(isTp ? "tp" : "sl", price) });
+    // the open position's SL/TP: set now, or moved if it has one
+    const pos = account && account.positions.find((p) => p.market_id === m.id);
+    if (pos) {
+      const k = (price - last) * Math.sign(pos.size) > 0 ? "tp" : "sl";
+      const cur = positionStops(pos)[k];
+      const label = cur ? t(k === "tp" ? "Sposta il TP della posizione a {price}" : "Sposta lo SL della posizione a {price}", { price: at })
+        : t(k === "tp" ? "TP della posizione a {price}" : "SL della posizione a {price}", { price: at });
+      items.push({ label, cls: "pos " + k, note: t("subito"), run: () => chartPositionStop(pos, k, price, cur) });
+    }
+    return items;
   }
 
   // "TRAIL 1% · 0.84%": distance and current gap between the price and the managed stop
@@ -1044,6 +1112,31 @@ async function executeTicket(byMouse = false) {
   } finally {
     btn.disabled = !info.trading;
   }
+}
+
+// ---------- orders from the chart's right-click menu ----------
+function chartLimit(side, price) {
+  ticket.side = side;
+  ticket.kind = "limit";
+  $("#tkPrice").value = price;
+  renderTicket();
+  updateTicketSummary();
+  const size = $("#tkSize");
+  if (!(+size.value > 0)) { size.focus(); size.select(); }
+}
+
+function chartTicketStop(k, price, level = null) {
+  if (level !== null) $$("#tkTpBox [data-tp-price]")[level].value = price;
+  else $(k === "tp" ? "#tkTp" : "#tkSl").value = price;
+  updateTicketSummary();
+}
+
+async function chartPositionStop(pos, k, price, cur) {
+  try {
+    await api("/position_sltp", { method: "POST", body: JSON.stringify({ market_id: pos.market_id, kind: k, price, order_index: cur ? cur.order_index : null }) });
+    toast(t("{kind} a {price}", { kind: k.toUpperCase(), price: fp(price, byId[pos.market_id]) }));
+    await fetchOpenOrders(true).catch(() => {});
+  } catch (err) { toast(err.message, true); }
 }
 
 // ================= account / bottom tables =================
