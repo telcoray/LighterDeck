@@ -507,6 +507,50 @@ async def place_order(o: OrderReq):
     return {"ok": True, "size": plan["size"], "armed": engine.armed}
 
 
+# ---------- pair trade: both legs of a spread ----------
+class PairReq(BaseModel):
+    long_id: int
+    short_id: int
+    size_usd: float                   # total value, half on each leg
+    slippage_bps: float | None = None
+
+
+@app.post("/api/pair_order")
+async def pair_order(r: PairReq):
+    """Buy one market and sell the other for the same dollar value, each with a market order. Both legs are
+    planned and checked first (margin for the two together too); if the second one fails, the first stays
+    open and the answer says so, so the UI can offer to close it."""
+    if r.long_id == r.short_id:
+        raise HTTPException(400, L("Scegli due mercati diversi", "Pick two different markets"))
+    legs = [OrderReq(market_id=mid, side=side, kind="market", size=r.size_usd / 2, unit="usd", slippage_bps=r.slippage_bps)
+            for mid, side in ((r.long_id, "buy"), (r.short_id, "sell"))]
+    try:
+        plans = [await plan_order(o) for o in legs]
+    except (Blocked, ValueError) as e:
+        raise HTTPException(400, str(e))
+    acc = engine.account
+    if acc:
+        lev = lambda mid: (acc.get("settings", {}).get(mid, {}).get("leverage") or api.markets[mid].default_leverage or 1)
+        need = sum(p["notional"] / lev(o.market_id) for o, p in zip(legs, plans))
+        if need > acc["available"]:
+            raise HTTPException(400, L(f"Margine insufficiente per le due gambe: servono {need:,.2f} USD, disponibili {acc['available']:,.2f}",
+                                       f"Not enough margin for both legs: {need:,.2f} USD needed, {acc['available']:,.2f} available"))
+    done = []
+    for o, plan in zip(legs, plans):
+        m = api.markets[o.market_id]
+        try:
+            await api.entry(o.market_id, plan["size"] * plan["side"], "market", plan["worst"], None, None,
+                            slippage_pct=plan["slippage_bps"] / 100)
+        except Exception as e:
+            engine.note(f"pair order: {m.symbol} leg failed: {e}", "error")
+            if not done:
+                raise HTTPException(400, str(e))
+            return {"ok": False, "error": str(e), "filled": done, "failed": {"market_id": o.market_id, "symbol": m.symbol}}
+        done.append({"market_id": o.market_id, "symbol": m.symbol, "side": o.side, "size": plan["size"]})
+    engine.note(f"manual pair: long {done[0]['size']} {done[0]['symbol']} / short {done[1]['size']} {done[1]['symbol']}", "warning")
+    return {"ok": True, "legs": done}
+
+
 # ---------- trailing stop on an open position ----------
 @app.put("/api/trail/{market_id}")
 async def set_trail(market_id: int, t: TrailReq):

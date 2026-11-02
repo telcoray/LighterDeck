@@ -1250,6 +1250,11 @@ function cancelConfirm() {
 
 // ================= ticket =================
 function renderTicket() {
+  const pr = activePair();
+  $(".ticket").classList.toggle("pair", !!pr);
+  if (pr) return renderPairTicket(pr);
+  $('#sideSel [data-side="buy"]').textContent = "Buy / Long";
+  $('#sideSel [data-side="sell"]').textContent = "Sell / Short";
   const m = activeMarket();
   if (!m) return;
   $("#tkSym").textContent = m.symbol;
@@ -1305,8 +1310,120 @@ function ticketBody() {
   return body;
 }
 
+// ---------- pair ticket: on a spread chart, long one market and short the other, same dollar value ----------
+// Buy side = long the spread (long the first market, short the second); sell side the other way round.
+const pairLegs = () => { const [a, b] = activePair(); return ticket.side === "buy" ? [a, b] : [b, a]; }; // [long, short]
+
+function renderPairTicket([a, b]) {
+  $("#tkSym").textContent = `${a.symbol}/${b.symbol}`;
+  $("#tkAvail").textContent = account ? fusd(account.available) : "—";
+  const held = (m) => { const p = account && account.positions.find((x) => x.market_id === m.id); return p ? `<span class="${p.size > 0 ? "up" : "down"}">${m.symbol} ${p.size > 0 ? "Long" : "Short"} ${fsize(p.size, m)}</span>` : ""; };
+  $("#tkPos").innerHTML = [held(a), held(b)].filter(Boolean).join(" · ") || "—";
+  $('#sideSel [data-side="buy"]').textContent = `Long ${a.symbol} / Short ${b.symbol}`;
+  $('#sideSel [data-side="sell"]').textContent = `Short ${a.symbol} / Long ${b.symbol}`;
+  $$("#sideSel button").forEach((x) => x.classList.toggle("active", x.dataset.side === ticket.side));
+  $("#tkSizeUnit").textContent = "USD";
+  $("#tkChips").innerHTML = [100, 250, 500, 1000].map((v) => `<button data-v="${v}">$${v}</button>`).join("");
+  $$(".market-only").forEach((e) => e.classList.remove("hidden"));
+  const ex = $("#tkExec");
+  const [l, s] = pairLegs();
+  ex.className = "execute" + (!info.trading ? " connect" : ticket.side === "sell" ? " sell" : "");
+  ex.textContent = info.trading ? `Long ${l.symbol} / Short ${s.symbol}${Paper.on ? " · Paper" : ""}` : t("Sola lettura · collega un'API key");
+  ex.disabled = false;
+  ex.dataset.ckText = ex.textContent;
+  markConfirm();
+  updateTicketSummary();
+}
+
+function pairBody() {
+  const [l, s] = pairLegs();
+  return { long_id: l.id, short_id: s.id, size_usd: +$("#tkSize").value, slippage_bps: +$("#tkSlip").value || 50 };
+}
+
+// each leg's size, value, margin and fees from the book; the server preview checks both legs
+function updatePairSummary() {
+  const size = +$("#tkSize").value;
+  const legs = pairLegs().map((m, i) => {
+    const p = prices[m.id] || {}, ref = (i === 0 ? p.ask : p.bid) || p.mark;
+    const set = account && account.settings && account.settings[m.id];
+    const lev = (set && set.leverage) || m.default_leverage || 1;
+    const usd = size > 0 ? size / 2 : 0, qty = ref && usd ? usd / ref : 0;
+    return { m, ref, lev, usd, qty, fee: usd * (m.taker_fee || 0), margin: usd / lev };
+  });
+  const row = (x, i) => `<dt><span class="${i === 0 ? "up" : "down"}">${i === 0 ? "Long" : "Short"}</span> ${esc(x.m.symbol)}</dt><dd>${x.qty ? `${x.qty.toFixed(x.m.size_decimals)} · ${fusd(x.usd)}` : "—"}</dd>`;
+  const tot = (k) => legs.reduce((s, x) => s + x[k], 0);
+  $("#tkPairSum").innerHTML = legs.map(row).join("") +
+    `<dt>${t("Margine richiesto")}</dt><dd>${size > 0 ? fusd(tot("margin")) : "—"}</dd>
+     <dt>${t("Commissioni stimate")}</dt><dd>${size > 0 ? fusd(tot("fee")) : "—"}</dd>`;
+  setTicketDraft({ market: null, lines: [] });
+  clearTimeout(updateTicketSummary.t);
+  updateTicketSummary.t = setTimeout(previewPair, 350);
+}
+
+async function previewPair() {
+  const note = $("#tkRisk"), b = pairBody();
+  if (!info.trading || !(b.size_usd > 0)) { note.classList.add("hidden"); return; }
+  const key = JSON.stringify(b);
+  if (key === previewPair.key && Date.now() - previewPair.at < 5000) return;
+  previewPair.key = key;
+  previewPair.at = Date.now();
+  const leg = (id, side) => api("/preview?live=true", { method: "POST", body: JSON.stringify({ market_id: id, side, kind: "market", size: b.size_usd / 2, unit: "usd", slippage_bps: b.slippage_bps }) })
+    .catch((e) => ({ ok: false, error: e.message }));
+  const rs = await Promise.all([leg(b.long_id, "buy"), leg(b.short_id, "sell")]);
+  if (key !== previewPair.key) return;
+  const bad = rs.map((r, i) => (r.ok ? null : `${byId[i ? b.short_id : b.long_id].symbol}: ${r.error}`)).filter(Boolean);
+  note.classList.toggle("hidden", !bad.length);
+  note.textContent = bad.join(" · ");
+}
+
+async function executePair(byMouse) {
+  const b = pairBody();
+  if (!(b.size_usd > 0)) return ticketMsg(t("Inserisci una size valida."), "err");
+  const [l, s] = pairLegs();
+  if (!(pendingConfirm && pendingConfirm.key === "order")) {
+    previewPair.key = null;
+    await previewPair();
+    if (!$("#tkRisk").classList.contains("hidden")) return ticketMsg($("#tkRisk").textContent, "err");
+    $("#tkMsg").className = "ticket-msg hidden";
+  }
+  if (!askConfirm("order", `${t("Conferma")} Long ${l.symbol} / Short ${s.symbol} · ${fusd(b.size_usd)}`)) return;
+  const btn = $("#tkExec");
+  btn.disabled = true;
+  try {
+    const r = await api("/pair_order", { method: "POST", body: JSON.stringify(b) });
+    if (r.ok) {
+      ticketMsg(t("Eseguito: long {a} {qa} / short {b} {qb}.", { a: r.legs[0].symbol, qa: r.legs[0].size, b: r.legs[1].symbol, qb: r.legs[1].size }), "ok");
+      if (byMouse) keyboardTip();
+    } else pairLegFailed(r);
+    loadOrders(true);
+  } catch (e) {
+    ticketMsg(e.message, "err");
+  } finally {
+    btn.disabled = !info.trading;
+  }
+}
+
+// the second leg failed: the first is open on its own, so offer to close exactly what it bought or sold
+function pairLegFailed(r) {
+  const f = r.filled[0];
+  ticketMsg(t("{b} non eseguito ({err}). {a} è aperto da solo: la coppia non è coperta.", { b: r.failed.symbol, err: r.error, a: f.symbol }), "err");
+  const fix = document.createElement("button");
+  fix.className = "pair-fix";
+  fix.textContent = t("Chiudi {size} {sym} a mercato", { size: f.size, sym: f.symbol });
+  fix.onclick = async () => {
+    fix.disabled = true;
+    try {
+      await api("/order", { method: "POST", body: JSON.stringify({ market_id: f.market_id, side: f.side === "buy" ? "sell" : "buy", kind: "market", size: f.size, unit: "base", reduce_only: true }) });
+      ticketMsg(t("{sym} chiuso.", { sym: f.symbol }), "ok");
+      loadOrders(true);
+    } catch (e) { fix.disabled = false; toast(e.message, true); }
+  };
+  $("#tkMsg").appendChild(fix);
+}
+
 // local estimate, refined by the server preview (which also runs every risk check)
 function updateTicketSummary() {
+  if (activePair()) return updatePairSummary();
   const m = activeMarket();
   const p = m && prices[m.id];
   const size = +$("#tkSize").value;
@@ -1437,6 +1554,7 @@ function ticketMsg(text, kind) {
 }
 
 async function executeTicket(byMouse = false) {
+  if (activePair()) return executePair(byMouse);
   const m = activeMarket();
   const size = +$("#tkSize").value;
   if (!m || !(size > 0)) return ticketMsg(t("Inserisci una size valida."), "err");

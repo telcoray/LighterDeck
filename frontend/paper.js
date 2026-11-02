@@ -277,6 +277,27 @@ const Paper = (() => {
     return { ok: true, size: -size };
   }
 
+  // both legs of a spread: the same dollar value bought on one market and sold on the other
+  function pairOrder(r) {
+    if (r.long_id === r.short_id) err(t("Scegli due mercati diversi"));
+    const legs = [[r.long_id, "buy"], [r.short_id, "sell"]].map(([market_id, side]) =>
+      ({ market_id, side, kind: "market", size: r.size_usd / 2, unit: "usd", slippage_bps: r.slippage_bps }));
+    const plans = legs.map((o) => plan(o));
+    const need = plans.reduce((s, p, i) => s + p.notional / lev(legs[i].market_id), 0), have = account().available;
+    if (need > have + 1e-9) err(t("Margine insufficiente per le due gambe: servono {need}, disponibili {have}", { need: fusd(need), have: fusd(have) }));
+    const done = [];
+    for (const o of legs) {
+      try {
+        const res = placeOrder(o);
+        done.push({ market_id: o.market_id, symbol: mkt(o.market_id).symbol, side: o.side, size: res.size });
+      } catch (e) {
+        if (!done.length) throw e;
+        return { ok: false, error: e.message, filled: done, failed: { market_id: o.market_id, symbol: mkt(o.market_id).symbol } };
+      }
+    }
+    return { ok: true, legs: done };
+  }
+
   const findOrder = (id, oi) => S.orders.find((o) => o.market_id === +id && o.order_index === +oi)
     || err(t("Ordine non trovato: forse è già stato eseguito o annullato"));
 
@@ -527,6 +548,7 @@ const Paper = (() => {
     const run = (fn) => { try { const r = fn(); save(); return Promise.resolve(r); } catch (e) { return Promise.reject(e); } };
     if (p === "/preview" && method === "POST") return run(() => { try { return { ok: true, ...plan(body(), qs.get("live") !== "true") }; } catch (e) { return { ok: false, error: e.message }; } });
     if (p === "/order" && method === "POST") return run(() => placeOrder(body()));
+    if (p === "/pair_order" && method === "POST") return run(() => pairOrder(body()));
     if (p === "/reverse" && method === "POST") return run(() => reversePosition(+qs.get("market_id")));
     if (p === "/close" && method === "POST") return run(() => closePosition(+qs.get("market_id"), +qs.get("fraction") || 1));
     if (p === "/cancel_order" && method === "POST") return run(() => cancelOrder(+qs.get("market_id"), +qs.get("order_index")));
