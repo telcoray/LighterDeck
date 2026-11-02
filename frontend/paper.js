@@ -334,6 +334,31 @@ const Paper = (() => {
     return S.pairs.map((p) => ({ ...p }));
   }
 
+  // SL/TP on a pair's ratio (long leg over short leg), as the server's: SL below the ratio, TP above
+  function setPairStops(id, b) {
+    const p = pairs() && S.pairs.find((x) => x.id === id) || err(t("Coppia non trovata"));
+    const a = markOf(p.long_id), c = markOf(p.short_id), ratio = a && c ? a / c : null;
+    if (ratio && b.sl && b.sl >= ratio) err(t("Lo SL della coppia deve stare sotto il rapporto attuale ({r}), altrimenti scatterebbe subito", { r: +ratio.toPrecision(6) }));
+    if (ratio && b.tp && b.tp <= ratio) err(t("Il TP della coppia deve stare sopra il rapporto attuale ({r}), altrimenti scatterebbe subito", { r: +ratio.toPrecision(6) }));
+    p.sl = b.sl || null;
+    p.tp = b.tp || null;
+    changed = true;
+    save();
+    return { pairs: pairs(), armed: true };
+  }
+
+  function stepPairs() {
+    for (const p of pairs()) {
+      if (!p.sl && !p.tp) continue;
+      const a = markOf(p.long_id), c = markOf(p.short_id);
+      if (!a || !c) continue;
+      const ratio = a / c, hit = p.sl && ratio <= p.sl ? "SL" : p.tp && ratio >= p.tp ? "TP" : null;
+      if (!hit) continue;
+      closePair(p.id, 1);
+      note(t("Paper: {kind} della coppia {sym} a {r}", { kind: hit, sym: `${mkt(p.long_id).symbol}/${mkt(p.short_id).symbol}`, r: +ratio.toPrecision(6) }), hit === "SL" ? "warning" : "info");
+    }
+  }
+
   // close a share of a pair: that share of each leg's own quantity, at the bid/ask
   function closePair(id, fraction) {
     const p = pairs().find((x) => x.id === id) || err(t("Coppia non trovata"));
@@ -547,6 +572,7 @@ const Paper = (() => {
       S.hour = hour;
       changed = true;
     }
+    stepPairs();
     // liquidation: equity at or below the maintenance requirement closes everything at the mark
     const acc = account();
     if (acc.positions.length && acc.total_value <= acc.maintenance) {
@@ -613,6 +639,8 @@ const Paper = (() => {
       addPair(b.long_id, b.short_id, lq, sq, l.entry, s.entry);
       return pairs();
     });
+    const pairStops = p.match(/^\/pairs\/(.+)\/stops$/);
+    if (pairStops && method === "PUT") return run(() => setPairStops(decodeURIComponent(pairStops[1]), body()));
     const pairClose = p.match(/^\/pairs\/(.+)\/close$/);
     if (pairClose && method === "POST") return run(() => closePair(decodeURIComponent(pairClose[1]), +qs.get("fraction") || 1));
     const pairDel = p.match(/^\/pairs\/(.+)$/);

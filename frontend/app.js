@@ -299,6 +299,47 @@ class Panel {
     this.renderLegend();
   }
 
+  // the pairs on this spread: their entry ratio and their SL/TP, which can be dragged
+  pairsHere() {
+    const [a, b] = this.pair;
+    return pairs.map((x) => (x.long_id === a.id && x.short_id === b.id ? { x, inv: false } : x.long_id === b.id && x.short_id === a.id ? { x, inv: true } : null)).filter(Boolean);
+  }
+
+  drawPairLines() {
+    if (!chartEls.position && !chartEls.orders) return;
+    const add = (o) => { const l = this.series.createPriceLine({ lineWidth: 1, lineStyle: 0, ...o }); this.lines.push(l); return l; };
+    const conv = (v, inv) => (inv ? 1 / v : v);
+    for (const { x, inv } of this.pairsHere()) {
+      const side = inv ? "SHORT" : "LONG"; // long the pair = long this spread, unless the spread is the other way round
+      if (chartEls.position) add({ price: conv(x.long_entry / x.short_entry, inv), color: cssVar("--blue"), lineStyle: 2, title: `${side} ${t("coppia")}` });
+      if (!chartEls.orders) continue;
+      for (const k of ["sl", "tp"]) {
+        if (!x[k]) continue;
+        const price = conv(x[k], inv);
+        const line = add({ price, color: k === "sl" ? C.red : C.green, lineStyle: 2, title: k.toUpperCase() });
+        this.dragOrders.push({ line, price, label: k.toUpperCase(), pairStop: { id: x.id, k, inv } });
+      }
+    }
+  }
+
+  // right-click on a spread chart: the pair's SL or TP at that ratio, or removing the one under the pointer
+  pairMenuItems(price, y) {
+    const items = [], fmtR = (v) => fp(v, { price_decimals: this.pairDec || 6 });
+    for (const d of this.dragOrders.filter((z) => z.pairStop)) {
+      const ly = this.series.priceToCoordinate(d.price);
+      if (ly !== null && Math.abs(ly - y) <= 6) items.push({ line: true, cls: "danger", label: t("Togli il {kind} della coppia", { kind: d.label }), run: () => setPairStop(d.pairStop.id, d.pairStop.k, null) });
+    }
+    const last = this.last && this.last.close;
+    if (!info.trading || !last) return items;
+    for (const { x, inv } of this.pairsHere()) {
+      // the stored ratio is long over short; on an inverted chart, up here is down there
+      const up = (price > last) !== inv, k = up ? "tp" : "sl";
+      items.push({ label: t(k === "tp" ? "TP della coppia a {price}" : "SL della coppia a {price}", { price: fmtR(price) }), cls: "pos " + k, note: t("subito"),
+        run: () => setPairStop(x.id, k, inv ? 1 / price : price) });
+    }
+    return items;
+  }
+
   clearZ() {
     for (const s of this.zSeries || []) this.chart.removeSeries(s);
     this.zSeries = null;
@@ -482,6 +523,7 @@ class Panel {
     this.stopLine = this.markLine = null;
     this.trailPrices = []; // the managed stop's own lines (stop, "trailing from here", BE), for the right-click menu
     const m = this.market;
+    if (this.pair) return this.drawPairLines();
     if (!m) return;
     const add = (o) => { const l = this.series.createPriceLine({ lineWidth: 1, lineStyle: 0, ...o }); this.lines.push(l); return l; };
     const pos = account && account.positions.find((p) => p.market_id === m.id);
@@ -587,6 +629,7 @@ class Panel {
       document.body.classList.remove("dragging-line");
       if (d.to === d.from) { this.drawLines(); this.drawPreview(); return; }
       if (d.alert) { moveAlert(d.alert.id, d.to); return; }
+      if (d.pairStop) { setPairStop(d.pairStop.id, d.pairStop.k, d.pairStop.inv ? 1 / d.to : d.to); return; }
       if (d.preview) {
         (d.input || $({ sl: "#tkSl", tp: "#tkTp", limit: "#tkPrice" }[d.kind])).value = d.to;
         this.drawLines();
@@ -638,6 +681,7 @@ class Panel {
       const y = e.clientY - box.getBoundingClientRect().top;
       const raw = this.series.coordinateToPrice(y);
       const m = this.market;
+      if (raw !== null && raw > 0 && this.pair) return this.openPairMenu(e, raw, y);
       if (raw === null || raw <= 0 || !m) return;
       setActive(this.idx);
       this.menuPrice = +raw.toFixed(decimals(m));
@@ -670,6 +714,21 @@ class Panel {
   }
 
   closeOrderMenu() { $(".chart-menu", this.el).classList.add("hidden"); }
+
+  openPairMenu(e, raw, y) {
+    setActive(this.idx);
+    const d = this.pairDec || 6, price = +raw.toFixed(d);
+    const items = this.pairMenuItems(price, y);
+    if (!items.length) return;
+    const menu = $(".chart-menu", this.el);
+    menu.innerHTML = `<div class="cm-price">${fp(price, { price_decimals: d })}</div>` + items.map((it, i) =>
+      `<button data-cm="${i}" class="${it.cls || ""}${it.line && !(items[i + 1] || {}).line ? " line-last" : ""}">${esc(it.label)}${it.note ? `<small>${esc(it.note)}</small>` : ""}</button>`).join("");
+    this.menuItems = items;
+    menu.classList.remove("hidden");
+    const r = this.el.getBoundingClientRect();
+    menu.style.left = Math.max(4, Math.min(r.width - menu.offsetWidth - 4, e.clientX - r.left + 2)) + "px";
+    menu.style.top = Math.max(4, Math.min(r.height - menu.offsetHeight - 4, e.clientY - r.top + 2)) + "px";
+  }
 
   // the line under the pointer (within 6 px), if any: what can be done to it comes first in the menu
   lineMenuItems(m, y) {
@@ -1901,15 +1960,21 @@ function pairRow(x) {
   const fl = prices[ml.id] ? prices[ml.id].funding : 0, fs = prices[ms.id] ? prices[ms.id].funding : 0;
   const fundH = (-legs[0].value * fl + legs[1].value * fs) / 100;
   const sym = `${ml.symbol}/${ms.symbol}`;
+  // a pair has no liquidation price of its own: each leg's position has one; the row shows the nearer
+  const liqOf = (m) => { const p = account && account.positions.find((x) => x.market_id === m.id); return p && p.liq ? p.liq : null; };
+  const gap = (g) => { const l = liqOf(g.m); return l && g.mark ? { m: g.m, pct: Math.abs(g.mark - l) / g.mark * 100 } : null; };
+  const near = legs.map(gap).filter(Boolean).sort((a, b) => a.pct - b.pct)[0];
   const legRow = (g) => `<tr class="leg"><td class="mk">${esc(g.m.symbol)}<small class="${g.side > 0 ? "up" : "down"}">${g.side > 0 ? "Long" : "Short"}</small></td>
     <td class="r ${g.side > 0 ? "up" : "down"}">${fsize(g.qty, g.m)} <span class="unit-sym">${esc(g.m.symbol)}</span></td><td class="r">${fusd(g.value)}</td><td class="r">${fusd(g.margin)}</td>
-    <td class="r">${fp(g.entry, g.m)}</td><td class="r">${fp(g.mark, g.m)}</td><td></td><td class="r pnl ${cls(g.upnl)}">${fusd(g.upnl)}</td><td></td><td></td><td></td></tr>`;
+    <td class="r">${fp(g.entry, g.m)}</td><td class="r">${fp(g.mark, g.m)}</td><td class="r liq">${fp(liqOf(g.m), g.m)}</td><td class="r pnl ${cls(g.upnl)}">${fusd(g.upnl)}</td><td></td><td></td><td></td></tr>`;
+  const stop = (k) => `<button class="sltp-v ${k}${x[k] ? "" : " none"}" data-pstop="${x.id}:${k}" title="${t(k === "tp" ? "Take-profit della coppia sul rapporto" : "Stop-loss della coppia sul rapporto")}">${x[k] ? fmt(x[k]) : "—"}</button>`;
   return `<tr class="pair-row"><td class="mk">${gotoBtn(sym)}<small class="up">${t("Coppia")}</small></td>
-    <td class="r"><span class="up">L ${esc(ml.symbol)}</span> / <span class="down">S ${esc(ms.symbol)}</span></td><td class="r main">${fusd(sum("value"))}</td>
+    <td class="r"><span class="up">L ${esc(ml.symbol)}</span> / <span class="down">S ${esc(ms.symbol)}</span></td>
+    <td class="r main">${fusd(sum("value"))}<small class="pos-lev" title="${t("Funding all'ora delle due gambe insieme")}">funding ${fsmall(fundH)}/h</small></td>
     <td class="r">${margin ? fusd(margin) : "—"}</td><td class="r" title="${t("Rapporto all'entrata")}">${fmt(entry)}</td><td class="r main" title="${t("Rapporto attuale")}">${fmt(now)}</td>
-    <td class="r muted" title="${t("Funding all'ora delle due gambe insieme")}"><span class="${cls(fundH)}">${fsigned(fundH)}</span>/h</td>
+    <td class="r liq" title="${t("La liquidazione più vicina fra le due gambe")}">${near ? `<span class="${near.pct < BADGE_LIQ ? "down" : ""}">${near.pct.toFixed(1)}%</span><small class="pos-lev">${esc(near.m.symbol)}</small>` : "—"}</td>
     <td class="r pnl ${cls(upnl)}">${fusd(upnl)}<small>${isFinite(pct) ? fpct(pct) : ""}</small></td>
-    <td class="r muted">—</td><td></td>
+    <td class="r sltp">${stop("tp")}<span class="sltp-sep">/</span>${stop("sl")}</td><td></td>
     <td><span class="qbtn">${[50, 100].map((f) => `<button data-pclose="${x.id}" data-f="${f}"${f === 100 ? ` class="all" data-ck="pclose:${x.id}"` : ""}>${f}%</button>`).join("")}<button class="unpair" data-unpair="${x.id}" title="${t("Separa: le due posizioni restano aperte, non più come coppia")}">${t("Separa")}</button></span></td></tr>`
     + legs.map(legRow).join("");
 }
@@ -1935,6 +2000,51 @@ function openPairGroup(anchor, mid) {
   pop.style.top = (r.bottom + 6 + pop.offsetHeight > innerHeight ? r.top - pop.offsetHeight - 6 : r.bottom + 6) + "px";
 }
 
+// money too small for cents: "<$0.01" with its sign instead of "$0.00"
+const fsmall = (v) => (!v ? "$0" : Math.abs(v) < 0.01 ? `${v < 0 ? "−" : "+"}<$0.01` : fsigned(v));
+
+// SL/TP of a pair on its ratio: typed in the row, dragged on the spread chart or set from its right-click menu
+async function setPairStop(id, k, value) {
+  const x = pairs.find((p) => p.id === id);
+  if (!x) return;
+  const body = { sl: x.sl || null, tp: x.tp || null, [k]: value || null };
+  try {
+    const res = await api(`/pairs/${encodeURIComponent(id)}/stops`, { method: "PUT", body: JSON.stringify(body) });
+    pairs = res.pairs;
+    toast(value ? t("{kind} della coppia a {r}", { kind: k.toUpperCase(), r: +(+value).toPrecision(6) }) + (res.armed ? "" : " · " + t("parte quando attivi Auto"))
+      : t("{kind} della coppia rimosso", { kind: k.toUpperCase() }));
+  } catch (err) { toast(err.message, true); }
+  renderPositions();
+  panels.forEach((p) => p.drawLines());
+}
+
+function editPairStop(btn) {
+  const [id, k] = btn.dataset.pstop.split(":");
+  const x = pairs.find((p) => p.id === id);
+  if (!x) return;
+  posEdit = { pair: id, k };
+  const input = document.createElement("input");
+  input.className = "sltp-in " + k;
+  input.inputMode = "decimal";
+  input.autocomplete = "off";
+  input.placeholder = k.toUpperCase();
+  input.value = x[k] || "";
+  btn.replaceWith(input);
+  input.focus();
+  input.select();
+  const end = () => { posEdit = null; renderPositions(); };
+  input.onkeydown = async (e) => {
+    if (e.key === "Escape") return end();
+    if (e.key !== "Enter") return;
+    const v = +input.value.trim();
+    input.onblur = null;
+    posEdit = null;
+    if ((!v && !x[k]) || v === x[k]) return end();
+    await setPairStop(id, k, v || null);
+  };
+  input.onblur = end;
+}
+
 async function loadPairs() {
   if (!info.trading) { pairs = []; return; }
   const list = await api("/pairs").catch(() => null);
@@ -1958,6 +2068,7 @@ async function fetchOpenOrders(fresh = false) {
   for (const o of list) (openOrders[o.market_id] ||= []).push(o);
   panels.forEach((p) => { p.drawLines(); p.loadFills(fresh); });
   await loadPairs();
+  panels.forEach((p) => p.pair && p.drawLines());
   renderPositions();
   return list;
 }
@@ -2795,6 +2906,8 @@ function wire() {
   // bottom tables
   $$("#bottomTabs button").forEach((b) => (b.onclick = () => switchBottom(b.dataset.btab)));
   $("#btab-positions").onclick = async (e) => {
+    const ps = e.target.closest("[data-pstop]");
+    if (ps && info.trading) return editPairStop(ps);
     const pc = e.target.closest("[data-pclose]");
     if (pc) {
       const f = +pc.dataset.f;

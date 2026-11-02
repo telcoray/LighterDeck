@@ -62,7 +62,7 @@ async def lifespan(app):
     await api.start()
     feed.multipliers = {mid: m.multiplier for mid, m in api.markets.items()}
     calendar.stock_symbols = lambda: {m.symbol for m in api.markets.values() if "STOCK" in m.categories}
-    tasks = [asyncio.create_task(t) for t in (feed.run(), calendar.run(), engine.run(), broadcast_loop())]
+    tasks = [asyncio.create_task(t) for t in (feed.run(), calendar.run(), engine.run(), broadcast_loop(), pair_watch_loop())]
     yield
     for t in tasks:
         t.cancel()
@@ -685,6 +685,66 @@ async def close_pair(pair_id: str, fraction: float = 1.0):
     if errors:
         raise HTTPException(400, "; ".join(errors))
     return {"ok": True}
+
+
+# ---------- pair SL/TP on the ratio ----------
+# The ratio is the long leg's mark over the short leg's: the pair gains when it rises, so its SL sits below
+# the ratio and its TP above. Lighter can't trigger on a ratio, so LighterDeck watches it while Auto is ON.
+class PairStopsReq(BaseModel):
+    sl: float | None = None
+    tp: float | None = None
+
+
+def _pair_ratio(p):
+    a, b = feed.mark(p["long_id"]), feed.mark(p["short_id"])
+    return a / b if a and b else None
+
+
+@app.put("/api/pairs/{pair_id}/stops")
+async def set_pair_stops(pair_id: str, r: PairStopsReq):
+    await get_pairs()
+    pairs = _pairs()
+    p = next((x for x in pairs if x["id"] == pair_id), None)
+    if not p:
+        raise HTTPException(400, L("Coppia non trovata", "Pair not found"))
+    ratio = _pair_ratio(p)
+    if ratio and r.sl and r.sl >= ratio:
+        raise HTTPException(400, L(f"Lo SL della coppia deve stare sotto il rapporto attuale ({ratio:.6g}), altrimenti scatterebbe subito",
+                                   f"The pair's SL must be below the current ratio ({ratio:.6g}), or it would trigger at once"))
+    if ratio and r.tp and r.tp <= ratio:
+        raise HTTPException(400, L(f"Il TP della coppia deve stare sopra il rapporto attuale ({ratio:.6g}), altrimenti scatterebbe subito",
+                                   f"The pair's TP must be above the current ratio ({ratio:.6g}), or it would trigger at once"))
+    p["sl"], p["tp"] = r.sl or None, r.tp or None
+    _save_pairs(pairs)
+    sym = f"{api.markets[p['long_id']].symbol}/{api.markets[p['short_id']].symbol}"
+    engine.note(f"pair {sym}: SL {p['sl'] or '-'} / TP {p['tp'] or '-'} on the ratio", "warning")
+    return {"pairs": await get_pairs(), "armed": engine.armed}
+
+
+_pair_retry = {}  # pair id -> time of the last failed close, so a failing leg isn't retried every tick
+
+
+async def pair_watch_loop():
+    while True:
+        await asyncio.sleep(2)
+        if not engine.armed or not api.signer:
+            continue
+        for p in _pairs():
+            if not (p.get("sl") or p.get("tp")) or time.time() - _pair_retry.get(p["id"], 0) < 30:
+                continue
+            ratio = _pair_ratio(p)
+            if not ratio:
+                continue
+            hit = "sl" if p.get("sl") and ratio <= p["sl"] else "tp" if p.get("tp") and ratio >= p["tp"] else None
+            if not hit:
+                continue
+            sym = f"{api.markets[p['long_id']].symbol}/{api.markets[p['short_id']].symbol}"
+            engine.note(f"pair {sym} {hit.upper()} {p[hit]:g} reached (ratio {ratio:.6g}): closing both legs", "warning")
+            try:
+                await close_pair(p["id"], 1.0)
+            except Exception as e:
+                _pair_retry[p["id"]] = time.time()
+                engine.note(f"pair {sym}: close failed, retrying in 30 s: {getattr(e, 'detail', e)}", "error")
 
 
 # ---------- trailing stop on an open position ----------
