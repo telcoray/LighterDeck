@@ -187,6 +187,15 @@ class Panel {
     const d = decimals(m);
     this.series.applyOptions({ priceFormat: { type: "price", precision: d, minMove: 1 / 10 ** d } });
     const token = (this.loadToken = Symbol());
+    // until the new candles arrive, live prices must not land on the old ones (another market's
+    // candles with this market's price made one giant bar); a new market starts from an empty chart
+    this.last = null;
+    if (this.loadedSym !== m.symbol) {
+      this.loadedSym = m.symbol;
+      this.data = new Map();
+      this.series.setData([]);
+      this.vol.setData([]);
+    }
     const candles = await api(`/candles?market_id=${m.id}&resolution=${this.cfg.tf}&count=600`).catch((e) => { toast(e.message, true); return []; });
     if (token !== this.loadToken) return;
     this.data = new Map(candles.map((c) => [c.time, c]));
