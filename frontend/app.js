@@ -363,6 +363,7 @@ class Panel {
     this.lines = [];
     this.dragOrders = [];
     this.stopLine = this.markLine = null;
+    this.trailPrices = []; // the managed stop's own lines (stop, "trailing from here", BE), for the right-click menu
     const m = this.market;
     if (!m) return;
     const add = (o) => { const l = this.series.createPriceLine({ lineWidth: 1, lineStyle: 0, ...o }); this.lines.push(l); return l; };
@@ -386,9 +387,11 @@ class Panel {
     if (pos && s && chartEls.stop) {
       const dir = Math.sign(pos.size), amber = cssVar("--amber"), lev = pos.leverage || 1;
       // activation and breakeven are PnL % on margin: the price moves that much divided by the leverage
+      const at = (pct) => pos.entry * (1 + dir * pct / 100 / lev);
       if (s.stop) this.stopLine = add({ price: s.stop, color: amber, lineWidth: 2, title: this.stopTitle(s) });
-      else if (s.trail_activate_pct) add({ price: pos.entry * (1 + dir * s.trail_activate_pct / 100 / lev), color: amber, lineStyle: 2, title: t("trailing da qui") });
-      if (s.breakeven_at_pct && (!s.stop || (s.stop - pos.entry) * dir < 0)) add({ price: pos.entry * (1 + dir * s.breakeven_at_pct / 100 / lev), color: amber, lineStyle: 3, title: "BE" });
+      else if (s.trail_activate_pct) add({ price: at(s.trail_activate_pct), color: amber, lineStyle: 2, title: t("trailing da qui") });
+      if (s.breakeven_at_pct && (!s.stop || (s.stop - pos.entry) * dir < 0)) add({ price: at(s.breakeven_at_pct), color: amber, lineStyle: 3, title: "BE" });
+      this.trailPrices = [s.stop || (s.trail_activate_pct ? at(s.trail_activate_pct) : null), s.breakeven_at_pct ? at(s.breakeven_at_pct) : null].filter(Boolean);
     }
     if (chartEls.alerts) {
       for (const a of alerts.filter((x) => x.market_id === m.id)) {
@@ -406,6 +409,7 @@ class Panel {
     for (const l of this.previewLines || []) this.series.removePriceLine(l);
     this.previewLines = [];
     this.dragPreview = [];
+    this.previewTrail = [];
     const d = ticketDraft, m = this.market;
     if (!d || !m || d.market !== m.id || this.idx !== activeIdx) return;
     const colour = { limit: cssVar("--text-2"), sl: C.red, tp: C.green, trail: cssVar("--amber") };
@@ -418,6 +422,7 @@ class Panel {
     for (const l of d.lines) {
       const line = add(l.price, colour[l.kind], l.title, l.dashed ? 3 : 1);
       if (line && l.kind !== "trail") this.dragPreview.push({ line, price: l.price, label: l.label || l.kind.toUpperCase(), kind: l.kind, input: l.input, preview: true });
+      if (line && l.kind === "trail") this.previewTrail.push(l.price);
     }
     if (d.liq) add(d.liq, C.red, t("LIQ stimata"), 3);
   }
@@ -567,8 +572,11 @@ class Panel {
       items.push({ line: true, label: t("Togli {what} dal ticket", { what: d.label }), run: () => chartClearTicket(d) });
     }
     const s = stops[m.id];
-    if (this.stopLine && s && near(s.stop)) {
-      items.push({ line: true, label: t("Ferma il trailing (lo stop resta a {price})", { price: fp(s.stop, m) }), run: () => chartStopTrail(m) });
+    if (s && (this.trailPrices || []).some(near)) {
+      items.push({ line: true, label: s.stop ? t("Ferma il trailing (lo stop resta a {price})", { price: fp(s.stop, m) }) : t("Togli il trailing"), run: () => chartStopTrail(m) });
+    }
+    if ((this.previewTrail || []).some(near)) {
+      items.push({ line: true, label: t("Togli il trailing dal ticket"), run: () => { $("#tkTrail").checked = false; renderTicketTrail(); } });
     }
     const pos = account && account.positions.find((p) => p.market_id === m.id);
     if (pos && info.trading && near(this.posPrice)) {

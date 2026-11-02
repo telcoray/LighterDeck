@@ -282,6 +282,8 @@ const EN = {
   "Chiudi la posizione ({what})": "Close the position ({what})",
   "Conferma: chiudi {what} a mercato": "Confirm: close {what} at market",
   "Trailing fermato su {sym}": "Trailing stopped on {sym}",
+  "Togli il trailing": "Remove the trailing stop",
+  "Togli il trailing dal ticket": "Remove the trailing stop from the ticket",
   "Togli l'alert a {price}": "Remove the alert at {price}",
   "Alert a {price}": "Alert at {price}",
   "Punta il mouse sul grafico, al prezzo dell'alert, e premi A.": "Point at the alert's price on the chart and press A.",
