@@ -2924,6 +2924,7 @@ function wireTrail() {
   $("#tkTrail").onchange = renderTicketTrail;
   wireTpLevels();
   wireBadges();
+  $("#mktSpread").onclick = openSpreadPicker;
   $("#alertCount").textContent = alerts.length || "";
   $("#tkReduce").addEventListener("change", renderTicketTrail);
   $("#btab-positions").addEventListener("click", (e) => {
