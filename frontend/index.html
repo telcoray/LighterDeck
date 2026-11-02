@@ -40,14 +40,14 @@
 </script>
 <style>html.i18n-pending body { visibility: hidden; }</style>
 <link rel="icon" href="favicon.svg?v=1" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=92">
+<link rel="stylesheet" href="style.css?v=93">
 <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
 </head>
 <body>
 
 <!-- ============ public site: welcome bar ============ -->
 <div class="pubbar hidden" id="pubBar">
-  <span class="pub-text"><span class="pub-long"><b>LighterDeck</b> · <span>Terminale per i perpetual di Lighter. Questa è la versione in sola lettura: grafici, calendario per mercato e funding. Il trading online arriva presto.</span></span><span class="pub-short">Sola lettura · trading in arrivo</span></span>
+  <span class="pub-text"><span class="pub-long"><b>LighterDeck</b> · <span>Terminale per i perpetual di Lighter: grafici, calendario per mercato, funding e paper trading con i prezzi veri. Il trading reale arriva presto.</span></span><span class="pub-short">Paper trading · trading reale in arrivo</span></span>
   <a id="pubGithub" target="_blank" rel="noopener"><span class="pub-long">Codice su GitHub</span><span class="pub-short">GitHub</span></a>
   <a id="pubReferral" target="_blank" rel="noopener">Apri un account su Lighter</a>
   <button class="xbtn" id="pubClose" aria-label="Chiudi">✕</button>
@@ -516,6 +516,7 @@
     </dl>
     <p class="key-note" id="keyEnvNote">La chiave è impostata nel file env del server: per cambiarla modifica quel file.</p>
     <div class="key-actions" id="keyActions">
+      <button class="ghost" id="keyPaper">Paper trading</button>
       <button class="ghost danger" id="keyRemove">Scollega</button>
       <button class="ghost" id="keyDone">Fatto</button>
     </div>
@@ -543,7 +544,27 @@
     <p class="key-note">La chiave resta solo sul server, in data/credentials.json, e non viene mai rimandata al browser. Un'API key firma ordini e può prelevare solo verso il tuo wallet: non può mandare fondi ad altri indirizzi.</p>
     <p class="key-error hidden" id="keyError"></p>
     <button class="primary" id="keySubmit" type="submit">Verifica e collega</button>
+    <button class="ghost key-paper" id="keyPaper2" type="button">Oppure prova in paper trading</button>
   </form>
+</div>
+
+<!-- paper trading -->
+<div class="modal-veil hidden" id="paperVeil"></div>
+<div class="modal hidden" id="paperModal" role="dialog" aria-labelledby="paperTitle">
+  <div class="modal-head"><h3 id="paperTitle">Paper trading</h3><button class="xbtn" id="paperClose" title="Chiudi (Esc)">✕</button></div>
+  <p class="res-text">Prezzi veri di Lighter, soldi finti. Ordini e posizioni restano in questo browser: eseguono mentre LighterDeck è aperto e, alla riapertura, il tempo passato viene ricostruito dalle candele.</p>
+  <dl class="key-facts">
+    <dt>Valore account</dt><dd id="paperEq">—</dd>
+    <dt>PnL dall'inizio</dt><dd id="paperPnl">—</dd>
+    <dt>Operazioni</dt><dd id="paperCount">—</dd>
+    <dt>Iniziato</dt><dd id="paperSince">—</dd>
+  </dl>
+  <div class="paper-reset">
+    <span>Ricomincia con</span>
+    <div class="seg" id="paperBal"><button data-bal="1000">$1K</button><button data-bal="10000">$10K</button><button data-bal="100000">$100K</button></div>
+    <button class="ghost danger" id="paperReset" data-ck="paperReset">Ricomincia</button>
+  </div>
+  <div class="key-actions"><button class="ghost" id="paperLive">Passa al live</button></div>
 </div>
 
 <!-- market picker -->
@@ -575,9 +596,10 @@
 </div>
 
 <div class="toast hidden" id="toast"></div>
-<script src="i18n.js?v=92"></script>
-<script src="formulas.js?v=92"></script>
-<script src="app.js?v=92"></script>
-<script src="picker.js?v=92"></script>
+<script src="i18n.js?v=93"></script>
+<script src="formulas.js?v=93"></script>
+<script src="paper.js?v=93"></script>
+<script src="app.js?v=93"></script>
+<script src="picker.js?v=93"></script>
 </body>
 </html>
