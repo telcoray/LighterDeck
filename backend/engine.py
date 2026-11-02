@@ -20,7 +20,7 @@ TICK_SECONDS = 3
 MIN_STOP_STEP_PCT = 0.05   # don't send a modify for moves smaller than this
 VERIFY_EVERY = 60          # re-check that each stop order still exists
 ATR_TF, ATR_LEN, ATR_TTL = "15m", 14, 300  # trailing by volatility: ATR(14) on 15m candles, refreshed every 5 min
-STOP_FIELDS = ("initial_stop_pct", "breakeven_at_pct", "trail_pct", "trail_price", "trail_atr", "trail_activate_pct")
+STOP_FIELDS = ("initial_stop_pct", "breakeven_at_pct", "trail_pnl", "trail_pct", "trail_price", "trail_atr", "trail_activate_pct")
 
 
 class Engine:
@@ -132,7 +132,7 @@ class Engine:
                 parts.append(f"SL {r['initial_stop_pct']}%")
             if r.get("breakeven_at_pct"):
                 parts.append(f"BE at PnL +{r['breakeven_at_pct']}%")
-            trail = (f"{r['trail_pct']}%" if r.get("trail_pct") else f"${r['trail_price']:g}" if r.get("trail_price")
+            trail = (f"{r['trail_pnl']:g}% PnL" if r.get("trail_pnl") else f"{r['trail_pct']}%" if r.get("trail_pct") else f"${r['trail_price']:g}" if r.get("trail_price")
                      else f"{r['trail_atr']:g}x ATR" if r.get("trail_atr") else None)
             if trail:
                 parts.append(f"trail {trail} from PnL +{r.get('trail_activate_pct', 0)}%")
@@ -191,8 +191,11 @@ class Engine:
         self._atr_cache[market_id] = (time.time(), value)
         return value
 
-    async def _trail_distance(self, r, best):
-        """Price distance the trailing stop keeps from the best price: a %, a fixed amount or N x ATR."""
+    async def _trail_distance(self, r, best, leverage=1):
+        """Price distance the trailing stop keeps from the best price: a PnL % (on margin), a price %,
+        a fixed amount or N x ATR."""
+        if r.get("trail_pnl"):
+            return best * r["trail_pnl"] / 100 / (leverage or 1)
         if r.get("trail_pct"):
             return best * r["trail_pct"] / 100
         if r.get("trail_price"):
@@ -230,7 +233,7 @@ class Engine:
         if r.get("breakeven_at_pct") and best_profit >= r["breakeven_at_pct"]:
             candidates.append(entry * (1 + side * r.get("breakeven_offset_pct", 0.05) / 100))
         if best_profit >= r.get("trail_activate_pct", 0):
-            dist = await self._trail_distance(r, st["best"])
+            dist = await self._trail_distance(r, st["best"], pos.get("leverage") or 1)
             if dist:
                 candidates.append(st["best"] - side * dist)
         if not candidates:

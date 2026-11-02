@@ -269,7 +269,7 @@ const Paper = (() => {
   }
 
   // ---------- managed (trailing) stop, the same rules as the server's engine ----------
-  const TRAIL_RANGES = { pct: [0.05, 50], price: [1e-9, 1e12], atr: [0.1, 20] };
+  const TRAIL_RANGES = { pnl: [0.1, 1000], pct: [0.05, 50], price: [1e-9, 1e12], atr: [0.1, 20] };
   function trailFields(tr) {
     const range = TRAIL_RANGES[tr.mode] || err(t("Tipo di trailing sconosciuto"));
     if (!(tr.value >= range[0] && tr.value <= range[1])) err(t("Distanza del trailing fuori dai limiti ({lo}–{hi})", { lo: range[0], hi: range[1] }));
@@ -326,7 +326,8 @@ const Paper = (() => {
     if (s.breakeven_at_pct && profit >= s.breakeven_at_pct) cands.push(pos.entry * (1 + side * 0.05 / 100));
     if (profit >= (s.trail_activate_pct || 0)) {
       let dist = null;
-      if (s.trail_pct) dist = st.best * s.trail_pct / 100;
+      if (s.trail_pnl) dist = st.best * s.trail_pnl / 100 / lev(id);
+      else if (s.trail_pct) dist = st.best * s.trail_pct / 100;
       else if (s.trail_price) dist = s.trail_price;
       else if (s.trail_atr) { loadAtr(id); dist = atr[id] && atr[id].value ? s.trail_atr * atr[id].value : null; }
       if (dist) cands.push(st.best - side * dist);

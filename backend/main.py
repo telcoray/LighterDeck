@@ -336,13 +336,13 @@ async def trades():
 
 # ---------- manual trading ----------
 class TrailReq(BaseModel):
-    mode: str = "pct"                 # "pct" | "price" | "atr"
+    mode: str = "pnl"                 # "pnl" (PnL % on margin) | "pct" (price %) | "price" | "atr"
     value: float                      # % of the best price, price distance, or ATR multiple
     activate_pct: float = 0           # start trailing once the position's PnL % (on margin) reaches this
     breakeven_at_pct: float | None = None
 
 
-TRAIL_RANGES = {"pct": (0.05, 50), "price": (1e-9, 1e12), "atr": (0.1, 20)}
+TRAIL_RANGES = {"pnl": (0.1, 1000), "pct": (0.05, 50), "price": (1e-9, 1e12), "atr": (0.1, 20)}
 
 
 def trail_fields(t: TrailReq):

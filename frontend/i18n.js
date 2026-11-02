@@ -273,6 +273,8 @@ const EN = {
   "Distanza dal prezzo migliore": "Distance from best price",
   "Breakeven a PnL +%": "Breakeven at PnL +%",
   "Parte da PnL +%": "Starts at PnL +%",
+  "% prezzo": "% price",
+  "Quanto PnL cedi dal punto migliore, con la leva della posizione.": "How much PnL you give back from the best point, at the position's leverage.",
   "Attivazione e breakeven vanno tra 0 e 1000% di PnL": "Activation and breakeven must be between 0 and 1000% PnL",
   "ATR(14) su candele da 15 minuti: la distanza si adatta alla volatilità.": "ATR(14) on 15-minute candles: the distance adapts to volatility.",
   "Distanza fissa in dollari dal prezzo migliore.": "Fixed dollar distance from the best price.",

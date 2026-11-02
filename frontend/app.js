@@ -956,7 +956,7 @@ function trailDraft(m, side, entry, leverage = 1) {
   const tr = $("#tkTrail").checked && !$("#tkReduce").checked && readTrail($("#tkTrailBox"));
   if (!tr || !entry) return [];
   const out = [];
-  const dist = tr.mode === "pct" ? entry * tr.value / 100 : tr.mode === "price" ? tr.value : null;
+  const dist = tr.mode === "pnl" ? entry * tr.value / 100 / leverage : tr.mode === "pct" ? entry * tr.value / 100 : tr.mode === "price" ? tr.value : null;
   const label = `TRAIL ${trailLabel(trailToStop(tr), m)}`;
   if (tr.activate_pct) out.push({ kind: "trail", dashed: true, price: entry * (1 + side * tr.activate_pct / 100 / leverage), title: `${label} · ${t("trailing da qui")}` });
   else if (dist) out.push({ kind: "trail", price: entry - side * dist, title: label });
@@ -2138,18 +2138,19 @@ function clock() {
 // ================= trailing stop (ticket + open positions) =================
 // The server keeps one managed stop per market; it trails while automations are ON (Auto).
 let stops = {};
-const TRAIL_UNITS = [["pct", "%"], ["price", "$"], ["atr", "× ATR"]];
+const TRAIL_UNITS = [["pnl", "% PnL"], ["pct", "% prezzo"], ["price", "$"], ["atr", "× ATR"]];
+const TRAIL_DEFAULT = { mode: "pnl", value: 10 };
 
 function trailToStop(tr) { // ticket/editor values -> the server's field names
   return { [`trail_${tr.mode}`]: tr.value, trail_activate_pct: tr.activate_pct, breakeven_at_pct: tr.breakeven_at_pct };
 }
 
 function trailLabel(s, m) {
-  return s.trail_pct ? `${s.trail_pct}%` : s.trail_price ? `$${fp(s.trail_price, m)}` : s.trail_atr ? `${s.trail_atr}× ATR` : "BE";
+  return s.trail_pnl ? `${s.trail_pnl}% PnL` : s.trail_pct ? `${s.trail_pct}%` : s.trail_price ? `$${fp(s.trail_price, m)}` : s.trail_atr ? `${s.trail_atr}× ATR` : "BE";
 }
 
 function trailForm(v) {
-  const unit = TRAIL_UNITS.map(([k, u]) => `<option value="${k}" ${v.mode === k ? "selected" : ""}>${u}</option>`).join("");
+  const unit = TRAIL_UNITS.map(([k, u]) => `<option value="${k}" ${v.mode === k ? "selected" : ""}>${t(u)}</option>`).join("");
   return `<div class="trail-dist"><div class="field sm"><label>${t("Distanza dal prezzo migliore")}</label><input data-tr="value" type="number" min="0" step="any" value="${v.value ?? ""}" placeholder="${v.mode === "atr" ? "1.5" : v.mode === "price" ? "" : "1"}"></div>
       <select data-tr="mode">${unit}</select></div>
     <div class="two"><div class="field sm"><label>${t("Parte da PnL +%")}</label><input data-tr="activate_pct" type="number" min="0" step="any" value="${v.activate_pct || ""}" placeholder="0"></div>
@@ -2159,7 +2160,8 @@ function trailForm(v) {
 
 function trailHint(box) {
   const mode = box.querySelector('[data-tr="mode"]').value;
-  const parts = [mode === "atr" ? t("ATR(14) su candele da 15 minuti: la distanza si adatta alla volatilità.") : mode === "price" ? t("Distanza fissa in dollari dal prezzo migliore.") : t("Distanza in % dal prezzo migliore raggiunto.")];
+  const parts = [mode === "atr" ? t("ATR(14) su candele da 15 minuti: la distanza si adatta alla volatilità.") : mode === "price" ? t("Distanza fissa in dollari dal prezzo migliore.")
+    : mode === "pnl" ? t("Quanto PnL cedi dal punto migliore, con la leva della posizione.") : t("Distanza in % dal prezzo migliore raggiunto.")];
   parts.push(t("Lo stop si muove solo a tuo favore."));
   const hint = box.querySelector('[data-tr="hint"]');
   hint.textContent = parts.join(" ") + (autoOn() ? "" : " " + t("Auto è OFF: il trailing parte quando lo attivi."));
@@ -2184,9 +2186,9 @@ function renderTicketTrail() {
   $("#tkTrail").closest(".checks").classList.toggle("hidden", $("#tkReduce").checked);
   $("#tkTrailBox").classList.toggle("hidden", !on);
   if (on && !$("#tkTrailBox").children.length) {
-    mountTrailForm($("#tkTrailBox"), load("trail", { mode: "pct", value: 1 }), () => {
+    mountTrailForm($("#tkTrailBox"), load("trailPrefs", TRAIL_DEFAULT), () => {
       const tr = readTrail($("#tkTrailBox"));
-      if (tr) store("trail", tr);
+      if (tr) store("trailPrefs", tr);
       updateTicketSummary();
     });
   }
@@ -2206,8 +2208,8 @@ function openTrailPop(marketId, anchor) {
   const pop = $("#trailPop");
   pop.dataset.market = marketId;
   $("#trailPopTitle").textContent = t("Trailing stop · {sym}", { sym: m.symbol });
-  const v = s ? { mode: s.trail_pct ? "pct" : s.trail_price ? "price" : "atr", value: s.trail_pct || s.trail_price || s.trail_atr,
-    activate_pct: s.trail_activate_pct, breakeven_at_pct: s.breakeven_at_pct } : load("trail", { mode: "pct", value: 1 });
+  const v = s ? { mode: s.trail_pnl ? "pnl" : s.trail_pct ? "pct" : s.trail_price ? "price" : "atr", value: s.trail_pnl || s.trail_pct || s.trail_price || s.trail_atr,
+    activate_pct: s.trail_activate_pct, breakeven_at_pct: s.breakeven_at_pct } : load("trailPrefs", TRAIL_DEFAULT);
   $("#trailPopBody").innerHTML = `<div class="trail-box"></div>`;
   mountTrailForm($("#trailPopBody .trail-box"), v);
   $("#trailPopRemove").classList.toggle("hidden", !s);
@@ -2239,7 +2241,7 @@ function wireTrail() {
     if (!tr) return fail(new Error(t("Inserisci la distanza del trailing.")));
     try {
       const res = await api(`/trail/${id}`, { method: "PUT", body: JSON.stringify(tr) });
-      store("trail", tr);
+      store("trailPrefs", tr);
       done(res);
       toast(res.armed ? t("Trailing attivo su {sym}", { sym: byId[id].symbol }) : t("Trailing salvato: parte quando attivi Auto."));
     } catch (err) { fail(err); }
