@@ -142,6 +142,7 @@ const EN = {
   "Regno Unito": "United Kingdom",
   "Germania": "Germany",
   "Giappone": "Japan",
+  "Cina": "China",
   "Hong Kong": "Hong Kong",
   "Australia": "Australia",
   // ---- markets page ----

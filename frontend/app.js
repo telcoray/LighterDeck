@@ -1239,6 +1239,7 @@ const SESSIONS = [
   { name: "Regno Unito", ex: "LSE", tz: "Europe/London", open: [8, 0], close: [16, 30] },
   { name: "Germania", ex: "Xetra", tz: "Europe/Berlin", open: [9, 0], close: [17, 30] },
   { name: "Giappone", ex: "TSE", tz: "Asia/Tokyo", open: [9, 0], close: [15, 30] },
+  { name: "Cina", ex: "SSE Shanghai", tz: "Asia/Shanghai", open: [9, 30], close: [15, 0] },
   { name: "Hong Kong", ex: "HKEX", tz: "Asia/Hong_Kong", open: [9, 30], close: [16, 0] },
   { name: "Australia", ex: "ASX", tz: "Australia/Sydney", open: [10, 0], close: [16, 0] },
 ];
