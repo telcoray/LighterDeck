@@ -878,7 +878,16 @@ function toggleTfMenu(open) {
   const menu = $("#tfMenu");
   const show = open === undefined ? menu.classList.contains("hidden") : open;
   menu.classList.toggle("hidden", !show);
-  if (show) renderTfs();
+  if (show) { renderTfs(); fitInView(menu); }
+}
+
+// a menu opened next to its button is moved sideways to stay inside the screen (on a phone the button
+// can sit anywhere along a wrapped toolbar)
+function fitInView(el) {
+  el.style.transform = "";
+  const r = el.getBoundingClientRect(), pad = 8;
+  const dx = r.left < pad ? pad - r.left : r.right > innerWidth - pad ? innerWidth - pad - r.right : 0;
+  if (dx) el.style.transform = `translateX(${Math.round(dx)}px)`;
 }
 
 function buildCharts() {
@@ -1080,6 +1089,25 @@ function wirePairGroup() {
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") pop.classList.add("hidden"); });
 }
 
+// On a phone the bottom tables turn into cards (CSS); each cell needs its column's name to show beside the value.
+// Every table put into a bottom tab gets them from its header, whatever renders it.
+function labelTable(table) {
+  const heads = [...table.querySelectorAll("thead th")].map((th) => th.textContent.trim());
+  for (const tr of table.querySelectorAll("tbody tr")) {
+    let col = 0;
+    for (const td of tr.children) {
+      td.dataset.label = td.colSpan > 1 ? "" : heads[col] || ""; // a cell over several columns is text of its own
+      col += td.colSpan || 1;
+    }
+  }
+}
+
+function wireCardTables() {
+  for (const box of $$(".btab")) {
+    new MutationObserver(() => box.querySelectorAll("table.table").forEach(labelTable)).observe(box, { childList: true, subtree: true });
+  }
+}
+
 function wireBadges() {
   document.addEventListener("click", (e) => {
     const b = e.target.closest(".ctx[data-go]");
@@ -1099,6 +1127,7 @@ const fpctf = (v) => `${v >= 0 ? "+" : "−"}${Math.abs(v).toFixed(4)}%`;
 function toggleFunding(open = !fundView.open) {
   fundView.open = open;
   $("#fundPop").classList.toggle("hidden", !open);
+  if (open) fitInView($("#fundPop"));
   $("#stFundBtn").classList.toggle("open", open);
   clearInterval(fundView.timer);
   if (!open) return;
@@ -3052,7 +3081,7 @@ function wire() {
     e.stopPropagation();
     const menu = $("#elMenu");
     menu.classList.toggle("hidden");
-    if (!menu.classList.contains("hidden")) renderChartEls();
+    if (!menu.classList.contains("hidden")) { renderChartEls(); fitInView(menu); }
   };
   $("#elMenu").onclick = (e) => { e.stopPropagation(); const b = e.target.closest("[data-el]"); if (b) toggleChartEl(b.dataset.el); };
   $$("#layouts button").forEach((b) => (b.onclick = () => { layout = b.dataset.layout; store("layout", layout); buildCharts(); }));
@@ -3477,6 +3506,7 @@ function wireTrail() {
   $("#tkTrail").onchange = renderTicketTrail;
   wireTpLevels();
   wireBadges();
+  wireCardTables();
   wirePairGroup();
   wireEventTrades();
   $("#mktSpread").onclick = openSpreadPicker;
@@ -3969,7 +3999,7 @@ async function init() {
   wireBottomSplit();
   wireTrail();
   applyTheme(load("theme", "fosforo")); // first visit: Phosphor
-  $("#themeBtn").onclick = (e) => { e.stopPropagation(); $("#themeMenu").classList.toggle("hidden"); };
+  $("#themeBtn").onclick = (e) => { e.stopPropagation(); $("#themeMenu").classList.toggle("hidden"); fitInView($("#themeMenu")); };
   $("#themeMenu").onclick = (e) => {
     e.stopPropagation();
     const b = e.target.closest("[data-theme]");
