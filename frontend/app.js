@@ -146,6 +146,9 @@ function zStats(closes) {
 }
 
 // ================= charts =================
+// empty bars between the last candle and the price scale, so the live candle reads as the last one
+const RIGHT_GAP = 8;
+
 class Panel {
   constructor(idx) {
     this.idx = idx;
@@ -163,7 +166,7 @@ class Panel {
       autoSize: true,
       layout: { background: { color: "transparent" }, fontSize: 11, fontFamily: "JetBrains Mono, monospace" },
       rightPriceScale: { scaleMargins: { top: 0.12, bottom: 0.08 } },
-      timeScale: { timeVisible: true, secondsVisible: false, rightOffset: 6, barSpacing: 8 },
+      timeScale: { timeVisible: true, secondsVisible: false, rightOffset: RIGHT_GAP, barSpacing: 8 },
       crosshair: { mode: 0, vertLine: { style: 2 }, horzLine: { style: 2 } },
     });
     this.chart.applyOptions(chartTheme());
@@ -232,6 +235,7 @@ class Panel {
     this.series.setData(candles);
     this.vol.setData(candles.map((c) => ({ time: c.time, value: c.volume, color: c.close >= c.open ? "rgba(43,217,164,.28)" : "rgba(242,84,109,.28)" })));
     this.last = candles[candles.length - 1] || null;
+    this.keepGap();
     this.loadFills(true);
     this.drawMarkers();
     this.drawLines();
@@ -294,6 +298,7 @@ class Panel {
     this.series.setData(candles);
     this.vol.setData([]);
     this.last = candles[candles.length - 1] || null;
+    this.keepGap();
     this.drawZ();
     this.drawLines();
     this.renderLegend();
@@ -338,6 +343,15 @@ class Panel {
         run: () => setPairStop(x.id, k, inv ? 1 / price : price) });
     }
     return items;
+  }
+
+  // a new market or timeframe opens on the latest candle with the gap on its right; the periodic
+  // reload of the same chart keeps wherever it was scrolled
+  keepGap() {
+    const view = this.cfg.symbol + this.cfg.tf;
+    if (this.viewFor === view || !this.last || !this.el.clientWidth) return; // a hidden chart gets it once shown
+    this.viewFor = view;
+    this.chart.timeScale().scrollToPosition(RIGHT_GAP, false);
   }
 
   clearZ() {
@@ -393,6 +407,7 @@ class Panel {
   }
 
   tick() {
+    this.keepGap();
     if (this.pair) return this.tickPair();
     const m = this.market;
     const p = m && prices[m.id];
