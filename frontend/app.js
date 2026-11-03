@@ -146,8 +146,9 @@ function zStats(closes) {
 }
 
 // ================= charts =================
-// empty bars between the last candle and the price scale, so the live candle reads as the last one
-const RIGHT_GAP = 8;
+// empty bars between the last candle and the price scale, so the live candle reads as the last one:
+// fewer on a phone, where every bar of width counts
+const rightGap = () => (innerWidth < 768 ? 2 : 7);
 
 class Panel {
   constructor(idx) {
@@ -166,7 +167,7 @@ class Panel {
       autoSize: true,
       layout: { background: { color: "transparent" }, fontSize: 11, fontFamily: "JetBrains Mono, monospace" },
       rightPriceScale: { scaleMargins: { top: 0.12, bottom: 0.08 } },
-      timeScale: { timeVisible: true, secondsVisible: false, rightOffset: RIGHT_GAP, barSpacing: 8 },
+      timeScale: { timeVisible: true, secondsVisible: false, rightOffset: rightGap(), barSpacing: 8 },
       crosshair: { mode: 0, vertLine: { style: 2 }, horzLine: { style: 2 } },
     });
     this.chart.applyOptions(chartTheme());
@@ -348,10 +349,11 @@ class Panel {
   // a new market or timeframe opens on the latest candle with the gap on its right; the periodic
   // reload of the same chart keeps wherever it was scrolled
   keepGap() {
-    const view = this.cfg.symbol + this.cfg.tf;
+    const gap = rightGap(), view = this.cfg.symbol + this.cfg.tf + ":" + gap; // a phone turned wide gets the wider gap
     if (this.viewFor === view || !this.last || !this.el.clientWidth) return; // a hidden chart gets it once shown
     this.viewFor = view;
-    this.chart.timeScale().scrollToPosition(RIGHT_GAP, false);
+    this.chart.timeScale().applyOptions({ rightOffset: gap });
+    this.chart.timeScale().scrollToPosition(gap, false);
   }
 
   clearZ() {
