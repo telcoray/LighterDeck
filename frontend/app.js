@@ -749,7 +749,7 @@ class Panel {
       if (raw === null || raw <= 0 || !m) return;
       setActive(this.idx);
       this.menuPrice = +raw.toFixed(decimals(m));
-      const items = [...this.lineMenuItems(m, y), ...this.orderMenuItems(m, this.menuPrice)];
+      const items = [...this.lineMenuItems(m, y), ...this.orderMenuItems(m, this.menuPrice)].filter((it) => !(simpleMode && it.pro));
       if (!items.length) return;
       menu.innerHTML = `<div class="cm-price">${fp(this.menuPrice, m)}</div>` + items.map((it, i) =>
         `<button data-cm="${i}" class="${it.cls || ""}${it.line && !(items[i + 1] || {}).line ? " line-last" : ""}">${esc(it.label)}${it.note ? `<small>${esc(it.note)}</small>` : ""}</button>`).join("");
@@ -833,7 +833,7 @@ class Panel {
       items.push({ line: true, label: s.stop ? t("Ferma il trailing (lo stop resta a {price})", { price: fp(s.stop, m) }) : t("Togli il trailing"), run: () => chartStopTrail(m) });
     }
     if ((this.previewTrail || []).some(near)) {
-      items.push({ line: true, label: t("Togli il trailing dal ticket"), run: () => { $("#tkTrail").checked = false; renderTicketTrail(); } });
+      items.push({ line: true, pro: true, label: t("Togli il trailing dal ticket"), run: () => { $("#tkTrail").checked = false; renderTicketTrail(); } });
     }
     const pos = account && account.positions.find((p) => p.market_id === m.id);
     if (pos && info.trading && near(this.posPrice)) {
@@ -859,7 +859,7 @@ class Panel {
       const levels = readTpLevels();
       if (isTp && levels) {
         const n = levels.findIndex((l) => !l.price);
-        if (n >= 0) items.push({ label: t("TP{n} del ticket a {price}", { n: n + 1, price: at }), note: `${ticket.side === "buy" ? "Long" : "Short"}`, run: () => chartTicketStop("tp", price, n) });
+        if (n >= 0) items.push({ pro: true, label: t("TP{n} del ticket a {price}", { n: n + 1, price: at }), note: `${ticket.side === "buy" ? "Long" : "Short"}`, run: () => chartTicketStop("tp", price, n) });
       } else items.push({ label: t(isTp ? "TP del ticket a {price}" : "SL del ticket a {price}", { price: at }), note: `${ticket.side === "buy" ? "Long" : "Short"}`, run: () => chartTicketStop(isTp ? "tp" : "sl", price) });
       // the open position's SL/TP: set now, or moved if it has one
       const pos = account && account.positions.find((p) => p.market_id === m.id);
@@ -919,7 +919,7 @@ function toggleChartEl(k) {
 function setTf(tf) {
   panelCfg[activeIdx].tf = tf;
   savePanels();
-  panels[activeIdx].load();
+  activePanel().load();
   setActive(activeIdx);
 }
 
@@ -956,11 +956,12 @@ function fitInView(el) {
 function buildCharts() {
   panels.forEach((p) => p.destroy());
   panels = [];
-  const n = { "1": 1, "2v": 2, "2h": 2, "4": 4 }[layout];
-  if (activeIdx >= n) activeIdx = 0;
+  const lay = simpleMode ? "1" : layout;
+  const n = { "1": 1, "2v": 2, "2h": 2, "4": 4 }[lay];
+  if (activeIdx >= n && !simpleMode) activeIdx = 0;
   const box = $("#charts");
-  box.className = "charts l" + layout;
-  for (let i = 0; i < n; i++) {
+  box.className = "charts l" + lay;
+  for (const i of simpleMode ? [activeIdx] : [...Array(n).keys()]) {
     const p = new Panel(i);
     box.appendChild(p.el);
     panels.push(p);
@@ -970,6 +971,8 @@ function buildCharts() {
   applyKeyHints();
   setActive(activeIdx);
 }
+
+const activePanel = () => panels.find((p) => p.idx === activeIdx);
 
 function setActive(i) {
   activeIdx = i;
@@ -1007,7 +1010,7 @@ function setSymbol(sym) {
   if (!bySymbol[sym] && !pairOf(sym)) return;
   panelCfg[activeIdx].symbol = sym;
   savePanels();
-  panels[activeIdx] && panels[activeIdx].load();
+  activePanel() && activePanel().load();
   setActive(activeIdx);
   if (chartEls.orders && info.trading) fetchOpenOrders().catch(() => {});
 }
@@ -3121,6 +3124,7 @@ function syncUrl(push) {
 
 function switchView(v, opts = {}) {
   if ((info.public || Paper.on) && ["auto", "activity", "account"].includes(v)) v = "trade"; // live account only
+  if (simpleMode && ["auto", "activity"].includes(v)) v = "trade";
   $$("#views button").forEach((b) => b.classList.toggle("active", b.dataset.view === v));
   $$(".view").forEach((s) => s.classList.toggle("hidden", s.id !== "view-" + v));
   if (v === "markets") renderMarkets();
@@ -3569,7 +3573,7 @@ function renderTicketTrail() {
 
 function trailButton(marketId, m) {
   const s = stops[marketId];
-  if (!s) return `<button class="trail-btn" data-trail="${marketId}">+ ${t("Trailing")}</button>`;
+  if (!s) return simpleMode ? "" : `<button class="trail-btn" data-trail="${marketId}">+ ${t("Trailing")}</button>`;
   const paused = !autoOn() || !s.enabled;
   const title = paused ? t("Auto è OFF: il trailing è fermo") : t("Stop gestito attivo");
   return `<button class="trail-btn on${paused ? " paused" : ""}" data-trail="${marketId}" title="${title}">${trailLabel(s, m)}${s.stop ? " · " + fp(s.stop, m) : ""}</button>`;
@@ -3946,7 +3950,7 @@ function wireHotkeys() {
       "]": () => stepTf(1),
     }[k.length === 1 ? k.toLowerCase() : k];
     if (act) { e.preventDefault(); act(); return; }
-    if (/^[1-4]$/.test(k) && +k <= panels.length) { e.preventDefault(); setActive(+k - 1); }
+    if (/^[1-4]$/.test(k) && +k <= panels.length && !simpleMode) { e.preventDefault(); setActive(+k - 1); }
   });
 }
 
@@ -4029,6 +4033,7 @@ function renderLangBtn() {
 // redraw every piece of text built in JavaScript; charts, prices and the book keep running
 function rerenderLanguage() {
   renderLangBtn();
+  $("#modeBtn span").textContent = simpleMode ? t("Semplice") : "Pro";
   applyTheme(document.documentElement.dataset.theme);
   setStatus(feedOk);
   renderArmed(info.armed);
@@ -4052,6 +4057,33 @@ function rerenderLanguage() {
     const empty = box.querySelector(".empty");
     if (empty) empty.textContent = t("Nessuna attività.");
   }
+}
+
+// ================= Simple / Pro =================
+// Simple keeps what a first trade needs: one chart, Market/Limit, size in USD, SL and one TP, positions.
+// Pro adds the rest: automations, spreads and pairs, trailing, scaled exits, layouts, chart elements.
+// What Simple hides is mostly CSS (body.simple); the code here keeps hidden options from staying on.
+let simpleMode = false;
+function setMode(simple, save = true) {
+  simpleMode = simple;
+  if (save) store("mode", simple ? "simple" : "pro");
+  document.body.classList.toggle("simple", simple);
+  $("#modeBtn span").textContent = simple ? t("Semplice") : "Pro";
+  if (simple) {
+    // an option Simple hides mustn't apply, unseen, to the next order
+    if ($("#tkUnit").value !== "usd") { $("#tkUnit").value = "usd"; $("#tkSize").value = ""; }
+    $("#tkReduce").checked = false;
+    $("#tkPost").checked = false;
+    if ($("#tkTrail").checked) { $("#tkTrail").checked = false; renderTicketTrail(); }
+    const levels = readTpLevels();
+    if (levels) { $("#tkTp").value = levels[0] && levels[0].price ? levels[0].price : ""; renderTpLevels(null); }
+    if (["auto", "activity"].includes(curView)) switchView("trade");
+    if (!$("#btab-log").classList.contains("hidden")) switchBottom("positions");
+    if (activePair() && !$("#picker").classList.contains("hidden")) closePalette();
+  }
+  if (panels.length) buildCharts();
+  if (account) renderPositions();
+  updateTicketSummary();
 }
 
 async function init() {
@@ -4084,6 +4116,9 @@ async function init() {
   $("#sbNet").textContent = net;
   renderArmed(info.armed);
 
+  // first visit: Simple on phones, Pro on computers
+  setMode(load("mode", matchMedia("(hover: none), (max-width: 768px)").matches ? "simple" : "pro") === "simple", false);
+  $("#modeBtn").onclick = () => { setMode(!simpleMode); toast(simpleMode ? t("Modalità Semplice: solo l'essenziale.") : t("Modalità Pro: tutti gli strumenti.")); };
   wire();
   wireKeyDialog();
   wirePaper();

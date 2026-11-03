@@ -1009,3 +1009,17 @@ button.pill:hover { border-color: var(--line-3); color: var(--text); }
   .btab .table tr.leg td:last-child { display: none; }
   .qbtn { flex-wrap: wrap; row-gap: 6px; }
 }
+
+/* ================= Simple mode: only what a first trade needs ================= */
+.mode-btn { height: 26px; padding: 0 10px; border: 1px solid var(--line-2); border-radius: 13px; background: none; color: var(--text-2); font-family: var(--ui); font-size: 11.5px; white-space: nowrap; flex: none; }
+.mode-btn:hover { color: var(--text); border-color: var(--line-3); }
+body.simple .mode-btn { color: var(--green); border-color: rgba(43,217,164,.35); }
+body.simple #views [data-view="auto"], body.simple #views [data-view="activity"],
+body.simple #armedBtn:not(.on),
+body.simple #mktSpread, body.simple .stat:has(#stIdx), body.simple .stat:has(#stOi),
+body.simple .toolbar .layouts, body.simple .toolbar .sep, body.simple .tf-more:has(#elBtn),
+body.simple #bottomTabs [data-btab="log"],
+body.simple .ticket .fl:has(#tkUnit), body.simple .ticket .checks:has(#tkReduce), body.simple #tkTpAdd,
+body.simple .ticket .trail-check, body.simple #tkTrailBox, body.simple #tkTpBox, body.simple .ticket details.exec,
+body.simple .pair-add, body.simple .ev-trade,
+body.simple .rail .card.cal { display: none !important; }
