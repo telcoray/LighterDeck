@@ -188,10 +188,14 @@ class Panel {
       const keep = [...this.dragOrders, ...this.dragPreview].map((d) => d.price)
         .concat(this.stopLine ? [this.stopLine.options().price] : [])
         .filter((p) => Math.abs(p - last) / last < 0.15); // a typo far away doesn't squash the chart
-      if (!keep.length) return r;
-      return { ...r, priceRange: { minValue: Math.min(r.priceRange.minValue, ...keep), maxValue: Math.max(r.priceRange.maxValue, ...keep) } };
+      let lo = Math.min(r.priceRange.minValue, ...keep), hi = Math.max(r.priceRange.maxValue, ...keep);
+      // the mouse wheel over the price scale stretches or squeezes the prices around the middle
+      if (this.yZoom !== 1) { const mid = (lo + hi) / 2, half = (hi - lo) / 2 * this.yZoom; lo = mid - half; hi = mid + half; }
+      return { ...r, priceRange: { minValue: lo, maxValue: hi } };
     } });
+    this.yZoom = 1;
     this.wireDrag();
+    this.wirePriceZoom();
     this.wireOrderMenu();
     this.data = new Map();
     this.eventBars = new Map();
@@ -732,6 +736,23 @@ class Panel {
   }
 
   closeOrderMenu() { $(".chart-menu", this.el).classList.add("hidden"); }
+
+  // Mouse wheel over the price scale: up stretches the prices (taller candles), down squeezes them; the
+  // chart keeps fitting the price as it moves. A double click on the scale goes back to the normal fit.
+  wirePriceZoom() {
+    const box = $(".chart", this.el);
+    // the scale refits only when its options change: switch the autoscale off and on again
+    const refit = () => { const ps = this.chart.priceScale("right"); ps.applyOptions({ autoScale: false }); ps.applyOptions({ autoScale: true }); };
+    const onScale = (e) => e.clientX - box.getBoundingClientRect().left > box.clientWidth - this.chart.priceScale("right").width();
+    box.addEventListener("wheel", (e) => {
+      if (!onScale(e)) return;
+      e.preventDefault();
+      e.stopPropagation(); // the chart itself would zoom time
+      this.yZoom = Math.min(20, Math.max(0.05, this.yZoom * (e.deltaY > 0 ? 1.1 : 1 / 1.1)));
+      refit();
+    }, { capture: true, passive: false });
+    box.addEventListener("dblclick", (e) => { if (onScale(e)) { this.yZoom = 1; refit(); } }, true);
+  }
 
   openPairMenu(e, raw, y) {
     setActive(this.idx);
