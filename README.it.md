@@ -121,3 +121,11 @@ Le immagini di anteprima dei link usano i font Inter e JetBrains Mono (SIL Open 
 Formule di margine, prezzo di liquidazione e SL/TP (`frontend/formulas.js`), conversioni del
 `multiplier` e validazione dei trigger SL/TP sono adattate da
 [elliottech/lighter-ts](https://github.com/elliottech/lighter-ts), MIT License, Copyright (c) 2026 Elliot Technologies, Inc.
+
+Gli ordini firmati nel browser usano il firmatario ufficiale di Lighter, compilato senza modifiche da
+[elliottech/lighter-go](https://github.com/elliottech/lighter-go) (Apache-2.0) in WebAssembly, con `wasm_exec.js` di Go
+(licenza in stile BSD): vedi `frontend/signer/README.md`.
+
+## Licenza
+
+LighterDeck è distribuito con [licenza MIT](LICENSE).

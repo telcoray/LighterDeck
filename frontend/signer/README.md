@@ -8,6 +8,8 @@ the browser are the same transactions the server would sign.
 
 `wasm_exec.js` is the loader that ships with Go (BSD-style licence, Copyright The Go Authors).
 
+Licences: `LICENSE-lighter-go` (Apache License 2.0) and `LICENSE-go` (Go's BSD-style licence).
+
 LighterDeck loads both only when an API key is connected in the browser (`live.js`); the key never
 leaves the browser.
 

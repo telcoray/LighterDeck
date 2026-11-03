@@ -123,3 +123,11 @@ and SL/TP trigger validation are adapted from
 [elliottech/lighter-ts](https://github.com/elliottech/lighter-ts), MIT License, Copyright (c) 2026 Elliot Technologies, Inc.
 
 Charts by [TradingView Lightweight Charts](https://github.com/tradingview/lightweight-charts) (Apache-2.0).
+
+Orders signed in the browser use Lighter's official signer, built unchanged from
+[elliottech/lighter-go](https://github.com/elliottech/lighter-go) (Apache-2.0) to WebAssembly, with Go's `wasm_exec.js`
+(BSD-style licence): see `frontend/signer/README.md`.
+
+## License
+
+LighterDeck is released under the [MIT License](LICENSE).
