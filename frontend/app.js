@@ -1787,12 +1787,86 @@ function checkAlerts() {
   for (const a of hit) {
     const m = byId[a.market_id], px = lastPrice(a.market_id);
     alertsFired.unshift({ ...a, at: Date.now(), px });
-    const msg = t("Alert {sym}: {price} raggiunto (ora {px})", { sym: a.symbol, price: m ? fp(a.price, m) : a.price, px: m ? fp(px, m) : px });
-    toast(msg);
-    if ("Notification" in window && Notification.permission === "granted") {
-      try { new Notification("LighterDeck", { body: msg, tag: a.id }); } catch {}
+    notify(t("Alert {sym}: {price} raggiunto (ora {px})", { sym: a.symbol, price: m ? fp(a.price, m) : a.price, px: m ? fp(px, m) : px }), a.id);
+  }
+  alertsFired.length = Math.min(alertsFired.length, 20);
+  alertSound();
+  saveAlerts();
+}
+
+// toast in the page and a system notification (when allowed); the sound is played once by the caller
+function notify(msg, tag) {
+  toast(msg);
+  if ("Notification" in window && Notification.permission === "granted") {
+    try { new Notification("LighterDeck", { body: msg, tag }); } catch {}
+  }
+}
+
+// ---------- automatic alerts, from the same facts as the context badges ----------
+// Each kind is switched on in the Alert tab. A condition fires once, and again only after it has cleared
+// (with a margin, so a value hovering on the line doesn't repeat it).
+const AUTO_KINDS = [
+  ["liq", "Liquidazione vicina", "La tua posizione arriva al 10% e poi al 5% dal prezzo di liquidazione"],
+  ["event", "Evento in arrivo", "15 minuti prima di un evento ad alto impatto sui mercati delle tue posizioni e dei tuoi grafici"],
+  ["funding", "Funding che paghi", "Il funding supera lo 0,01% all'ora dal lato della tua posizione"],
+];
+let autoAlertsOn = { liq: true, event: true, funding: false, ...load("autoAlerts", {}) };
+const autoActive = new Set(); // conditions true right now, so they fire once
+let autoSeen = load("autoSeen", {}); // event alerts already sent (survive a reload), key -> time
+
+function autoFire(key, sym, text) {
+  if (autoActive.has(key)) return false;
+  autoActive.add(key);
+  alertsFired.unshift({ auto: true, id: key, symbol: sym, text, at: Date.now() });
+  notify(text, key);
+  return true;
+}
+
+function checkAutoAlerts() {
+  if (!account) return;
+  const now = Date.now();
+  let fired = false;
+  const clear = (key) => autoActive.delete(key);
+  for (const p of account.positions) {
+    const m = byId[p.market_id], q = prices[p.market_id];
+    if (!m || !q) continue;
+    // liquidation: at 10% and again at 5%; each clears once the gap is back above 12% / 6%
+    if (autoAlertsOn.liq && p.liq && q.mark) {
+      const gap = Math.abs(q.mark - p.liq) / q.mark * 100;
+      for (const [lvl, back] of [[10, 12], [5, 6]]) {
+        const key = `liq:${p.market_id}:${lvl}`;
+        if (gap < lvl) fired = autoFire(key, m.symbol, t("{sym}: liquidazione al {g}% (a {price})", { sym: m.symbol, g: gap.toFixed(1), price: fp(p.liq, m) })) || fired;
+        else if (gap > back) clear(key);
+      }
+    }
+    // funding the position pays: a long pays a positive rate, a short a negative one
+    if (autoAlertsOn.funding) {
+      const key = `funding:${p.market_id}`, pays = Math.sign(p.size) === Math.sign(q.funding);
+      if (pays && Math.abs(q.funding) >= BADGE_FUNDING)
+        fired = autoFire(key, m.symbol, t("{sym}: funding {r}/h, lo paga la tua posizione", { sym: m.symbol, r: fpctf(q.funding) })) || fired;
+      else if (!pays || Math.abs(q.funding) < BADGE_FUNDING * 0.8) clear(key);
     }
   }
+  // a high-impact event 15 minutes ahead, for the markets of the positions and the charts
+  if (autoAlertsOn.event) {
+    const syms = new Set([...account.positions.map((p) => p.symbol),
+      ...panelCfg.flatMap((c) => (pairOf(c.symbol) ? pairOf(c.symbol).map((m) => m.symbol) : [c.symbol]))].filter((s) => bySymbol[s]));
+    for (const e of events) {
+      const left = e.ts * 1000 - now;
+      if (left <= 0 || left > 15 * 60000 || e.approx || e.when === "time not given") continue;
+      const key = `event:${e.id || e.ts + e.title}`;
+      if (autoSeen[key]) continue;
+      const mine = [...syms].filter((s) => eventFor(e, s) && impactFor(e, s) === "High");
+      if (!mine.length) continue;
+      autoSeen[key] = now;
+      autoActive.delete(key);
+      const name = `${e.country && e.source !== "Nasdaq" ? e.country + " " : ""}${e.title}`;
+      fired = autoFire(key, mine.join(", "), t("{ev} tra {d} · {syms}", { ev: name, d: dur(left), syms: mine.join(", ") })) || fired;
+    }
+    for (const [k, at] of Object.entries(autoSeen)) if (now - at > 86400000) delete autoSeen[k];
+    store("autoSeen", autoSeen);
+  }
+  if (!fired) return;
   alertsFired.length = Math.min(alertsFired.length, 20);
   alertSound();
   saveAlerts();
@@ -1817,7 +1891,12 @@ function alertSound() {
 
 function renderAlerts() {
   const box = $("#btab-alerts");
+  const autos = `<div class="auto-alerts"><span class="caps muted">${t("Avvisi automatici")}</span>${AUTO_KINDS.map(([k, name, hint]) =>
+    `<label title="${t(hint)}"><input type="checkbox" data-auto="${k}" ${autoAlertsOn[k] ? "checked" : ""}> ${t(name)}</label>`).join("")}
+    <span class="muted auto-note">${t("Arrivano con LighterDeck aperto, anche in una tab in secondo piano.")}</span></div>`;
   const row = (a, fired) => {
+    if (a.auto) return `<tr class="auto"><td class="mk">${a.symbol && bySymbol[a.symbol] ? gotoBtn(a.symbol) : esc(a.symbol || "")}</td><td colspan="4">${esc(a.text)}</td>
+      <td class="r muted">${new Date(a.at).toLocaleString(LOCALE, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</td><td class="r"><span class="muted">${t("scattato")}</span></td></tr>`;
     const m = byId[a.market_id], px = lastPrice(a.market_id);
     const dist = !fired && px ? ((a.price - px) / px) * 100 : null;
     return `<tr><td class="mk">${gotoBtn(a.symbol)}</td><td>${a.dir > 0 ? t("sale a") : t("scende a")}</td><td class="r main">${m ? fp(a.price, m) : a.price}</td>
@@ -1827,10 +1906,10 @@ function renderAlerts() {
   };
   const head = `<thead><tr><th>${t("Mercato")}</th><th>${t("Quando il prezzo")}</th><th class="r">${t("Livello")}</th><th class="r">${t("Prezzo")}</th><th class="r">${t("Distanza")}</th><th class="r">${t("Creato / scattato")}</th><th></th></tr></thead>`;
   if (!alerts.length && !alertsFired.length) {
-    box.innerHTML = `<div class="empty">${t("Nessun alert. Click destro sul grafico → Alert, oppure punta il mouse a un prezzo e premi A.")}</div>`;
+    box.innerHTML = autos + `<div class="empty">${t("Nessun alert. Click destro sul grafico → Alert, oppure punta il mouse a un prezzo e premi A.")}</div>`;
     return;
   }
-  box.innerHTML = `<table class="table">${head}<tbody>${alerts.map((a) => row(a, false)).join("")}${alertsFired.map((a) => row(a, true)).join("")}</tbody></table>`
+  box.innerHTML = autos + `<table class="table">${head}<tbody>${alerts.map((a) => row(a, false)).join("")}${alertsFired.map((a) => row(a, true)).join("")}</tbody></table>`
     + (alertsFired.length ? `<div class="alerts-foot"><button class="link" data-alert-clear>${t("Svuota gli alert scattati")}</button></div>` : "");
 }
 
@@ -2774,6 +2853,7 @@ function connect() {
     if (msg.armed !== info.armed) renderArmed(msg.armed);
     if (msg.logs.length) addLogs(msg.logs);
     checkAlerts();
+    checkAutoAlerts();
     if (!$("#view-markets").classList.contains("hidden") && Date.now() - (renderMarkets.at || 0) > 2000) {
       renderMarkets.at = Date.now();
       renderMarkets();
@@ -2945,6 +3025,13 @@ function wire() {
     const mid = +b.dataset.close, f = +b.dataset.f;
     if (f === 100 && !askConfirm(`close:${mid}`, t("Chiudi tutto"))) return;
     try { await api(`/close?market_id=${mid}&fraction=${f / 100}`, { method: "POST" }); toast(t("Chiusura {f}% inviata", { f })); } catch (err) { toast(err.message, true); }
+  };
+  $("#btab-alerts").onchange = (e) => {
+    const c = e.target.closest("[data-auto]");
+    if (!c) return;
+    autoAlertsOn[c.dataset.auto] = c.checked;
+    store("autoAlerts", autoAlertsOn);
+    if (c.checked && "Notification" in window && Notification.permission === "default") Notification.requestPermission().catch(() => {});
   };
   $("#btab-alerts").onclick = (e) => {
     const x = e.target.closest("[data-alert-del]");
