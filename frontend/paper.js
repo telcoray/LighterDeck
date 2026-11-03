@@ -11,12 +11,13 @@ const Paper = (() => {
 
   const fresh = (balance) => ({
     v: 1, balance, cash: balance, start: Date.now(), seen: Date.now(), hour: Math.floor(Date.now() / 3600000),
-    positions: {}, orders: [], trades: [], stops: {}, exits: {}, pairs: [], settings: {}, logs: [], next: 1, logSeq: 0,
+    positions: {}, orders: [], trades: [], stops: {}, exits: {}, pairs: [], rules: [], settings: {}, logs: [], next: 1, logSeq: 0,
   });
   let S;
   try { S = JSON.parse(localStorage.getItem(KEY)) || fresh(10000); } catch { S = fresh(10000); }
   S.exits ||= {};
   S.pairs ||= [];
+  S.rules ||= [];
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch {} };
 
   let replay = null;      // prices while the time away is replayed: { [market]: {mark, bid, ask} }
@@ -359,6 +360,85 @@ const Paper = (() => {
     }
   }
 
+  // ---------- event trades, as the server's engine: long/short at the release, or a breakout of the range
+  // of the minutes before it; the entry goes out with SL/TP and, if set, the trailing stop ----------
+  const RULE_FIELDS = ["mode", "size_usd", "stop_pct", "tp_pct", "delay_s", "range_minutes", "buffer_pct", "window_minutes", "trail_pct", "breakeven_at_pct"];
+  const describe = (r) => `${(byId[r.market_id] || {}).symbol} ${r.mode} on ${r.event_title} $${r.size_usd}`;
+
+  function addRule(b) {
+    if (b.type !== "event_trade") err(t("In paper ci sono solo i trade su evento"));
+    if (!byId[b.market_id]) err(t("Mercato sconosciuto"));
+    if (!(b.size_usd > 0)) err(t("Inserisci una size valida."));
+    if (!(b.event_ts > now() / 1000)) err(t("L'evento è già passato"));
+    const r = { id: "p" + S.next++, type: "event_trade", market_id: +b.market_id, event_id: b.event_id, event_ts: b.event_ts,
+      event_title: b.event_title, status: "waiting", enabled: true, created: now() / 1000 };
+    for (const k of RULE_FIELDS) if (b[k] !== undefined && b[k] !== null && b[k] !== "") r[k] = k === "mode" ? b[k] : +b[k];
+    S.rules.push(r);
+    note(t("Paper: trade su evento impostato: {d}", { d: describe(r) }));
+    changed = true;
+    save();
+    return { ...r, description: describe(r) };
+  }
+
+  function enterEvent(r, side) {
+    const m = mkt(r.market_id);
+    if (S.positions[m.id]) { r.status = "skipped"; note(t("Paper: {d}: posizione già aperta, saltato", { d: describe(r) }), "warning"); return; }
+    const ref = markOf(m.id);
+    try {
+      placeOrder({ market_id: m.id, side: side > 0 ? "buy" : "sell", kind: "market", size: r.size_usd, unit: "usd",
+        sl_price: r.stop_pct ? roundPrice(ref * (1 - side * r.stop_pct / 100), m) : undefined,
+        tp_price: r.tp_pct ? roundPrice(ref * (1 + side * r.tp_pct / 100), m) : undefined });
+      r.status = "done";
+      note(t("Paper: {side} {sym} su {ev}", { side: side > 0 ? "LONG" : "SHORT", sym: m.symbol, ev: r.event_title }), "warning");
+      if (r.trail_pct || r.breakeven_at_pct)
+        S.stops[m.id] = { id: "paper-" + m.id, ...(r.trail_pct ? { trail_pct: r.trail_pct } : {}), ...(r.breakeven_at_pct ? { breakeven_at_pct: r.breakeven_at_pct } : {}), trail_activate_pct: 0, state: {} };
+    } catch (e) {
+      r.status = "blocked";
+      note(t("Paper: {d}: bloccato ({err})", { d: describe(r), err: e.message }), "error");
+    }
+  }
+
+  function loadRange(r) {
+    r.loading = true;
+    const minutes = r.range_minutes || 15;
+    fetch(`/api/candles?market_id=${r.market_id}&resolution=1m&count=${minutes + 5}`).then((x) => x.json()).then((bars) => {
+      const pre = bars.filter((c) => c.time >= r.event_ts - minutes * 60 && c.time < r.event_ts);
+      r.loading = false;
+      if (!pre.length) { r.status = "expired"; note(t("Paper: {d}: niente candele per il range", { d: describe(r) }), "error"); save(); return; }
+      r.high = Math.max(...pre.map((c) => c.high));
+      r.low = Math.min(...pre.map((c) => c.low));
+      r.status = "window";
+      note(t("Paper: range prima di {ev}: {lo} – {hi}", { ev: r.event_title, lo: fp(r.low, byId[r.market_id]), hi: fp(r.high, byId[r.market_id]) }));
+      save();
+    }).catch(() => { r.loading = false; });
+  }
+
+  function stepEvents() {
+    const t0 = now() / 1000;
+    for (const r of S.rules) {
+      if (!["waiting", "window"].includes(r.status) || !byId[r.market_id]) continue;
+      if (r.mode === "long" || r.mode === "short") {
+        const at = r.event_ts + (r.delay_s || 0);
+        if (t0 < at) continue;
+        if (t0 > at + 120) { r.status = "expired"; note(t("Paper: {d}: entrata mancata (pagina chiusa)", { d: describe(r) }), "warning"); changed = true; continue; }
+        enterEvent(r, r.mode === "long" ? 1 : -1);
+        changed = true;
+        continue;
+      }
+      if (t0 < r.event_ts) continue;
+      if (r.high === undefined) {
+        // the range comes from candles; while the time away is replayed there is no fetching, so it is missed
+        if (replay) { r.status = "expired"; note(t("Paper: {d}: entrata mancata (pagina chiusa)", { d: describe(r) }), "warning"); changed = true; }
+        else if (!r.loading) loadRange(r);
+        continue;
+      }
+      if (t0 > r.event_ts + (r.window_minutes || 30) * 60) { r.status = "expired"; note(t("Paper: {d}: nessun breakout, scaduto", { d: describe(r) })); changed = true; continue; }
+      const mark = markOf(r.market_id), buf = (r.buffer_pct ?? 0.05) / 100;
+      if (mark > r.high * (1 + buf)) { enterEvent(r, 1); changed = true; }
+      else if (mark < r.low * (1 - buf)) { enterEvent(r, -1); changed = true; }
+    }
+  }
+
   // close a share of a pair: that share of each leg's own quantity, at the bid/ask
   function closePair(id, fraction) {
     const p = pairs().find((x) => x.id === id) || err(t("Coppia non trovata"));
@@ -573,6 +653,7 @@ const Paper = (() => {
       changed = true;
     }
     stepPairs();
+    stepEvents();
     // liquidation: equity at or below the maintenance requirement closes everything at the mark
     const acc = account();
     if (acc.positions.length && acc.total_value <= acc.maintenance) {
@@ -628,6 +709,11 @@ const Paper = (() => {
     if (p === "/preview" && method === "POST") return run(() => { try { return { ok: true, ...plan(body(), qs.get("live") !== "true") }; } catch (e) { return { ok: false, error: e.message }; } });
     if (p === "/order" && method === "POST") return run(() => placeOrder(body()));
     if (p === "/pair_order" && method === "POST") return run(() => pairOrder(body()));
+    if (p === "/rules" && method === "GET") return run(() => S.rules.map((r) => ({ ...r, description: describe(r) })));
+    if (p === "/rules" && method === "POST") return run(() => addRule(body()));
+    const rule = p.match(/^\/rules\/(.+)$/);
+    if (rule && method === "DELETE") return run(() => { S.rules = S.rules.filter((r) => r.id !== decodeURIComponent(rule[1])); changed = true; return { ok: true }; });
+    if (rule && method === "PATCH") return run(() => { const r = S.rules.find((x) => x.id === decodeURIComponent(rule[1])); if (r) Object.assign(r, body()); return r; });
     if (p === "/pairs" && method === "GET") return run(pairs);
     if (p === "/pairs" && method === "POST") return run(() => {
       const b = body(), size = (id) => (S.positions[id] ? S.positions[id].size : 0);

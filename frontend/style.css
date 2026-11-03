@@ -783,6 +783,21 @@ kbd { font-family: var(--mono); font-size: 9.5px; border: 1px solid var(--line-2
 .table tr:hover .pair-add, .pair-add:focus { opacity: 1; }
 .pair-add:hover { color: var(--text); border-color: var(--line-3); }
 @media (hover: none) { .pair-add { opacity: 1; } }
+.ev-trade { margin-left: 6px; height: 20px; padding: 0 6px; border-radius: 10px; border: 1px solid var(--line-2); color: var(--amber); font-size: 11px; }
+.ev-trade:hover { border-color: var(--amber); background: color-mix(in srgb, var(--amber) 10%, transparent); }
+.ev-rule { display: inline-flex; align-items: center; gap: 6px; margin-top: 4px; padding: 2px 8px; border-radius: 10px; font-size: 10.5px; color: var(--amber); background: color-mix(in srgb, var(--amber) 10%, transparent); }
+.ev-rule.done { color: var(--green); background: var(--green-soft); }
+.ev-rule.expired, .ev-rule.skipped, .ev-rule.blocked { color: var(--muted); background: var(--raised); }
+.ev-rule button { color: inherit; opacity: .7; }
+.ev-rule button:hover { opacity: 1; }
+.ev-pop { position: fixed; z-index: 30; width: 300px; padding: 12px; background: var(--surface); border: 1px solid var(--line-3); border-radius: 10px; box-shadow: 0 16px 40px rgba(0,0,0,.5); }
+.ev-pop-head { display: flex; flex-direction: column; gap: 2px; margin-bottom: 10px; font-size: 12px; }
+.ev-pop .field { margin-bottom: 8px; }
+.ev-pop .seg { display: grid; grid-template-columns: repeat(3, 1fr); margin-bottom: 4px; }
+.ev-pop .hint { margin: 2px 0 8px; font-size: 10.5px; color: var(--muted); }
+.ev-pop .hint.warn { color: var(--amber); }
+.ev-pop .hint.err { color: var(--red); }
+.ev-pop-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .pair-pop .hint { padding: 2px 8px 6px; margin: 0; color: var(--muted); font-size: 11.5px; max-width: 260px; white-space: normal; }
 .pair-pop .pair-spread { margin-top: 4px; border-top: 1px solid var(--line); border-radius: 0 0 5px 5px; color: var(--blue); }
 .pair-pop { position: fixed; z-index: 30; min-width: 200px; max-height: 260px; overflow-y: auto; padding: 6px; background: var(--surface); border: 1px solid var(--line-3); border-radius: 8px; box-shadow: 0 12px 30px rgba(0,0,0,.45); }

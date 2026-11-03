@@ -2388,8 +2388,8 @@ function renderEcon() {
     const left = e.ts - now;
     return `${head}<div class="cal-row${left < 0 ? " past" : ""}">
       <div style="min-width:0"><div class="t"><span class="imp ${impactFor(e, sym)}"></span>${evLabel(e)}</div>
-      <div class="s">${eventDetail(e)}</div></div>
-      <div class="w ${left > 0 && left < 3600 ? "soon" : ""}">${eventTime(e, d)}<div class="s">${left > 0 ? t("tra {d}", { d: dur(left * 1000) }) : ""}${e.source === "custom" ? ` <button class="ev-del" data-delev="${e.id}" data-ck="delev:${e.id}" title="${t("Elimina")}">✕</button>` : ""}</div></div>
+      <div class="s">${eventDetail(e)}</div>${evTradeTags(e)}</div>
+      <div class="w ${left > 0 && left < 3600 ? "soon" : ""}">${eventTime(e, d)}<div class="s">${left > 0 ? t("tra {d}", { d: dur(left * 1000) }) : ""}${evTradeBtn(e)}${e.source === "custom" ? ` <button class="ev-del" data-delev="${e.id}" data-ck="delev:${e.id}" title="${t("Elimina")}">✕</button>` : ""}</div></div>
     </div>`;
   }).join("") || `<div class="empty">${t("Nessun evento.")}</div>`;
   markConfirm();
@@ -2662,11 +2662,121 @@ function renderCalPage() {
     return `${head}<div class="cp-row${left < 0 ? " past" : ""}">
       <div class="tm${left > 0 && left < 3600 ? " soon" : ""}">${eventTime(e, d)}<small>${left > 0 ? t("tra {d}", { d: dur(left * 1000) }) : ""}</small></div>
       <span class="imp ${imp}"></span>
-      <div class="ti"><b>${evLabel(e)}</b><span class="kind">${t(TYPE_LABEL[evType(e)])}</span><div class="s">${eventDetail(e)}</div></div>
-      <div class="mk">${chips}${e.source === "custom" ? `<button class="ev-del" data-delev="${e.id}" data-ck="delev:${e.id}" title="${t("Elimina")}">✕</button>` : ""}</div>
+      <div class="ti"><b>${evLabel(e)}</b><span class="kind">${t(TYPE_LABEL[evType(e)])}</span><div class="s">${eventDetail(e)}</div>${evTradeTags(e)}</div>
+      <div class="mk">${chips}${evTradeBtn(e)}${e.source === "custom" ? `<button class="ev-del" data-delev="${e.id}" data-ck="delev:${e.id}" title="${t("Elimina")}">✕</button>` : ""}</div>
     </div>`;
   }).join("") || `<div class="empty">${t("Nessun evento con questi filtri.")}</div>`;
   markConfirm();
+}
+
+// ---------- event trades from the calendar ----------
+// A ⚡ button on each upcoming event with a real time opens a small form: market, long/short at the release
+// or a breakout of the range before it, size, SL/TP. The trade then shows on the event, where it can be
+// cancelled. On the deck the server's engine runs it (Auto ON); in paper, this browser.
+let eventRules = [];
+const EV_STATUS = { waiting: "in attesa", window: "range pronto", done: "eseguito", expired: "scaduto", blocked: "bloccato", skipped: "saltato" };
+
+async function loadEventRules() {
+  if (!info.trading) { eventRules = []; return; }
+  const list = await api("/rules").catch(() => null);
+  if (!list) return;
+  const ev = list.filter((r) => r.type === "event_trade");
+  if (JSON.stringify(ev) === JSON.stringify(eventRules)) return;
+  eventRules = ev;
+  renderEcon();
+}
+
+const evTradeBtn = (e) => (info.trading && e.ts > Date.now() / 1000 && !e.approx && e.when !== "time not given"
+  ? `<button class="ev-trade" data-evtrade="${esc(e.id)}" title="${t("Trade su questo evento")}">⚡</button>` : "");
+
+function evTradeTags(e) {
+  const mine = eventRules.filter((r) => r.event_id === e.id);
+  return mine.map((r) => {
+    const m = byId[r.market_id], mode = { breakout: "Breakout", long: "Long", short: "Short" }[r.mode] || r.mode;
+    const live = ["waiting", "window"].includes(r.status);
+    return `<div class="ev-rule ${esc(r.status)}">⚡ ${esc(m ? m.symbol : "")} ${mode} ${fusd(r.size_usd, 0)}${r.stop_pct ? ` · SL ${r.stop_pct}%` : ""}${r.tp_pct ? ` · TP ${r.tp_pct}%` : ""} · ${t(EV_STATUS[r.status] || r.status)}${
+      live ? `<button data-evrule-del="${r.id}" title="${t("Annulla il trade su evento")}">✕</button>` : ""}</div>`;
+  }).join("");
+}
+
+function openEventTrade(btn) {
+  const e = events.find((x) => x.id === btn.dataset.evtrade);
+  if (!e) return;
+  const cur = activeMarket(), marketsOf = evMarkets(e).filter((s) => bySymbol[s]);
+  const opts = [...new Set([...(cur && eventFor(e, cur.symbol) ? [cur.symbol] : []), ...marketsOf, ...(cur ? [cur.symbol] : [])])];
+  const last = load("evTrade", { mode: "breakout", size_usd: 50, stop_pct: 1, tp_pct: "" });
+  const pop = $("#evTradePop");
+  pop.dataset.ev = e.id;
+  pop.innerHTML = `<div class="ev-pop-head"><b>${evLabel(e)}</b><small class="muted">${new Date(e.ts * 1000).toLocaleString(LOCALE, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</small></div>
+    <div class="field sm"><label>${t("Mercato")}</label><select name="market">${opts.map((s) => `<option value="${s}">${s}</option>`).join("")}</select></div>
+    <div class="seg ev-mode">${[["breakout", "Breakout"], ["long", "Long"], ["short", "Short"]].map(([k, l]) => `<button type="button" data-mode="${k}" class="${last.mode === k ? "active" : ""}">${l}</button>`).join("")}</div>
+    <p class="hint ev-mode-hint"></p>
+    <div class="three"><div class="field sm"><label>Size · USD</label><input name="size_usd" type="number" min="0" step="any" value="${last.size_usd}"></div>
+      <div class="field sm"><label>SL %</label><input name="stop_pct" type="number" min="0" step="0.1" value="${last.stop_pct ?? ""}"></div>
+      <div class="field sm"><label>TP %</label><input name="tp_pct" type="number" min="0" step="0.1" value="${last.tp_pct ?? ""}" placeholder="—"></div></div>
+    <p class="hint warn ev-auto hidden">${t("Auto è OFF: il trade parte solo se Auto è ON all'orario dell'evento.")}</p>
+    <div class="ev-pop-actions"><button type="button" class="ghost" data-evpop="cancel">${t("Annulla")}</button><button type="button" class="primary" data-evpop="ok">${t("Imposta trade")}</button></div>
+    <p class="hint err ev-err hidden"></p>`;
+  const setMode = (k) => {
+    pop.dataset.mode = k;
+    pop.querySelectorAll("[data-mode]").forEach((b) => b.classList.toggle("active", b.dataset.mode === k));
+    pop.querySelector(".ev-mode-hint").textContent = k === "breakout"
+      ? t("Range dei 15 minuti prima: entra nella direzione in cui il prezzo esce, entro 30 minuti.")
+      : t("Entra {side} 5 secondi dopo l'uscita del dato.", { side: k === "long" ? "long" : "short" });
+  };
+  setMode(last.mode);
+  pop.querySelectorAll("[data-mode]").forEach((b) => (b.onclick = () => setMode(b.dataset.mode)));
+  pop.querySelector(".ev-auto").classList.toggle("hidden", autoOn());
+  pop.classList.remove("hidden");
+  const r = btn.getBoundingClientRect();
+  pop.style.left = Math.max(12, Math.min(r.right - pop.offsetWidth, innerWidth - pop.offsetWidth - 12)) + "px";
+  pop.style.top = (r.bottom + 6 + pop.offsetHeight > innerHeight ? Math.max(12, r.top - pop.offsetHeight - 6) : r.bottom + 6) + "px";
+}
+
+async function submitEventTrade() {
+  const pop = $("#evTradePop"), e = events.find((x) => x.id === pop.dataset.ev);
+  if (!e) return;
+  const val = (n) => pop.querySelector(`[name="${n}"]`).value;
+  const body = { type: "event_trade", event_id: e.id, event_ts: e.ts, event_title: `${e.country ? e.country + " " : ""}${e.title}`,
+    market_id: bySymbol[val("market")].id, mode: pop.dataset.mode, size_usd: +val("size_usd") };
+  if (+val("stop_pct") > 0) body.stop_pct = +val("stop_pct");
+  if (+val("tp_pct") > 0) body.tp_pct = +val("tp_pct");
+  if (body.mode === "breakout") Object.assign(body, { range_minutes: 15, buffer_pct: 0.05, window_minutes: 30 });
+  else body.delay_s = 5;
+  const err = pop.querySelector(".ev-err");
+  if (!(body.size_usd > 0)) { err.textContent = t("Inserisci una size valida."); err.classList.remove("hidden"); return; }
+  try {
+    await api("/rules", { method: "POST", body: JSON.stringify(body) });
+    store("evTrade", { mode: body.mode, size_usd: body.size_usd, stop_pct: body.stop_pct ?? "", tp_pct: body.tp_pct ?? "" });
+    pop.classList.add("hidden");
+    toast(t("Trade su evento impostato: {sym} {mode}", { sym: val("market"), mode: body.mode }) + (autoOn() ? "" : " · " + t("parte quando attivi Auto")));
+    eventRules = [];
+    await loadEventRules();
+    renderEcon();
+  } catch (x) { err.textContent = x.message; err.classList.remove("hidden"); }
+}
+
+function wireEventTrades() {
+  const onList = async (e) => {
+    const b = e.target.closest("[data-evtrade]");
+    if (b) { e.stopPropagation(); return openEventTrade(b); }
+    const d = e.target.closest("[data-evrule-del]");
+    if (d) {
+      e.stopPropagation();
+      await api(`/rules/${encodeURIComponent(d.dataset.evruleDel)}`, { method: "DELETE" }).catch((x) => toast(x.message, true));
+      eventRules = [];
+      await loadEventRules();
+      renderEcon();
+    }
+  };
+  for (const id of ["#cpList", "#econList"]) $(id).addEventListener("click", onList, true);
+  const pop = $("#evTradePop");
+  pop.addEventListener("click", (e) => {
+    const a = e.target.closest("[data-evpop]");
+    if (a) a.dataset.evpop === "ok" ? submitEventTrade() : pop.classList.add("hidden");
+  });
+  document.addEventListener("mousedown", (e) => { if (!e.target.closest("#evTradePop, [data-evtrade]")) pop.classList.add("hidden"); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") pop.classList.add("hidden"); });
 }
 
 // ---------- public site ----------
@@ -2819,6 +2929,7 @@ function addLogs(entries) {
     while (box.children.length > 300) box.lastChild.remove();
   }
   loadRules();
+  loadEventRules();
 }
 
 // ================= live socket =================
@@ -3367,6 +3478,7 @@ function wireTrail() {
   wireTpLevels();
   wireBadges();
   wirePairGroup();
+  wireEventTrades();
   $("#mktSpread").onclick = openSpreadPicker;
   $("#alertCount").textContent = alerts.length || "";
   $("#tkReduce").addEventListener("change", renderTicketTrail);
@@ -3522,6 +3634,8 @@ function setPaper(on) {
   stops = Paper.on ? Paper.stops() : {};
   exits = Paper.on ? Paper.exits() : {};
   pairs = [];
+  eventRules = [];
+  loadEventRules();
   openOrders = {};
   logSeq = 0;
   for (const box of [$("#btab-log"), $("#activityLog")]) box.innerHTML = `<div class="empty">${t("Nessuna attività.")}</div>`;
