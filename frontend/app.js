@@ -612,13 +612,26 @@ class Panel {
   wireDrag() {
     const box = $(".chart", this.el);
     const yOf = (e) => e.clientY - box.getBoundingClientRect().top;
-    const near = (y) => { // closest draggable line within 5 px of the pointer
-      let best = null, gap = 6;
+    const near = (y, reach = 6) => { // closest draggable line within reach of the pointer (wider for a finger)
+      let best = null, gap = reach;
       for (const d of [...this.dragOrders, ...this.dragPreview]) {
         const ly = this.series.priceToCoordinate(d.price);
         if (ly !== null && Math.abs(ly - y) < gap) { best = d; gap = Math.abs(ly - y); }
       }
       return best;
+    };
+    const start = (d) => {
+      this.drag = { ...d, from: d.price, to: d.price };
+      this.chart.applyOptions({ handleScroll: false, handleScale: false });
+      document.body.classList.add("dragging-line");
+    };
+    const move = (y) => {
+      const p = this.series.coordinateToPrice(y);
+      if (p === null || p <= 0) return;
+      const fm = this.market || { price_decimals: this.pairDec || 6 }; // a spread's ratio has its own decimals
+      const price = +p.toFixed(decimals(fm));
+      this.drag.to = price;
+      this.drag.line.applyOptions({ price, title: `${this.drag.label} → ${fp(price, fm)}` });
     };
     // capture phase: the chart never sees a press that grabs a line, so it doesn't pan at the same time
     box.addEventListener("mousedown", (e) => {
@@ -627,23 +640,55 @@ class Panel {
       if (!d) return;
       e.preventDefault();
       e.stopPropagation();
-      this.drag = { ...d, from: d.price, to: d.price };
-      this.chart.applyOptions({ handleScroll: false, handleScale: false });
-      document.body.classList.add("dragging-line");
+      start(d);
     }, true);
     box.addEventListener("mousemove", (e) => {
       if (!this.drag) box.style.cursor = !this.hold && near(yOf(e)) ? "ns-resize" : "";
     });
-    document.addEventListener("mousemove", (e) => {
-      if (!this.drag) return;
-      const p = this.series.coordinateToPrice(yOf(e));
-      if (p === null || p <= 0) return;
-      const fm = this.market || { price_decimals: this.pairDec || 6 }; // a spread's ratio has its own decimals
-      const price = +p.toFixed(decimals(fm));
-      this.drag.to = price;
-      this.drag.line.applyOptions({ price, title: `${this.drag.label} → ${fp(price, fm)}` });
+    document.addEventListener("mousemove", (e) => { if (this.drag && !this.touchDrag) move(yOf(e)); });
+    document.addEventListener("mouseup", (e) => { if (!this.touchDrag) this.endDrag(yOf(e)); });
+    // a finger: a touch on a line drags it; a press held still elsewhere opens the chart's menu
+    const finger = (e) => e.touches[0] || e.changedTouches[0];
+    box.addEventListener("touchstart", (e) => {
+      if (e.touches.length !== 1 || this.hold) return;
+      const tch = finger(e), y = tch.clientY - box.getBoundingClientRect().top;
+      const d = near(y, 16);
+      if (d) {
+        e.preventDefault();
+        e.stopPropagation();
+        this.touchDrag = true;
+        start(d);
+        return;
+      }
+      clearTimeout(this.pressTimer);
+      this.press = { x: tch.clientX, y: tch.clientY };
+      this.pressTimer = setTimeout(() => {
+        this.press = null;
+        box.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: tch.clientX, clientY: tch.clientY }));
+      }, 550);
+    }, { capture: true, passive: false });
+    document.addEventListener("touchmove", (e) => {
+      const tch = finger(e);
+      if (this.press && Math.hypot(tch.clientX - this.press.x, tch.clientY - this.press.y) > 10) { clearTimeout(this.pressTimer); this.press = null; }
+      if (!this.drag || !this.touchDrag) return;
+      e.preventDefault();
+      move(tch.clientY - box.getBoundingClientRect().top);
+    }, { passive: false });
+    document.addEventListener("touchend", (e) => {
+      clearTimeout(this.pressTimer);
+      this.press = null;
+      if (!this.touchDrag) return;
+      this.touchDrag = false;
+      this.endDrag(finger(e).clientY - box.getBoundingClientRect().top);
     });
-    document.addEventListener("mouseup", (e) => {
+    $(".drag-ok", this.el).addEventListener("click", (e) => {
+      const b = e.target.closest("[data-mv]");
+      if (b) this.endMove(b.dataset.mv === "ok");
+    });
+  }
+
+  // a line let go: a ticket line fills its field, an alert or pair stop moves at once, an order asks first
+  endDrag(y) {
       const d = this.drag;
       if (!d) return;
       this.drag = null;
@@ -658,12 +703,7 @@ class Panel {
         updateTicketSummary();
         return;
       }
-      this.askMove(d, yOf(e));
-    });
-    $(".drag-ok", this.el).addEventListener("click", (e) => {
-      const b = e.target.closest("[data-mv]");
-      if (b) this.endMove(b.dataset.mv === "ok");
-    });
+      this.askMove(d, y);
   }
 
   askMove(d, y) {
@@ -700,6 +740,8 @@ class Panel {
     box.addEventListener("contextmenu", (e) => {
       e.preventDefault();
       if (this.hold || this.drag) return;
+      if (Date.now() - (this.menuAt || 0) < 800) return; // a long press can fire it twice
+      this.menuAt = Date.now();
       const y = e.clientY - box.getBoundingClientRect().top;
       const raw = this.series.coordinateToPrice(y);
       const m = this.market;
@@ -830,7 +872,7 @@ class Panel {
       }
     }
     // a price alert, with or without trading
-    items.push({ label: t("Alert a {price}", { price: at }), cls: "alert", note: "A", run: () => addAlert(m, price) });
+    items.push({ label: t("Alert a {price}", { price: at }), cls: "alert", note: matchMedia("(hover: none)").matches ? "" : "A", run: () => addAlert(m, price) });
     return items;
   }
 
@@ -1847,10 +1889,23 @@ function checkAlerts() {
 // toast in the page and a system notification (when allowed); the sound is played once by the caller
 function notify(msg, tag) {
   toast(msg);
-  if ("Notification" in window && Notification.permission === "granted") {
-    try { new Notification("LighterDeck", { body: msg, tag }); } catch {}
-  }
+  if (!("Notification" in window) || Notification.permission !== "granted") return;
+  const direct = () => { try { new Notification("LighterDeck", { body: msg, tag }); } catch {} };
+  if (swReg) swReg.showNotification("LighterDeck", { body: msg, tag, icon: "/favicon.svg" }).catch(direct);
+  else direct();
 }
+
+// the service worker that shows notifications on phones (frontend/sw.js); without it, the page shows them
+let swReg = null;
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").then((r) => (swReg = r)).catch(() => {});
+
+// phones keep sound off until the page is touched: the first touch or click unlocks it for the alerts
+document.addEventListener("pointerdown", () => {
+  try {
+    const ctx = alertSound.ctx ||= new (window.AudioContext || window.webkitAudioContext)();
+    if (ctx.state === "suspended") ctx.resume();
+  } catch {}
+}, { once: true });
 
 // ---------- automatic alerts, from the same facts as the context badges ----------
 // Each kind is switched on in the Alert tab. A condition fires once, and again only after it has cleared
