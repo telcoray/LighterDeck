@@ -148,7 +148,7 @@ function zStats(closes) {
 // ================= charts =================
 // empty bars between the last candle and the price scale, so the live candle reads as the last one:
 // fewer on a phone, where every bar of width counts
-const rightGap = () => (innerWidth < 768 ? 2 : 7);
+const rightGap = () => (innerWidth < 768 ? 1 : 4);
 
 class Panel {
   constructor(idx) {
