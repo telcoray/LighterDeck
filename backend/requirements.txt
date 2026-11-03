@@ -5,3 +5,4 @@ websockets>=12
 aiohttp>=3.9
 tzdata>=2024.1
 pillow==13.0.0
+cryptography>=43

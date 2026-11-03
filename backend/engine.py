@@ -25,8 +25,12 @@ STOP_FIELDS = ("initial_stop_pct", "breakeven_at_pct", "trail_pnl", "trail_pct",
 
 
 class Engine:
-    def __init__(self, api, feed, calendar, risk):
+    def __init__(self, api, feed, calendar, risk, data_dir=None, name=""):
         self.api, self.feed, self.calendar, self.risk = api, feed, calendar, risk
+        # the deck's rules in data/; a visitor's (public site) in their own folder
+        self.rules_file = (data_dir / "rules.json") if data_dir else RULES_FILE
+        self.state_file = (data_dir / "state.json") if data_dir else STATE_FILE
+        self.name = name  # in the server log: whose engine it is
         self.rules = {}
         self.armed = False
         self.account = None
@@ -37,21 +41,21 @@ class Engine:
 
     # ---------- persistence ----------
     def _load(self):
-        if RULES_FILE.exists():
-            self.rules = {r["id"]: r for r in json.loads(RULES_FILE.read_text())}
-        if STATE_FILE.exists():
-            self.armed = json.loads(STATE_FILE.read_text()).get("armed", False)
+        if self.rules_file.exists():
+            self.rules = {r["id"]: r for r in json.loads(self.rules_file.read_text())}
+        if self.state_file.exists():
+            self.armed = json.loads(self.state_file.read_text()).get("armed", False)
 
     def save(self):
-        RULES_FILE.write_text(json.dumps(list(self.rules.values()), indent=1))
-        STATE_FILE.write_text(json.dumps({"armed": self.armed}))
+        self.rules_file.write_text(json.dumps(list(self.rules.values()), indent=1))
+        self.state_file.write_text(json.dumps({"armed": self.armed}))
 
     def note(self, msg, level="info", rule=None):
         if rule is not None:
             rule["note"] = msg
         self.log_seq += 1
         self.logs.append({"seq": self.log_seq, "ts": time.time(), "level": level, "msg": msg})
-        getattr(log, "warning" if level == "error" else level)(msg)
+        getattr(log, "warning" if level == "error" else level)(f"{self.name}{msg}")
 
     # ---------- public API used by main.py ----------
     def set_armed(self, armed):
@@ -157,7 +161,7 @@ class Engine:
             await asyncio.sleep(TICK_SECONDS)
 
     async def tick(self):
-        if config.ACCOUNT_INDEX is not None:
+        if self.api.account_index is not None:
             try:
                 self.account = await self.api.account()
             except Exception as e:

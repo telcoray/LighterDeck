@@ -38,6 +38,10 @@ CREDENTIALS_FILE = DATA_DIR / "credentials.json"
 PUBLIC_MODE = _env("PUBLIC_MODE", "").lower() in ("1", "true", "yes")
 # public site: live trading with the visitor's API key kept in their browser (frontend/live.js); off until launch
 BROWSER_TRADING = _env("BROWSER_TRADING", "").lower() in ("1", "true", "yes")
+# master key (base64, 32 bytes) that encrypts the visitors' automation keys in data/users/ (users.py);
+# without it the public site offers no automations. Make one with:
+#   python -c "import os, base64; print(base64.b64encode(os.urandom(32)).decode())"
+VAULT_KEY = _env("LD_VAULT_KEY", None)
 REFERRAL_URL = _env("REFERRAL_URL", "https://app.lighter.xyz/?referral=7658993U&source=none")  # "open a Lighter account": the project's referral
 GITHUB_URL = "https://github.com/telcoray/LighterDeck"
 SITE_URL = _env("SITE_URL", "https://lighterdeck.xyz").rstrip("/")  # absolute links in link previews

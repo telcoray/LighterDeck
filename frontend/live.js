@@ -2,7 +2,9 @@
 // Live trading with the API key kept in this browser: orders are signed here by Lighter's own signer
 // (signer/, WebAssembly) and sent straight to Lighter, so the key never reaches LighterDeck's server.
 // It answers the same /api calls the server would (like paper.js), so the rest of the app is unchanged.
-// Manual trading only for now: trailing stops, scaled exits, event trades and pairs run on the server.
+// Trailing stops, breakeven, scaled exits and event trades have to run with the page closed: they go to
+// the visitor's engine on the server (backend/users.py), which signs with a second, dedicated key the
+// visitor hands over when turning automations on. Pairs aren't there yet.
 const Live = (() => {
   const STORE = "ld.live.key";
   const URL_ = "https://mainnet.zklighter.elliot.ai";
@@ -22,6 +24,8 @@ const Live = (() => {
   const orders = {};        // market -> { at, list }
   const logs = [];
   let seq = 0, changed = false;
+  // the visitor's automations on the server: { on, api_key_index, armed, stops, exits }
+  let auto = { on: false }, autoSeq = 0, autoTimer = null;
 
   const err = (msg) => { throw new Error(msg); };
   const mkt = (id) => byId[id] || err(t("Mercato sconosciuto"));
@@ -52,6 +56,26 @@ const Live = (() => {
     auth = { token: r.authToken, until };
     return auth.token;
   }
+
+  // the visitor's automations on LighterDeck's server: who is asking is proven with a Lighter auth token
+  async function server(path, opts = {}) {
+    const r = await fetch("/api/u" + path, { ...opts, headers: { "Content-Type": "application/json", "X-Lang": LANG, "X-Lighter-Auth": await token() } });
+    const body = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(body.detail || r.statusText);
+    return body;
+  }
+
+  async function pollAuto() {
+    if (!info.browser_automations || !cred) return;
+    const st = await server(`/status?after=${autoSeq}`);
+    for (const l of st.logs || []) { autoSeq = Math.max(autoSeq, l.seq); logs.push({ seq: ++seq, ts: l.ts, msg: l.msg, level: l.level }); }
+    if (logs.length > 200) logs.splice(0, logs.length - 200);
+    const was = JSON.stringify(auto);
+    auto = { on: !!st.on, api_key_index: st.api_key_index, armed: !!st.armed, stops: st.stops || {}, exits: st.exits || {} };
+    if (JSON.stringify(auto) !== was) changed = true;
+  }
+
+  const needAuto = () => { if (!auto.on) err(t("Attiva le automazioni (pill dell'account → Automazioni) per usare trailing, TP multipli ed eventi.")); };
 
   // ---------- the signer ----------
   async function loadSigner() {
@@ -223,7 +247,7 @@ const Live = (() => {
   const position = (id) => ((acc || {}).positions || []).find((p) => p.market_id === +id);
   const quote = (id, side) => { const p = prices[id] || {}; return (side > 0 ? p.ask : p.bid) || p.mark || err(t("Nessun prezzo per questo mercato in questo momento")); };
   const plan = (o, checkSides) => Paper.plan(o, checkSides, { px: (id) => prices[id] || null, account: () => acc });
-  const notYet = () => err(t("Con la chiave nel browser, per ora: ordini, SL/TP, chiusure e leva. Trailing, TP multipli, eventi e coppie arriveranno con le automazioni."));
+  const notYet = () => err(t("Le coppie non sono ancora disponibili con la chiave nel browser."));
 
   function sideError(price, below, mark, isSl) {
     if (mark && (below ? price >= mark : price <= mark)) {
@@ -233,14 +257,22 @@ const Live = (() => {
   }
 
   async function placeOrder(o) {
-    if (o.trail || o.tp_levels) notYet();
+    if (o.trail || o.tp_levels) needAuto();
     const pl = plan(o, true), m = mkt(o.market_id), signed = pl.size * pl.side;
+    const before = (position(m.id) || {}).size || 0;
     if (o.reduce_only) {
       if (o.kind === "limit") await limitOrder(m, signed, o.price, true, o.post_only);
       else await marketOrder(m, signed, pl.ref, true, pl.slippage_bps / 10000);
     } else await entry(m, signed, o.kind, pl.worst, o.sl_price, o.tp_price, pl.slippage_bps / 10000, o.post_only);
     note(`${o.kind} ${o.side} ${pl.size} ${m.symbol} @ ~${pl.ref}` + (o.sl_price ? ` SL ${o.sl_price}` : "") + (o.tp_price ? ` TP ${o.tp_price}` : ""), "warning");
-    return { ok: true, size: pl.size, armed: false };
+    // the order is on Lighter; the server's engine takes over what follows it
+    const after = [];
+    if (pl.tp_levels) after.push(server("/exit_plan", { method: "POST", body: JSON.stringify({ market_id: m.id, levels: pl.tp_levels,
+      be_after_tp1: o.be_after_tp1 !== false, before, size: signed }) }));
+    if (o.trail) after.push(server(`/trail/${m.id}`, { method: "PUT", body: JSON.stringify(o.trail) }));
+    try { await Promise.all(after); } catch (e) { err(t("Ordine inviato, ma le automazioni non sono partite: {err}", { err: e.message })); }
+    if (after.length) pollAuto().catch(() => {});
+    return { ok: true, size: pl.size, armed: auto.armed };
   }
 
   async function closePosition(id, fraction) {
@@ -327,8 +359,17 @@ const Live = (() => {
     if (p === "/trades") return run(() => trades(qs.has("market_id") ? +qs.get("market_id") : null));
     if (p === "/fills") return run(() => []);
     if (p === "/logs") return run(() => logs.slice());
-    if ((p === "/pairs" || p === "/rules") && method === "GET") return run(() => []);
-    if (["/pair_order", "/pairs", "/rules", "/armed"].includes(p) || /^\/(pairs|rules|trail)\//.test(p)) return run(notYet);
+    const auto_ = (fn) => run(async () => { needAuto(); const r = await fn(); await pollAuto().catch(() => {}); return r; });
+    const trail = p.match(/^\/trail\/(\d+)$/);
+    if (trail && method === "PUT") return auto_(() => server(`/trail/${trail[1]}`, { method: "PUT", body: opts.body }));
+    if (trail && method === "DELETE") return auto_(() => server(`/trail/${trail[1]}`, { method: "DELETE" }));
+    if (p === "/armed" && method === "POST") return auto_(() => server(`/armed?${q}`, { method: "POST" }));
+    if (p === "/rules" && method === "GET") return run(() => (auto.on ? server("/rules") : []));
+    if (p === "/rules" && method === "POST") return auto_(() => server("/rules", { method: "POST", body: opts.body }));
+    const rule = p.match(/^\/rules\/(.+)$/);
+    if (rule) return auto_(() => server(`/rules/${rule[1]}`, { method, body: opts.body }));
+    if (p === "/pairs" && method === "GET") return run(() => []);
+    if (["/pair_order", "/pairs"].includes(p) || /^\/pairs\//.test(p)) return run(notYet);
     return undefined; // market data: the server answers it
   }
 
@@ -366,6 +407,23 @@ const Live = (() => {
     await refresh().catch(() => {});
     clearInterval(timer);
     timer = setInterval(() => refresh().catch(() => {}), 2000);
+    auto = { on: false };
+    autoSeq = 0;
+    await pollAuto().catch(() => {});
+    clearInterval(autoTimer);
+    autoTimer = setInterval(() => pollAuto().catch(() => {}), 3000);
+  }
+
+  // automations: the dedicated key goes to the server once, encrypted there; off deletes it
+  async function autoOn(apiKeyIndex, key) {
+    await server("/key", { method: "POST", body: JSON.stringify({ api_key_index: apiKeyIndex, private_key: key }) });
+    await pollAuto();
+  }
+
+  async function autoOff() {
+    await server("/key", { method: "DELETE" });
+    auto = { on: false };
+    changed = true;
   }
 
   // a key saved on this device (or in this tab) reconnects on load, without asking Lighter again
@@ -386,6 +444,8 @@ const Live = (() => {
   function disconnect() {
     Live.on = false;
     clearInterval(timer);
+    clearInterval(autoTimer);
+    auto = { on: false };
     cred = acc = null;
     nonce = null;
     auth = { token: null, until: 0 };
@@ -395,7 +455,8 @@ const Live = (() => {
 
   return {
     on: false,
-    route, connect, restore, disconnect,
+    route, connect, restore, disconnect, autoOn, autoOff,
+    auto: () => auto,
     saved: () => { try { return !!(sessionStorage.getItem(STORE) || localStorage.getItem(STORE)); } catch { return false; } },
     info: () => (cred ? { account_index: cred.account_index, api_key_index: cred.api_key_index } : null),
     account: () => acc,

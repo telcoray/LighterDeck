@@ -40,7 +40,7 @@
 </script>
 <style>html.i18n-pending body { visibility: hidden; }</style>
 <link rel="icon" href="favicon.svg?v=1" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=132">
+<link rel="stylesheet" href="style.css?v=133">
 <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
 </head>
 <body>
@@ -522,6 +522,19 @@
       <dt>Valore account</dt><dd id="keyFactEq">—</dd>
       <dt>Salvata in</dt><dd id="keyFactWhere">—</dd>
     </dl>
+    <div class="key-auto hidden" id="keyAuto">
+      <div class="key-auto-head"><b>Automazioni</b><span id="keyAutoState"></span></div>
+      <p class="key-note">Trailing, breakeven, TP multipli e trade sugli eventi devono funzionare anche a browser chiuso, quindi girano sul server di LighterDeck. Per attivarli crea su Lighter una seconda API key solo per le automazioni, con un indice diverso da quella di questo browser: il server la tiene cifrata, la usa solo per le regole che imposti tu e la cancella quando le disattivi. Puoi revocarla in qualsiasi momento dalla pagina API keys di Lighter.</p>
+      <form id="keyAutoForm" autocomplete="off">
+        <div class="key-row">
+          <div class="field sm"><label>Indice API key</label><input id="keyAutoIndex" type="number" min="0" max="254" step="1" required></div>
+          <div class="field sm"><label>Chiave privata</label><input id="keyAutoPrivate" class="secret" type="text" name="ld-auto-key" autocomplete="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore data-bwignore required></div>
+        </div>
+        <p class="key-error hidden" id="keyAutoError"></p>
+        <button class="primary" id="keyAutoSubmit" type="submit">Attiva le automazioni</button>
+      </form>
+      <button class="ghost danger hidden" id="keyAutoOff" type="button">Disattiva e cancella la chiave dal server</button>
+    </div>
     <p class="key-note" id="keyEnvNote">La chiave è impostata nel file env del server: per cambiarla modifica quel file.</p>
     <div class="key-actions" id="keyActions">
       <button class="ghost" id="keyPaper">Paper trading</button>
@@ -616,11 +629,11 @@
 </div>
 
 <div class="toast hidden" id="toast"></div>
-<script src="i18n.js?v=132"></script>
-<script src="formulas.js?v=132"></script>
-<script src="paper.js?v=132"></script>
-<script src="live.js?v=132"></script>
-<script src="app.js?v=132"></script>
-<script src="picker.js?v=132"></script>
+<script src="i18n.js?v=133"></script>
+<script src="formulas.js?v=133"></script>
+<script src="paper.js?v=133"></script>
+<script src="live.js?v=133"></script>
+<script src="app.js?v=133"></script>
+<script src="picker.js?v=133"></script>
 </body>
 </html>

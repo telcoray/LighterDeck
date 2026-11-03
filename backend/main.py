@@ -21,6 +21,7 @@ from feed import PriceFeed
 from lighter_api import LighterAPI
 from logos import Logos
 from risk import Blocked, RiskGuard, sltp_trigger_error
+from users import Users
 from i18n import L, set_lang
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
@@ -34,6 +35,7 @@ calendar = Calendar()
 risk = RiskGuard(api, feed)
 logos = Logos()
 engine = Engine(api, feed, calendar, risk)
+users = Users(api, feed, calendar)  # public site: visitors' automations
 clients = set()
 
 
@@ -63,9 +65,11 @@ async def lifespan(app):
     feed.multipliers = {mid: m.multiplier for mid, m in api.markets.items()}
     calendar.stock_symbols = lambda: {m.symbol for m in api.markets.values() if "STOCK" in m.categories}
     tasks = [asyncio.create_task(t) for t in (feed.run(), calendar.run(), engine.run(), broadcast_loop(), pair_watch_loop())]
+    await users.start()
     yield
     for t in tasks:
         t.cancel()
+    await users.close()
     await api.close()
 
 
@@ -86,7 +90,8 @@ async def auth(request: Request, call_next):
             check_token(request.headers.get("x-token"))
         except HTTPException as e:
             return JSONResponse({"detail": e.detail}, status_code=e.status_code)
-        if config.PUBLIC_MODE and request.method not in ("GET", "HEAD"):
+        # the public site writes nothing of its own; a visitor's automations (/api/u/) are theirs
+        if config.PUBLIC_MODE and request.method not in ("GET", "HEAD") and not (users.available and request.url.path.startswith("/api/u/")):
             return JSONResponse({"detail": L("Questa è la versione pubblica in sola lettura di LighterDeck",
                                              "This is the public read-only version of LighterDeck")}, status_code=403)
     response = await call_next(request)
@@ -101,6 +106,7 @@ async def info(request: Request):
     return {
         "public": config.PUBLIC_MODE,
         "browser_trading": config.PUBLIC_MODE and config.BROWSER_TRADING,
+        "browser_automations": users.available,
         "referral_url": config.REFERRAL_URL, "github_url": config.GITHUB_URL,
         # Cloudflare's visitor country, so the public site can show the page for excluded countries
         "blocked_country": config.PUBLIC_MODE and request.headers.get("cf-ipcountry", "") in config.BLOCKED_COUNTRIES,
@@ -1051,6 +1057,157 @@ async def set_armed(armed: bool):
 @app.get("/api/logs")
 async def logs():
     return list(engine.logs)
+
+
+# ---------- a visitor's automations (public site, key in the browser: users.py) ----------
+async def visitor(request: Request):
+    """The account behind a request: the browser sends a Lighter auth token signed with its key."""
+    if not users.available:
+        raise HTTPException(404, L("Automazioni non disponibili su questo sito", "Automations aren't available on this site"))
+    try:
+        return await users.account_of(request.headers.get("x-lighter-auth", ""))
+    except PermissionError:
+        raise HTTPException(401, L("Lighter non ha riconosciuto la chiave di questo browser: ricollegala",
+                                   "Lighter didn't accept this browser's key: connect it again"))
+
+
+async def visitor_engine(request: Request):
+    account, _ = await visitor(request)
+    eng = users.engines.get(account)
+    if not eng:
+        raise HTTPException(400, L("Attiva le automazioni per usare trailing, TP multipli ed eventi",
+                                   "Turn automations on to use trailing, scaled exits and event trades"))
+    return eng
+
+
+@app.get("/api/u/status")
+async def visitor_status(request: Request, after: int = 0):
+    account, _ = await visitor(request)
+    eng = users.engines.get(account)
+    if not eng:
+        return {"on": False}
+    return {"on": True, "api_key_index": eng.api.api_key_index, "armed": eng.armed, "stops": eng.market_stops(),
+            "exits": eng.exit_plans(), "logs": [l for l in eng.logs if l["seq"] > after]}
+
+
+class VisitorKeyReq(BaseModel):
+    api_key_index: int
+    private_key: str
+
+
+@app.post("/api/u/key")
+async def visitor_key(request: Request, k: VisitorKeyReq):
+    account, browser_key = await visitor(request)
+    if not 0 <= k.api_key_index <= 254:
+        raise HTTPException(400, L("Indice API key non valido", "Invalid API key index"))
+    try:
+        eng = await users.turn_on(account, browser_key, k.api_key_index, k.private_key.strip())
+    except ValueError as e:
+        if str(e) == "same key":
+            raise HTTPException(400, L(f"Serve una chiave diversa da quella del browser (#{browser_key}): crea un'altra API key su Lighter",
+                                       f"It must be another key than the browser's (#{browser_key}): create a second API key on Lighter"))
+        raise HTTPException(400, L(f"Lighter non accetta questa chiave: {e}", f"Lighter doesn't accept this key: {e}"))
+    return {"on": True, "api_key_index": eng.api.api_key_index, "armed": eng.armed}
+
+
+@app.delete("/api/u/key")
+async def visitor_key_off(request: Request):
+    account, _ = await visitor(request)
+    await users.turn_off(account)
+    return {"on": False}
+
+
+@app.post("/api/u/armed")
+async def visitor_armed(request: Request, armed: bool):
+    eng = await visitor_engine(request)
+    eng.set_armed(armed)
+    return {"armed": eng.armed}
+
+
+@app.put("/api/u/trail/{market_id}")
+async def visitor_trail(request: Request, market_id: int, t: TrailReq):
+    eng = await visitor_engine(request)
+    if market_id not in api.markets:
+        raise HTTPException(400, L("Mercato sconosciuto", "Unknown market"))
+    try:
+        rule = eng.set_market_stop(market_id, trail_fields(t))
+    except Blocked as e:
+        raise HTTPException(400, str(e))
+    eng.note(f"{eng.describe(rule)} (from the browser)", "warning")
+    return {"stops": eng.market_stops(), "armed": eng.armed}
+
+
+@app.delete("/api/u/trail/{market_id}")
+async def visitor_trail_off(request: Request, market_id: int):
+    eng = await visitor_engine(request)
+    eng.set_market_stop(market_id, None)
+    return {"stops": eng.market_stops(), "armed": eng.armed}
+
+
+class ExitLevel(BaseModel):
+    price: float
+    qty: float
+
+
+class ExitPlanReq(BaseModel):
+    market_id: int
+    levels: list[ExitLevel]
+    be_after_tp1: bool = True
+    before: float = 0.0   # signed position when the entry was sent
+    size: float           # the entry's signed size
+
+
+@app.post("/api/u/exit_plan")
+async def visitor_exit_plan(request: Request, r: ExitPlanReq):
+    """Scaled exits of an order the browser just sent: the engine places the TPs once it has filled."""
+    eng = await visitor_engine(request)
+    if r.market_id not in api.markets or not 2 <= len(r.levels) <= 5 or not r.size:
+        raise HTTPException(400, L("Uscite scalari non valide", "Invalid scaled exits"))
+    rule = eng.set_exit_plan(r.market_id, [l.model_dump() for l in r.levels], r.be_after_tp1, before=r.before, size=r.size)
+    eng.note(f"{eng.describe(rule)} (from the browser)", "warning")
+    return {"exits": eng.exit_plans()}
+
+
+EVENT_RULE_FIELDS = ("size_usd", "stop_pct", "tp_pct", "delay_s", "range_minutes", "buffer_pct", "window_minutes",
+                     "trail_pct", "trail_activate_pct", "breakeven_at_pct")
+
+
+@app.get("/api/u/rules")
+async def visitor_rules(request: Request):
+    account, _ = await visitor(request)
+    eng = users.engines.get(account)
+    return [dict(r, description=eng.describe(r)) for r in eng.rules.values()] if eng else []
+
+
+@app.post("/api/u/rules")
+async def visitor_add_rule(request: Request, rule: dict):
+    """Event trades only (stops and exits have their own calls), with known fields only."""
+    eng = await visitor_engine(request)
+    if rule.get("type") != "event_trade" or rule.get("mode") not in ("long", "short", "breakout"):
+        raise HTTPException(400, L("Regola non valida", "Invalid rule"))
+    try:
+        clean = {"type": "event_trade", "market_id": int(rule["market_id"]), "event_id": str(rule["event_id"]), "mode": rule["mode"],
+                 **{k: float(rule[k]) for k in EVENT_RULE_FIELDS if rule.get(k) is not None}}
+        if not clean.get("size_usd", 0) > 0:
+            raise ValueError("size")
+        return eng.add_rule(clean)
+    except (ValueError, KeyError, TypeError) as e:
+        raise HTTPException(400, L(f"Regola non valida: {e}", f"Invalid rule: {e}"))
+
+
+@app.patch("/api/u/rules/{rule_id}")
+async def visitor_patch_rule(request: Request, rule_id: str, patch: dict):
+    eng = await visitor_engine(request)
+    if rule_id not in eng.rules:
+        raise HTTPException(404)
+    return eng.update_rule(rule_id, {k: bool(v) for k, v in patch.items() if k == "enabled"})
+
+
+@app.delete("/api/u/rules/{rule_id}")
+async def visitor_delete_rule(request: Request, rule_id: str):
+    eng = await visitor_engine(request)
+    eng.delete_rule(rule_id)
+    return {"ok": True}
 
 
 # ---------- live push ----------

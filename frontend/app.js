@@ -3071,11 +3071,13 @@ function connect() {
     prices = msg.prices;
     lastTick = Date.now();
     if (Live.on) {
+      const a = Live.auto();
       msg.account = Live.account();
-      msg.stops = {};
-      msg.exits = {};
+      msg.stops = a.stops || {};
+      msg.exits = a.exits || {};
       msg.logs = Live.logs(logSeq);
-      msg.armed = false;
+      msg.armed = !!a.armed;
+      document.body.classList.toggle("browser-auto", !!a.on);
       if (Live.tick()) { fetchOpenOrders(true).catch(() => {}); if (!$("#btab-trades").classList.contains("hidden")) loadTrades(); }
     } else if (Paper.on) {
       const moved = Paper.tick();
@@ -3722,6 +3724,7 @@ function openKeyDialog(justConnected = false) {
     $("#keyFactWhere").textContent = browser ? t("questo browser") : info.credentials === "env" ? t("file env del server") : "data/credentials.json";
     renderKeyEquity();
     $("#keyEnvNote").classList.toggle("hidden", browser || info.credentials !== "env");
+    renderKeyAuto();
     $("#keyRemove").classList.toggle("hidden", !browser && info.credentials === "env");
     showKeyConfirm(false);
   }
@@ -3730,6 +3733,18 @@ function openKeyDialog(justConnected = false) {
   $("#keyShade").classList.remove("hidden");
   $("#keyModal").classList.remove("hidden");
   if (!on) $(browser || info.account_index == null ? "#keyAddress" : "#keyIndex").focus();
+}
+
+// automations on the server for a browser key: on with key #N, or the form to hand one over
+function renderKeyAuto() {
+  const show = !!info.public && !!info.browser_automations && Live.on, a = Live.auto();
+  $("#keyAuto").classList.toggle("hidden", !show);
+  if (!show) return;
+  $("#keyAutoState").textContent = a.on ? t("attive · API key #{n}", { n: a.api_key_index }) : t("spente");
+  $("#keyAutoState").className = a.on ? "up" : "muted";
+  $("#keyAutoForm").classList.toggle("hidden", !!a.on);
+  $("#keyAutoOff").classList.toggle("hidden", !a.on);
+  $("#keyAutoError").classList.add("hidden");
 }
 
 function renderKeyEquity() {
@@ -3744,7 +3759,7 @@ function showKeyConfirm(show) {
 function closeKeyDialog() {
   $("#keyShade").classList.add("hidden");
   $("#keyModal").classList.add("hidden");
-  $("#keyPrivate").value = ""; // never keep the key in the page longer than needed
+  $("#keyPrivate").value = $("#keyAutoPrivate").value = ""; // never keep a key in the page longer than needed
 }
 
 function keyError(msg) {
@@ -4042,6 +4057,34 @@ function wireKeyDialog() {
     }
   };
   $("#keyDone").onclick = closeKeyDialog;
+  $("#keyAutoForm").onsubmit = async (e) => {
+    e.preventDefault();
+    const btn = $("#keyAutoSubmit"), box = $("#keyAutoError");
+    btn.disabled = true;
+    btn.textContent = t("Verifica in corso…");
+    try {
+      await Live.autoOn(+$("#keyAutoIndex").value, $("#keyAutoPrivate").value.trim());
+      $("#keyAutoPrivate").value = "";
+      document.body.classList.add("browser-auto");
+      renderKeyAuto();
+      toast(simpleMode ? t("Automazioni attive: passa a Pro e accendi Auto per usarle") : t("Automazioni attive: accendi Auto per farle partire"));
+    } catch (err) {
+      box.textContent = err.message;
+      box.classList.remove("hidden");
+    } finally {
+      btn.disabled = false;
+      btn.textContent = t("Attiva le automazioni");
+    }
+  };
+  $("#keyAutoOff").onclick = async (e) => {
+    if (!askConfirm("autoOff", t("Conferma: disattiva e cancella"))) return;
+    try {
+      await Live.autoOff();
+      document.body.classList.remove("browser-auto");
+      renderKeyAuto();
+      toast(t("Automazioni disattivate: la chiave è stata cancellata dal server"));
+    } catch (err) { toast(err.message, true); }
+  };
   $("#keyRemove").onclick = () => showKeyConfirm(true);
   $("#keyCancel").onclick = () => showKeyConfirm(false);
   $("#keyConfirmBtn").onclick = async () => {

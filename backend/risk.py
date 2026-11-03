@@ -234,12 +234,13 @@ def rule_reduces_position(p, L):
 
 
 class RiskGuard:
-    def __init__(self, api, feed):
+    def __init__(self, api, feed, data_dir=None):
         self.api, self.feed = api, feed
+        self.limits_file = (data_dir / "limits.json") if data_dir else LIMITS_FILE  # a visitor's own folder, or the deck's
         self.limits = {**DEFAULT_LIMITS, "on": {k: False for k in OPTIONAL}}
         self._usd_to_convert = {}
-        if LIMITS_FILE.exists():
-            saved = {_OLD_NAMES.get(k, k): v for k, v in json.loads(LIMITS_FILE.read_text()).items()}
+        if self.limits_file.exists():
+            saved = {_OLD_NAMES.get(k, k): v for k, v in json.loads(self.limits_file.read_text()).items()}
             self.limits.update({k: v for k, v in saved.items() if k in DEFAULT_LIMITS})
             self.limits["on"].update({k: bool(v) for k, v in (saved.get("on") or {}).items() if k in OPTIONAL})
             self._usd_to_convert = {_USD_NAMES[k]: v for k, v in saved.items() if k in _USD_NAMES and _USD_NAMES[k] not in saved}
@@ -254,7 +255,7 @@ class RiskGuard:
             lo, hi, _ = LIMIT_RANGES[key]
             self.limits[key] = min(hi, max(lo, round(usd / equity * 100, 1)))
         self._usd_to_convert = {}
-        LIMITS_FILE.write_text(json.dumps(self.limits, indent=1))
+        self.limits_file.write_text(json.dumps(self.limits, indent=1))
 
     def update(self, changes):
         for key, value in changes.items():
@@ -266,7 +267,7 @@ class RiskGuard:
                 if not lo <= value <= hi:
                     raise Blocked(tr(f"{key}: valore ammesso tra {lo:g} e {hi:g}", f"{key}: allowed range {lo:g} to {hi:g}"))
                 self.limits[key] = int(value) if whole else value
-        LIMITS_FILE.write_text(json.dumps(self.limits, indent=1))
+        self.limits_file.write_text(json.dumps(self.limits, indent=1))
         return self.limits
 
     async def daily_pnl(self):

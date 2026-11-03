@@ -147,9 +147,19 @@ class LighterAPI:
                     raise RuntimeError(f"API key check failed: {e}")
                 log.error("saved API key rejected, running read-only: %s", e)
 
-    async def connect(self, account_index, api_key_index, private_key):
-        """Build a signer for this key and check it against the key registered on Lighter.
-        Raises ValueError (and keeps the current signer) when Lighter does not accept it."""
+    # the account this API trades for: the deck's own (config); a visitor's on the public site (UserAPI)
+    @property
+    def account_index(self):
+        return config.ACCOUNT_INDEX
+
+    @property
+    def api_key_index(self):
+        return config.API_KEY_INDEX
+
+    @staticmethod
+    async def make_signer(account_index, api_key_index, private_key):
+        """A signer for this key, checked against the key registered on Lighter.
+        Raises ValueError when Lighter does not accept it."""
         import lighter  # heavy import (signer .so), only when trading
 
         try:
@@ -161,6 +171,12 @@ class LighterAPI:
         if err:
             await signer.close()
             raise ValueError(err)
+        return signer
+
+    async def connect(self, account_index, api_key_index, private_key):
+        """Build a signer for this key and check it against the key registered on Lighter.
+        Raises ValueError (and keeps the current signer) when Lighter does not accept it."""
+        signer = await self.make_signer(account_index, api_key_index, private_key)
         await self.disconnect()
         self.signer = signer
         config.ACCOUNT_INDEX, config.API_KEY_INDEX, config.API_PRIVATE_KEY = account_index, api_key_index, private_key
@@ -268,9 +284,9 @@ class LighterAPI:
                 for f in data.get("fundings", [])]
 
     async def account(self):
-        if config.ACCOUNT_INDEX is None:
+        if self.account_index is None:
             return None
-        data = await self._get("/api/v1/account", {"by": "index", "value": config.ACCOUNT_INDEX})
+        data = await self._get("/api/v1/account", {"by": "index", "value": self.account_index})
         acc = data["accounts"][0]
         positions = []
         settings = {}  # market_id -> leverage/margin mode, also for markets without a position
@@ -292,7 +308,7 @@ class LighterAPI:
                 "cross": p.get("margin_mode", 0) == 0,
             })
         return {
-            "index": config.ACCOUNT_INDEX,
+            "index": self.account_index,
             "collateral": float(acc.get("collateral") or 0),
             "available": float(acc.get("available_balance") or 0),
             "total_value": float(acc.get("total_asset_value") or 0),
@@ -321,7 +337,7 @@ class LighterAPI:
             return []
         raw, cursor = [], None
         for _ in range(max_pages if since_ms else 1):
-            params = {"account_index": config.ACCOUNT_INDEX, "sort_by": "timestamp", "limit": 100 if since_ms else limit}
+            params = {"account_index": self.account_index, "sort_by": "timestamp", "limit": 100 if since_ms else limit}
             if market_id is not None:
                 params["market_id"] = market_id
             if cursor:
@@ -334,7 +350,7 @@ class LighterAPI:
                 break
         out, fills = [], []
         for t in raw:
-            is_buyer = t["bid_account_id"] == config.ACCOUNT_INDEX
+            is_buyer = t["bid_account_id"] == self.account_index
             m = self.markets.get(t["market_id"])
             maker = t["is_maker_ask"] != is_buyer  # we were the ask and the ask was maker, or vice versa
             role = "maker" if maker else "taker"
@@ -361,7 +377,7 @@ class LighterAPI:
     async def pnl_points(self, start, end, resolution="1d"):
         """Account PnL series (cumulative trade PnL, deposits and withdrawals); the last point is live."""
         data = await self._get("/api/v1/pnl", {
-            "by": "index", "value": config.ACCOUNT_INDEX, "resolution": resolution,
+            "by": "index", "value": self.account_index, "resolution": resolution,
             "start_timestamp": int(start), "end_timestamp": int(end), "count_back": 0,
         }, headers={"authorization": await self._auth_token()})
         return data.get("pnl") or []
@@ -371,7 +387,7 @@ class LighterAPI:
         out, cursor = {}, None
         complete = False
         for _ in range(max_pages):
-            params = {"account_index": config.ACCOUNT_INDEX, "limit": 100}
+            params = {"account_index": self.account_index, "limit": 100}
             if cursor:
                 params["cursor"] = cursor
             data = await self._get("/api/v1/positionFunding", params, headers={"authorization": await self._auth_token()})
@@ -395,7 +411,7 @@ class LighterAPI:
         now = int(time.time())
         midnight = now // 86400 * 86400
         data = await self._get("/api/v1/pnl", {
-            "by": "index", "value": config.ACCOUNT_INDEX, "resolution": "1h",
+            "by": "index", "value": self.account_index, "resolution": "1h",
             "start_timestamp": midnight, "end_timestamp": now, "count_back": 0,
         }, headers={"authorization": await self._auth_token()})
         points = data.get("pnl") or []
@@ -408,7 +424,7 @@ class LighterAPI:
         token, exp = self._auth
         if token and time.time() < exp - 60:
             return token
-        token, err = self.signer.create_auth_token_with_expiry(api_key_index=config.API_KEY_INDEX)
+        token, err = self.signer.create_auth_token_with_expiry(api_key_index=self.api_key_index)
         if err:
             raise RuntimeError(f"auth token: {err}")
         self._auth = (token, time.time() + 600)
@@ -418,7 +434,7 @@ class LighterAPI:
         if not self.signer:
             return []
         data = await self._get("/api/v1/accountActiveOrders",
-                               {"account_index": config.ACCOUNT_INDEX, "market_id": market_id},
+                               {"account_index": self.account_index, "market_id": market_id},
                                headers={"authorization": await self._auth_token()})
         m = self.markets[market_id]
         out = []
@@ -473,7 +489,7 @@ class LighterAPI:
         await self._send(lambda: self.signer.create_market_order(
             market_index=market_id, client_order_index=coi, base_amount=m.size_int(size),
             avg_execution_price=m.price_int(worst), is_ask=is_ask, reduce_only=reduce_only,
-            api_key_index=config.API_KEY_INDEX,
+            api_key_index=self.api_key_index,
         ), f"market {'sell' if is_ask else 'buy'} {abs(size)} {m.symbol}")
         return coi
 
@@ -493,7 +509,7 @@ class LighterAPI:
             market_index=market_id, client_order_index=coi, base_amount=m.size_int(size),
             price=m.price_int(m.round_price(price)), is_ask=size < 0,
             order_type=lighter.SignerClient.ORDER_TYPE_LIMIT, time_in_force=tif, reduce_only=reduce_only,
-            api_key_index=config.API_KEY_INDEX,
+            api_key_index=self.api_key_index,
         ), f"limit {'sell' if size < 0 else 'buy'} {abs(size)} {m.symbol} @ {price}")
         return coi
 
@@ -540,13 +556,13 @@ class LighterAPI:
                 market_index=market_id, client_order_index=coi, base_amount=o.BaseAmount, price=o.Price,
                 is_ask=is_ask, order_type=o.Type, time_in_force=tif, reduce_only=False,
                 order_expiry=0 if kind == "market" else S.DEFAULT_28_DAY_ORDER_EXPIRY,
-                api_key_index=config.API_KEY_INDEX,
+                api_key_index=self.api_key_index,
             ), label)
         else:
             grouping = (S.GROUPING_TYPE_ONE_TRIGGERS_A_ONE_CANCELS_THE_OTHER if len(orders) == 3
                         else S.GROUPING_TYPE_ONE_TRIGGERS_THE_OTHER)
             await self._send(lambda: self.signer.create_grouped_orders(
-                grouping_type=grouping, orders=orders, api_key_index=config.API_KEY_INDEX,
+                grouping_type=grouping, orders=orders, api_key_index=self.api_key_index,
             ), label)
         return coi
 
@@ -556,7 +572,7 @@ class LighterAPI:
         S = lighter.SignerClient
         await self._send(lambda: self.signer.update_leverage(
             market_index=market_id, margin_mode=S.CROSS_MARGIN_MODE if cross else S.ISOLATED_MARGIN_MODE,
-            leverage=leverage, api_key_index=config.API_KEY_INDEX,
+            leverage=leverage, api_key_index=self.api_key_index,
         ), f"leverage {self.markets[market_id].symbol} {leverage}x {'cross' if cross else 'isolated'}")
 
     async def stop_order(self, market_id, position_size, trigger, kind="sl", slippage_pct=None):
@@ -576,7 +592,7 @@ class LighterAPI:
             price=m.price_int(worst), is_ask=is_ask, order_type=order_type,
             time_in_force=lighter.SignerClient.ORDER_TIME_IN_FORCE_IMMEDIATE_OR_CANCEL,
             reduce_only=True, trigger_price=m.price_int(m.round_price(trigger)),
-            api_key_index=config.API_KEY_INDEX,
+            api_key_index=self.api_key_index,
         ), f"{kind} {m.symbol} @ {trigger}")
         return coi
 
@@ -588,7 +604,7 @@ class LighterAPI:
         await self._send(lambda: self.signer.modify_order(
             market_index=market_id, order_index=order_index, base_amount=m.size_int(position_size),
             price=m.price_int(worst), trigger_price=m.price_int(m.round_price(trigger)),
-            api_key_index=config.API_KEY_INDEX,
+            api_key_index=self.api_key_index,
         ), f"move stop {m.symbol} -> {trigger}")
 
     async def modify_order(self, market_id, order_index, size, price, trigger=0.0):
@@ -598,12 +614,12 @@ class LighterAPI:
             market_index=market_id, order_index=order_index, base_amount=m.size_int(size),
             price=m.price_int(m.round_price(price)),
             trigger_price=m.price_int(m.round_price(trigger)) if trigger else 0,
-            api_key_index=config.API_KEY_INDEX,
+            api_key_index=self.api_key_index,
         ), f"move {m.symbol} order {order_index} -> {trigger or price}")
 
     async def cancel_order(self, market_id, order_index):
         await self._send(lambda: self.signer.cancel_order(
-            market_index=market_id, order_index=order_index, api_key_index=config.API_KEY_INDEX,
+            market_index=market_id, order_index=order_index, api_key_index=self.api_key_index,
         ), f"cancel {market_id}/{order_index}")
 
     async def cancel_all(self):
@@ -611,5 +627,45 @@ class LighterAPI:
 
         await self._send(lambda: self.signer.cancel_all_orders(
             time_in_force=lighter.SignerClient.CANCEL_ALL_TIF_IMMEDIATE, timestamp_ms=0,
-            api_key_index=config.API_KEY_INDEX,
+            api_key_index=self.api_key_index,
         ), "cancel all")
+
+
+class UserAPI(LighterAPI):
+    """A visitor's account on the public site, for the automations they turned on: its own signer and
+    indexes; markets, HTTP session and candles come from the deck's API. No env caps: those are the
+    deck owner's own limits."""
+
+    def __init__(self, shared, account_index, api_key_index):
+        self.shared = shared
+        super().__init__()
+        self._account, self._key_index = account_index, api_key_index
+
+    # shared with the deck's API (load_markets replaces its dict, so always read through it)
+    http = property(lambda self: self.shared.http, lambda self, v: None)
+    markets = property(lambda self: self.shared.markets, lambda self, v: None)
+    _candle_cache = property(lambda self: self.shared._candle_cache, lambda self, v: None)
+
+    @property
+    def account_index(self):
+        return self._account
+
+    @property
+    def api_key_index(self):
+        return self._key_index
+
+    async def connect(self, private_key):
+        self.signer = await self.make_signer(self._account, self._key_index, private_key)
+
+    async def disconnect(self):
+        if self.signer:
+            await self.signer.close()
+        self.signer = None
+        self._auth = (None, 0)
+
+    async def close(self):
+        await self.disconnect()
+
+    def _check_limits(self, notional):
+        if not self.signer:
+            raise RuntimeError("automations are off: no API key on the server")
