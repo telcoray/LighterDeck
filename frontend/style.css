@@ -1040,3 +1040,9 @@ body.browser-key :is(.pair-add, #mktSpread) { display: none !important; }
 .key-auto-head span { font-size: 11px; }
 .key-auto .key-note { margin: 0 0 10px; }
 .key-auto .primary, .key-auto .ghost { width: 100%; }
+
+/* ================= terms ================= */
+.statusbar .sb-link { color: var(--muted); text-decoration: none; }
+.statusbar .sb-link:hover { color: var(--text); }
+.res-terms { font-size: 12px; color: var(--muted); }
+.res-terms a, .key-remember a { color: var(--green); }

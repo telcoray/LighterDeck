@@ -3713,6 +3713,8 @@ async function useWallet(provider) {
 function openKeyDialog(justConnected = false) {
   const browser = !!info.public, on = browser ? Live.on : info.trading;
   $("#keyModal").classList.toggle("browser", browser);
+  $("#keyTerms").required = browser;
+  $("#keyTerms").checked = load("termsAccepted", null) === TERMS_VERSION;
   $("#keyConnected").classList.toggle("hidden", !on);
   $("#keyForm").classList.toggle("hidden", on);
   $("#keyTitle").textContent = on ? t("API key collegata") : t("Collega un'API key");
@@ -3734,6 +3736,9 @@ function openKeyDialog(justConnected = false) {
   $("#keyModal").classList.remove("hidden");
   if (!on) $(browser || info.account_index == null ? "#keyAddress" : "#keyIndex").focus();
 }
+
+// the terms accepted when a key was connected (terms.html); a new date asks again
+const TERMS_VERSION = "2026-11-03";
 
 // automations on the server for a browser key: on with key #N, or the form to hand one over
 function renderKeyAuto() {
@@ -4040,6 +4045,7 @@ function wireKeyDialog() {
       const cred = { account_index: +$("#keyAccount").value, api_key_index: +$("#keyIndex").value };
       if (info.public) { // the key stays here: checked with Lighter from this browser
         await Live.connect({ ...cred, key: $("#keyPrivate").value }, $("#keyRemember").checked);
+        store("termsAccepted", TERMS_VERSION);
         $("#keyPrivate").value = "";
         browserKeyChanged();
         openKeyDialog(true);

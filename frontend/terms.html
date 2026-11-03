@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Termini d'uso · LighterDeck</title>
+<meta name="theme-color" content="#0a0b0d">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script>
+  // the app's theme and language, so the page looks and reads like the rest of LighterDeck
+  try { document.documentElement.dataset.theme = JSON.parse(localStorage.getItem("ld.theme")) || "fosforo"; }
+  catch (e) { document.documentElement.dataset.theme = "fosforo"; }
+  var LANG = "it";
+  try { LANG = new URLSearchParams(location.search).get("lang") || JSON.parse(localStorage.getItem("ld.lang")) || (navigator.language || "").slice(0, 2); } catch (e) {}
+  if (LANG !== "it") LANG = "en";
+  document.documentElement.lang = LANG;
+</script>
+<link rel="stylesheet" href="style.css?v=134">
+<style>
+  html, body { height: auto; overflow: auto; }
+  body { display: block; font-family: var(--ui); line-height: 1.6; }
+  .terms { max-width: 760px; margin: 0 auto; padding: 28px 16px 64px; }
+  .terms-top { display: flex; align-items: center; gap: 10px; margin-bottom: 28px; }
+  .terms-top a.home { display: inline-flex; align-items: center; gap: 8px; color: var(--text); text-decoration: none; font-weight: 600; }
+  .terms-top .grow { flex: 1; }
+  .terms-top .seg button { padding: 4px 10px; }
+  .terms h1 { font-size: 24px; margin: 0 0 4px; font-weight: 600; }
+  .terms .date { color: var(--muted); font-size: 12px; margin: 0 0 22px; }
+  .terms h2 { font-size: 15px; margin: 28px 0 8px; font-weight: 600; }
+  .terms p, .terms li { color: var(--text-2); font-size: 14px; }
+  .terms ul { padding-left: 20px; margin: 8px 0; }
+  .terms li { margin: 4px 0; }
+  .terms a { color: var(--green); }
+  .terms .box { margin: 18px 0; padding: 12px 14px; border: 1px solid var(--line-2); border-radius: var(--r); background: var(--surface); }
+  [data-l]:not([data-l="it"]) { display: none; }
+  html[lang="en"] [data-l="it"] { display: none; }
+  html[lang="en"] [data-l="en"] { display: block; }
+</style>
+</head>
+<body>
+<main class="terms">
+  <div class="terms-top">
+    <a class="home" href="/"><img src="logo.svg?v=1" alt="" width="22" height="22">LighterDeck</a>
+    <div class="grow"></div>
+    <div class="seg" id="langSeg"><button data-set="it">IT</button><button data-set="en">EN</button></div>
+  </div>
+
+  <!-- ================= italiano ================= -->
+  <article data-l="it">
+    <h1>Termini d'uso</h1>
+    <p class="date">Ultimo aggiornamento: 3 novembre 2026</p>
+
+    <div class="box">In breve: LighterDeck è un'interfaccia gratuita e open source per i perpetual di Lighter. Non è un exchange, non custodisce fondi e non dà consigli d'investimento. Il trading con leva può farti perdere tutto il capitale impegnato. Le decisioni e i rischi sono tuoi.</div>
+
+    <h2>1. Cos'è LighterDeck</h2>
+    <p>LighterDeck è un software open source (<a href="https://github.com/telcoray/LighterDeck" target="_blank" rel="noopener">codice su GitHub</a>) che mostra i mercati di Lighter e permette di inviare ordini al tuo account Lighter. Gli ordini vengono eseguiti da Lighter, non da LighterDeck. LighterDeck non è affiliato né approvato da Lighter o da Elliot Technologies; i nomi e i marchi di Lighter appartengono ai rispettivi titolari.</p>
+    <p>LighterDeck non è un exchange, un broker, un intermediario finanziario né un servizio di custodia: non riceve, non detiene e non trasferisce i tuoi fondi.</p>
+
+    <h2>2. Chi può usarlo</h2>
+    <ul>
+      <li>Come Lighter, LighterDeck non è disponibile per chi risiede o si trova negli Stati Uniti, nel Regno Unito o in Canada, né in altri paesi in cui Lighter non è disponibile o in cui l'uso di questi servizi è vietato.</li>
+      <li>Devi avere almeno 18 anni e la capacità legale di accettare questi termini.</li>
+      <li>Sei responsabile di rispettare le leggi del tuo paese, comprese quelle fiscali.</li>
+    </ul>
+
+    <h2>3. Nessuna consulenza</h2>
+    <p>Nulla in LighterDeck è una consulenza finanziaria, d'investimento, legale o fiscale, né un invito a comprare o vendere. Calendario economico, badge di contesto, funding, alert, statistiche e qualsiasi altra informazione sono solo indicativi: possono essere incompleti, in ritardo o sbagliati.</p>
+
+    <h2>4. Rischi del trading</h2>
+    <ul>
+      <li>I perpetual con leva sono molto rischiosi: i prezzi possono muoversi in fretta e una posizione può essere liquidata, con la perdita di tutto il margine.</li>
+      <li>Slippage, gap di prezzo, interruzioni di Lighter, della rete o di LighterDeck possono far eseguire gli ordini a prezzi peggiori del previsto, o non farli eseguire.</li>
+      <li>I risultati del paper trading sono simulati e non dicono nulla sui risultati reali.</li>
+    </ul>
+
+    <h2>5. Le tue API key</h2>
+    <ul>
+      <li><b>Chiave nel browser.</b> Se colleghi un'API key su lighterdeck.xyz, resta nel tuo browser: gli ordini vengono firmati lì e inviati direttamente a Lighter. Il server di LighterDeck non la riceve. Sei responsabile della sicurezza del tuo dispositivo e del browser; se scegli di non ricordarla, la chiave viene dimenticata alla chiusura della scheda.</li>
+      <li><b>Chiave per le automazioni.</b> Se attivi le automazioni, affidi al server di LighterDeck una seconda API key dedicata. Viene conservata cifrata, usata solo per eseguire le regole che imposti (trailing, breakeven, take-profit multipli, trade sugli eventi) e cancellata insieme alle tue regole quando disattivi le automazioni. Puoi revocarla in qualsiasi momento dalla pagina API keys di Lighter, anche senza passare da LighterDeck.</li>
+      <li>Secondo il funzionamento di Lighter, un'API key può firmare ordini e prelievi solo verso il wallet del proprietario dell'account: non può mandare fondi ad altri indirizzi. Chi la ottiene può però fare trading sul tuo account. Ti consigliamo di usare chiavi dedicate e, se possibile, un sub-account con il solo capitale che vuoi usare.</li>
+      <li>Non condividere mai la chiave privata del tuo wallet: LighterDeck non te la chiederà mai.</li>
+    </ul>
+
+    <h2>6. Automazioni</h2>
+    <p>Le automazioni sono fornite al meglio delle possibilità, senza garanzia di funzionamento continuo. Possono partire in ritardo, non partire o comportarsi in modo inatteso per guasti del server, di Lighter, della rete o dei dati di prezzo. Il pulsante Auto le ferma tutte. Per la protezione principale di una posizione usa gli stop-loss nativi di Lighter, che restano sull'exchange anche se LighterDeck non è raggiungibile.</p>
+
+    <h2>7. Software senza garanzie</h2>
+    <p>LighterDeck è fornito "così com'è" e "come disponibile", senza garanzie di alcun tipo, esplicite o implicite, comprese quelle di funzionamento, accuratezza o idoneità a uno scopo. Nei limiti massimi consentiti dalla legge, gli autori e chi gestisce lighterdeck.xyz non sono responsabili di perdite di trading, mancati guadagni, perdite di dati o altri danni diretti o indiretti derivanti dall'uso o dall'impossibilità di usare LighterDeck. Restano salvi i diritti che la legge non permette di escludere.</p>
+
+    <h2>8. Dati e privacy</h2>
+    <ul>
+      <li><b>Nel tuo browser</b> restano le impostazioni, il paper trading, gli alert, gli eventi personali e, se la colleghi, l'API key del browser.</li>
+      <li><b>Sul server</b>, solo se attivi le automazioni: il numero del tuo account Lighter, la chiave dedicata cifrata, le tue regole e un registro delle azioni delle automazioni. Vengono cancellati quando le disattivi.</li>
+      <li>Il server e Cloudflare, che lo protegge, registrano dati tecnici come indirizzo IP e paese, per sicurezza e per applicare le restrizioni geografiche.</li>
+      <li>LighterDeck non usa cookie di profilazione né strumenti di analisi, e non vende dati a nessuno.</li>
+    </ul>
+
+    <h2>9. Costi</h2>
+    <p>LighterDeck è gratuito. Le commissioni di trading e il funding sono quelli di Lighter. Se in futuro verranno introdotti costi o contributi facoltativi, saranno indicati prima in modo chiaro e richiederanno il tuo consenso.</p>
+
+    <h2>10. Modifiche</h2>
+    <p>Questi termini possono cambiare: la data in alto indica l'ultima versione. Se le modifiche sono importanti, LighterDeck te lo segnalerà; continuando a usarlo dopo una modifica accetti i nuovi termini. LighterDeck può cambiare, sospendere o interrompere funzioni o il servizio in qualsiasi momento.</p>
+
+    <h2>11. Contatti</h2>
+    <p>Per domande o segnalazioni apri una issue su <a href="https://github.com/telcoray/LighterDeck/issues" target="_blank" rel="noopener">GitHub</a>.</p>
+  </article>
+
+  <!-- ================= English ================= -->
+  <article data-l="en">
+    <h1>Terms of use</h1>
+    <p class="date">Last updated: 3 November 2026</p>
+
+    <div class="box">In short: LighterDeck is a free, open-source interface for Lighter's perpetuals. It is not an exchange, holds no funds and gives no investment advice. Leveraged trading can lose you all the capital you put in. The decisions and the risks are yours.</div>
+
+    <h2>1. What LighterDeck is</h2>
+    <p>LighterDeck is open-source software (<a href="https://github.com/telcoray/LighterDeck" target="_blank" rel="noopener">code on GitHub</a>) that shows Lighter's markets and lets you send orders to your Lighter account. Orders are executed by Lighter, not by LighterDeck. LighterDeck is not affiliated with or endorsed by Lighter or Elliot Technologies; Lighter's names and trademarks belong to their owners.</p>
+    <p>LighterDeck is not an exchange, a broker, a financial intermediary or a custody service: it does not receive, hold or move your funds.</p>
+
+    <h2>2. Who can use it</h2>
+    <ul>
+      <li>Like Lighter, LighterDeck is not available to residents of, or people located in, the United States, the United Kingdom or Canada, nor in other countries where Lighter isn't available or where using these services is prohibited.</li>
+      <li>You must be at least 18 and legally able to accept these terms.</li>
+      <li>You are responsible for complying with the laws of your country, tax laws included.</li>
+    </ul>
+
+    <h2>3. No advice</h2>
+    <p>Nothing in LighterDeck is financial, investment, legal or tax advice, or an invitation to buy or sell. The economic calendar, context badges, funding, alerts, statistics and any other information are indicative only: they may be incomplete, late or wrong.</p>
+
+    <h2>4. Trading risks</h2>
+    <ul>
+      <li>Leveraged perpetuals are very risky: prices can move fast and a position can be liquidated, losing all of its margin.</li>
+      <li>Slippage, price gaps and outages of Lighter, the network or LighterDeck can fill orders at worse prices than expected, or not fill them.</li>
+      <li>Paper trading results are simulated and say nothing about real results.</li>
+    </ul>
+
+    <h2>5. Your API keys</h2>
+    <ul>
+      <li><b>Key in the browser.</b> If you connect an API key on lighterdeck.xyz, it stays in your browser: orders are signed there and sent straight to Lighter. LighterDeck's server does not receive it. You are responsible for the security of your device and browser; if you choose not to remember it, the key is forgotten when the tab closes.</li>
+      <li><b>Key for the automations.</b> If you turn automations on, you hand LighterDeck's server a second, dedicated API key. It is kept encrypted, used only to run the rules you set (trailing, breakeven, scaled take-profits, event trades) and deleted with your rules when you turn automations off. You can revoke it at any time from Lighter's API keys page, even without going through LighterDeck.</li>
+      <li>As Lighter works, an API key can sign orders, and withdrawals only to the account owner's wallet: it can't send funds to other addresses. Whoever obtains it can still trade on your account. We recommend dedicated keys and, where possible, a sub-account holding only the capital you want to use.</li>
+      <li>Never share your wallet's private key: LighterDeck will never ask for it.</li>
+    </ul>
+
+    <h2>6. Automations</h2>
+    <p>Automations are provided on a best-effort basis, with no guarantee of continuous operation. They may run late, not run or behave unexpectedly because of failures of the server, Lighter, the network or price data. The Auto switch stops them all. For a position's main protection use Lighter's native stop-losses, which stay on the exchange even when LighterDeck can't be reached.</p>
+
+    <h2>7. Software without warranty</h2>
+    <p>LighterDeck is provided "as is" and "as available", without warranties of any kind, express or implied, including of operation, accuracy or fitness for a purpose. To the fullest extent permitted by law, the authors and whoever runs lighterdeck.xyz are not liable for trading losses, lost profits, data loss or other direct or indirect damages arising from using, or being unable to use, LighterDeck. Rights that the law does not allow to be excluded are not affected.</p>
+
+    <h2>8. Data and privacy</h2>
+    <ul>
+      <li><b>In your browser</b>: settings, paper trading, alerts, personal events and, if you connect it, the browser's API key.</li>
+      <li><b>On the server</b>, only if you turn automations on: your Lighter account number, the encrypted dedicated key, your rules and a log of what the automations did. They are deleted when you turn automations off.</li>
+      <li>The server and Cloudflare, which protects it, record technical data such as IP address and country, for security and to apply the geographic restrictions.</li>
+      <li>LighterDeck uses no profiling cookies or analytics, and sells data to no one.</li>
+    </ul>
+
+    <h2>9. Costs</h2>
+    <p>LighterDeck is free. Trading fees and funding are Lighter's. Should costs or optional contributions be introduced in the future, they will be stated clearly beforehand and need your consent.</p>
+
+    <h2>10. Changes</h2>
+    <p>These terms may change: the date at the top shows the latest version. If the changes are significant, LighterDeck will tell you; using it after a change means you accept the new terms. LighterDeck may change, suspend or stop features or the service at any time.</p>
+
+    <h2>11. Contact</h2>
+    <p>For questions or reports, open an issue on <a href="https://github.com/telcoray/LighterDeck/issues" target="_blank" rel="noopener">GitHub</a>.</p>
+  </article>
+</main>
+<script>
+  // IT / EN, remembered like the app's language
+  var seg = document.getElementById("langSeg");
+  function mark() { [].forEach.call(seg.children, function (b) { b.classList.toggle("active", b.dataset.set === document.documentElement.lang); }); }
+  seg.onclick = function (e) {
+    var b = e.target.closest("[data-set]");
+    if (!b) return;
+    document.documentElement.lang = b.dataset.set;
+    try { localStorage.setItem("ld.lang", JSON.stringify(b.dataset.set)); } catch (x) {}
+    document.title = b.dataset.set === "it" ? "Termini d'uso · LighterDeck" : "Terms of use · LighterDeck";
+    mark();
+  };
+  document.title = document.documentElement.lang === "it" ? "Termini d'uso · LighterDeck" : "Terms of use · LighterDeck";
+  mark();
+</script>
+</body>
+</html>

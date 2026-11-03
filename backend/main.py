@@ -1245,6 +1245,11 @@ async def index():
     return FileResponse(FRONTEND / "index.html")
 
 
+@app.get("/terms", include_in_schema=False)
+async def terms():
+    return FileResponse(FRONTEND / "terms.html")
+
+
 # Pages have their own addresses (lighterdeck.xyz/trade/WTI, /calendar, /account…): they all load the
 # same page, which reads the path and opens that view and market.
 PAGES = ("trade", "markets", "calendar", "account", "automations", "activity")

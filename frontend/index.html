@@ -40,7 +40,7 @@
 </script>
 <style>html.i18n-pending body { visibility: hidden; }</style>
 <link rel="icon" href="favicon.svg?v=1" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=133">
+<link rel="stylesheet" href="style.css?v=134">
 <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
 </head>
 <body>
@@ -482,6 +482,7 @@
   <span>Feed pubblico</span>
   <span id="sbAge">—</span>
   <div class="grow"></div>
+  <a class="sb-link" href="/terms" target="_blank" rel="noopener">Termini</a>
   <button class="sb-keys" id="hkOpen" title="Scorciatoie da tastiera">⌨ ?</button>
   <span id="sbClock"></span>
 </footer>
@@ -500,6 +501,7 @@
 <div class="modal hidden" id="resModal" role="dialog" aria-labelledby="resTitle">
   <div class="modal-head"><h3 id="resTitle">Prima di entrare</h3></div>
   <p class="res-text">Come Lighter, LighterDeck non è disponibile per chi risiede negli Stati Uniti, nel Regno Unito o in Canada.</p>
+  <p class="res-text res-terms">Entrando accetti i <a href="/terms" target="_blank" rel="noopener">Termini d'uso</a>.</p>
   <div class="res-actions"><button class="res-no" id="resNo">Ci risiedo</button><button class="primary" id="resYes">Non risiedo lì</button></div>
 </div>
 <div class="geo-page hidden" id="geoPage">
@@ -565,6 +567,7 @@
     <p class="key-note server-key">La chiave resta solo sul server, in data/credentials.json, e non viene mai rimandata al browser. Un'API key firma ordini e può prelevare solo verso il tuo wallet: non può mandare fondi ad altri indirizzi.</p>
     <p class="key-note browser-key">La chiave resta in questo browser: gli ordini vengono firmati qui, con il firmatario ufficiale di Lighter, e vanno direttamente a Lighter. Il server di LighterDeck non la riceve mai. Un'API key firma ordini e può prelevare solo verso il tuo wallet: non può mandare fondi ad altri indirizzi.</p>
     <label class="key-remember browser-key"><input type="checkbox" id="keyRemember" checked> Ricorda la chiave su questo browser</label>
+    <label class="key-remember browser-key"><input type="checkbox" id="keyTerms"> Ho letto e accetto i <a href="/terms" target="_blank" rel="noopener">Termini d'uso</a>: il trading con leva è rischioso e le decisioni sono mie.</label>
     <p class="key-error hidden" id="keyError"></p>
     <button class="primary" id="keySubmit" type="submit">Verifica e collega</button>
     <button class="ghost key-paper" id="keyPaper2" type="button">Oppure prova in paper trading</button>
@@ -629,11 +632,11 @@
 </div>
 
 <div class="toast hidden" id="toast"></div>
-<script src="i18n.js?v=133"></script>
-<script src="formulas.js?v=133"></script>
-<script src="paper.js?v=133"></script>
-<script src="live.js?v=133"></script>
-<script src="app.js?v=133"></script>
-<script src="picker.js?v=133"></script>
+<script src="i18n.js?v=134"></script>
+<script src="formulas.js?v=134"></script>
+<script src="paper.js?v=134"></script>
+<script src="live.js?v=134"></script>
+<script src="app.js?v=134"></script>
+<script src="picker.js?v=134"></script>
 </body>
 </html>
