@@ -1023,3 +1023,14 @@ body.simple .ticket .fl:has(#tkUnit), body.simple .ticket .checks:has(#tkReduce)
 body.simple .ticket .trail-check, body.simple #tkTrailBox, body.simple #tkTpBox, body.simple .ticket details.exec,
 body.simple .pair-add, body.simple .ev-trade,
 body.simple .rail .card.cal { display: none !important; }
+
+/* ================= live trading with the key in the browser ================= */
+#keyModal .browser-key { display: none; }
+#keyModal.browser .browser-key { display: block; }
+#keyModal.browser .server-key { display: none; }
+.key-remember { margin: -2px 0 10px; font-size: 12px; color: var(--text-2); }
+.key-remember input { margin-right: 6px; vertical-align: -2px; }
+/* what needs the server's automations isn't there yet with a browser key */
+body.browser-key #armedBtn, body.browser-key #tkTpAdd, body.browser-key .ticket .trail-check, body.browser-key #tkTrailBox,
+body.browser-key #tkTpBox, body.browser-key .pair-add, body.browser-key .ev-trade, body.browser-key .trail-btn,
+body.browser-key #mktSpread { display: none !important; }

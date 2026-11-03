@@ -87,6 +87,10 @@ const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
 async function api(path, opts = {}) {
+  if (Live.on) { // live trading with the key in this browser: signed here, sent to Lighter
+    const r = Live.route(path, opts);
+    if (r !== undefined) return r;
+  }
   if (Paper.on) { // paper trading answers the trading calls in this browser
     const r = Paper.route(path, opts);
     if (r !== undefined) return r;
@@ -2041,6 +2045,7 @@ function renderAccount() {
   renderAccountHead();
   const has = !!account;
   $("#accIdx").textContent = has ? (Paper.on ? "Paper" : "#" + account.index) : "";
+  const liveInfo = Live.on && Live.info();
   $("#accEq").textContent = has ? account.total_value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—";
   $("#accAvail").textContent = has ? fusd(account.available) : "—";
   const upnl = has ? account.positions.reduce((s, p) => s + p.upnl, 0) : null;
@@ -2053,6 +2058,7 @@ function renderAccount() {
   $("#accLimit").textContent = perOrder ? `${perOrder}%${has ? " · " + fusd((account.total_value * perOrder) / 100, 0) : ""}` : "—";
   const pill = $("#accountPill");
   pill.innerHTML = Paper.on ? `<i class="dot paper"></i><span>Paper${has ? " · " + fusd(account.total_value, 0) : ""}</span>`
+    : liveInfo ? `<i class="dot"></i><span>${t("Account #{n}", { n: liveInfo.account_index })}${has ? " · " + fusd(account.total_value, 0) : ""}</span>`
     : info.trading ? `<i class="dot"></i><span>${t("Account #{n}", { n: info.account_index })}</span>` : `<i class="dot off"></i><span>${t("Sola lettura")}</span>`;
   pill.classList.toggle("muted", !info.trading);
   if (info.trading && !$("#keyModal").classList.contains("hidden")) renderKeyEquity();
@@ -3064,7 +3070,14 @@ function connect() {
     if (msg.type !== "tick") return;
     prices = msg.prices;
     lastTick = Date.now();
-    if (Paper.on) {
+    if (Live.on) {
+      msg.account = Live.account();
+      msg.stops = {};
+      msg.exits = {};
+      msg.logs = Live.logs(logSeq);
+      msg.armed = false;
+      if (Live.tick()) { fetchOpenOrders(true).catch(() => {}); if (!$("#btab-trades").classList.contains("hidden")) loadTrades(); }
+    } else if (Paper.on) {
       const moved = Paper.tick();
       msg.account = Paper.account();
       msg.stops = Paper.stops();
@@ -3696,25 +3709,27 @@ async function useWallet(provider) {
 }
 
 function openKeyDialog(justConnected = false) {
-  const on = info.trading;
+  const browser = !!info.public, on = browser ? Live.on : info.trading;
+  $("#keyModal").classList.toggle("browser", browser);
   $("#keyConnected").classList.toggle("hidden", !on);
   $("#keyForm").classList.toggle("hidden", on);
   $("#keyTitle").textContent = on ? t("API key collegata") : t("Collega un'API key");
   if (on) {
     $("#keyOk").classList.toggle("hidden", justConnected !== true);
-    $("#keyFactAcc").textContent = "#" + info.account_index;
-    $("#keyFactIdx").textContent = info.api_key_index == null ? "—" : "#" + info.api_key_index;
-    $("#keyFactWhere").textContent = info.credentials === "env" ? t("file env del server") : "data/credentials.json";
+    const k = browser ? Live.info() : info;
+    $("#keyFactAcc").textContent = "#" + k.account_index;
+    $("#keyFactIdx").textContent = k.api_key_index == null ? "—" : "#" + k.api_key_index;
+    $("#keyFactWhere").textContent = browser ? t("questo browser") : info.credentials === "env" ? t("file env del server") : "data/credentials.json";
     renderKeyEquity();
-    $("#keyEnvNote").classList.toggle("hidden", info.credentials !== "env");
-    $("#keyRemove").classList.toggle("hidden", info.credentials === "env");
+    $("#keyEnvNote").classList.toggle("hidden", browser || info.credentials !== "env");
+    $("#keyRemove").classList.toggle("hidden", !browser && info.credentials === "env");
     showKeyConfirm(false);
   }
   $("#keyError").classList.add("hidden");
   $("#keyAccounts").innerHTML = "";
   $("#keyShade").classList.remove("hidden");
   $("#keyModal").classList.remove("hidden");
-  if (!on) $(info.account_index == null ? "#keyAddress" : "#keyIndex").focus();
+  if (!on) $(browser || info.account_index == null ? "#keyAddress" : "#keyIndex").focus();
 }
 
 function renderKeyEquity() {
@@ -3738,6 +3753,12 @@ function keyError(msg) {
   box.classList.toggle("hidden", !msg);
 }
 
+// the browser key connected or removed: live with it, paper without
+function browserKeyChanged() {
+  document.body.classList.toggle("browser-key", Live.on);
+  setPaper(!Live.on);
+}
+
 function credentialsChanged(newInfo) {
   info = { ...info, ...newInfo };
   liveTrading = info.trading;
@@ -3754,11 +3775,11 @@ let liveTrading = false;
 const autoOn = () => Paper.on || info.armed;
 
 function setPaper(on) {
-  Paper.on = !!info.public || on;
+  Paper.on = !Live.on && (!!info.public || on);
   if (!info.public) store("paper", Paper.on);
-  info.trading = Paper.on || liveTrading;
+  info.trading = Paper.on || liveTrading || Live.on;
   document.body.classList.toggle("paper", Paper.on);
-  account = Paper.on ? Paper.account() : null;
+  account = Paper.on ? Paper.account() : Live.on ? Live.account() : null;
   stops = Paper.on ? Paper.stops() : {};
   exits = Paper.on ? Paper.exits() : {};
   pairs = [];
@@ -3769,7 +3790,7 @@ function setPaper(on) {
   for (const box of [$("#btab-log"), $("#activityLog")]) box.innerHTML = `<div class="empty">${t("Nessuna attività.")}</div>`;
   if (Paper.on) addLogs(Paper.logs(0));
   else api("/logs").then(addLogs).catch(() => {});
-  if (Paper.on && ["auto", "activity", "account"].includes(curView)) switchView("trade");
+  if ((Paper.on || Live.on) && ["auto", "activity", "account"].includes(curView)) switchView("trade");
   renderAccount();
   loadOrders(true);
   if (!$("#btab-trades").classList.contains("hidden")) loadTrades();
@@ -3783,7 +3804,7 @@ function renderPaperModal() {
   $("#paperCount").textContent = s.trades;
   $("#paperSince").textContent = new Date(s.start).toLocaleDateString(LOCALE, { day: "numeric", month: "short", year: "numeric" });
   $$("#paperBal button").forEach((b) => b.classList.toggle("active", +b.dataset.bal === (renderPaperModal.bal || s.balance)));
-  $("#paperLive").classList.toggle("hidden", !!info.public);
+  $("#paperLive").classList.toggle("hidden", !!info.public && !info.browser_trading);
 }
 
 function openPaperModal() {
@@ -3814,8 +3835,18 @@ function wirePaper() {
     renderPaperModal();
     toast(t("Paper trading ripartito con {bal}", { bal: fusd(bal, 0) }));
   };
-  $("#paperLive").onclick = () => { closePaperModal(); setPaper(false); toast(liveTrading ? t("Trading live: ordini veri su Lighter") : t("Sola lettura")); };
-  $("#keyPaper").onclick = $("#keyPaper2").onclick = () => { closeKeyDialog(); setPaper(true); toast(t("Paper trading: prezzi veri, soldi finti")); };
+  $("#paperLive").onclick = () => {
+    closePaperModal();
+    if (info.public) return openKeyDialog(); // live needs a key, kept in this browser
+    setPaper(false);
+    toast(liveTrading ? t("Trading live: ordini veri su Lighter") : t("Sola lettura"));
+  };
+  $("#keyPaper").onclick = $("#keyPaper2").onclick = () => {
+    closeKeyDialog();
+    if (Live.on) { Live.disconnect(); document.body.classList.remove("browser-key"); } // paper instead of the browser key
+    setPaper(true);
+    toast(t("Paper trading: prezzi veri, soldi finti"));
+  };
 }
 
 // ================= keyboard shortcuts =================
@@ -3955,7 +3986,7 @@ function wireHotkeys() {
 }
 
 function wireKeyDialog() {
-  $("#accountPill").onclick = () => (Paper.on ? openPaperModal() : !info.public && openKeyDialog());
+  $("#accountPill").onclick = () => (Paper.on ? openPaperModal() : (!info.public || Live.on) && openKeyDialog());
   $("#keyClose").onclick = closeKeyDialog;
   $("#keyShade").onmousedown = closeKeyDialog;
   document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("#keyModal").classList.contains("hidden")) closeKeyDialog(); });
@@ -3991,9 +4022,15 @@ function wireKeyDialog() {
     btn.disabled = true;
     btn.textContent = t("Verifica in corso…");
     try {
-      const res = await api("/credentials", { method: "POST", body: JSON.stringify({
-        account_index: +$("#keyAccount").value, api_key_index: +$("#keyIndex").value, private_key: $("#keyPrivate").value,
-      }) });
+      const cred = { account_index: +$("#keyAccount").value, api_key_index: +$("#keyIndex").value };
+      if (info.public) { // the key stays here: checked with Lighter from this browser
+        await Live.connect({ ...cred, key: $("#keyPrivate").value }, $("#keyRemember").checked);
+        $("#keyPrivate").value = "";
+        browserKeyChanged();
+        openKeyDialog(true);
+        return;
+      }
+      const res = await api("/credentials", { method: "POST", body: JSON.stringify({ ...cred, private_key: $("#keyPrivate").value }) });
       $("#keyPrivate").value = "";
       credentialsChanged(res);
       openKeyDialog(true);
@@ -4008,6 +4045,13 @@ function wireKeyDialog() {
   $("#keyRemove").onclick = () => showKeyConfirm(true);
   $("#keyCancel").onclick = () => showKeyConfirm(false);
   $("#keyConfirmBtn").onclick = async () => {
+    if (info.public) {
+      Live.disconnect();
+      closeKeyDialog();
+      browserKeyChanged();
+      toast(t("API key scollegata: torni al paper trading"));
+      return;
+    }
     try {
       const res = await api("/credentials", { method: "DELETE" });
       closeKeyDialog();
@@ -4100,8 +4144,12 @@ async function init() {
   }
   markets = info.markets;
   liveTrading = info.trading;
-  Paper.on = !!info.public || load("paper", false);
-  info.trading = Paper.on || liveTrading;
+  if (info.public && info.browser_trading && Live.saved()) {
+    try { await Live.restore(); } catch {}
+    document.body.classList.toggle("browser-key", Live.on);
+  }
+  Paper.on = !Live.on && (!!info.public || load("paper", false));
+  info.trading = Paper.on || liveTrading || Live.on;
   document.body.classList.toggle("paper", Paper.on);
   applyPublic();
   bySymbol = Object.fromEntries(markets.map((m) => [m.symbol, m]));
@@ -4151,6 +4199,7 @@ async function init() {
   renderSessions();
   await loadCalendar();
   loadRules();
+  if (Live.on) account = Live.account();
   if (Paper.on) {
     addLogs(Paper.logs(0));
     // orders that would have filled while the page was closed, from the candles of the time away

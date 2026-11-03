@@ -173,10 +173,13 @@ const Paper = (() => {
   }
 
   // ---------- orders (the server's /api/preview and /api/order) ----------
-  function plan(o, checkSides = true) {
+  // ctx: where prices and the account come from; live trading with the key in the browser (live.js)
+  // sizes its orders here too, with Lighter's account
+  function plan(o, checkSides = true, ctx = { px, account }) {
     const m = mkt(o.market_id);
     const side = o.side === "buy" ? 1 : -1;
-    const p = px(m.id);
+    const p = ctx.px(m.id);
+    const markOf = (id) => { const q = ctx.px(id); return q && q.mark ? q.mark : null; };
     let ref;
     if (o.kind === "limit") {
       if (!o.price) err(t("Gli ordini limit richiedono un prezzo"));
@@ -191,8 +194,9 @@ const Paper = (() => {
       if (!o.sl_price || o.sl_price === ref) err(t("La size a rischio fisso richiede uno stop-loss lontano dall'entrata"));
       size = o.size / Math.abs(ref - o.sl_price);
     } else if (o.unit === "equity_pct") {
-      if (!(o.size > 0 && o.size <= 100)) err(t("La % del capitale richiede l'account caricato e un valore tra 0 e 100"));
-      size = account().total_value * o.size / 100 / ref;
+      const acc = ctx.account();
+      if (!acc || !(o.size > 0 && o.size <= 100)) err(t("La % del capitale richiede l'account caricato e un valore tra 0 e 100"));
+      size = acc.total_value * o.size / 100 / ref;
     } else size = o.size / ref;
     size = roundSize(size, m);
     if (size <= 0) err(t("Size sotto la precisione del mercato"));
@@ -753,7 +757,7 @@ const Paper = (() => {
 
   return {
     on: false,
-    route, account, stops, exits, catchUp,
+    route, account, stops, exits, catchUp, plan,
     tick() { // once a second with the live prices; true when orders or positions changed
       changed = false;
       step();

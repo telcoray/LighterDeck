@@ -100,6 +100,7 @@ async def auth(request: Request, call_next):
 async def info(request: Request):
     return {
         "public": config.PUBLIC_MODE,
+        "browser_trading": config.PUBLIC_MODE and config.BROWSER_TRADING,
         "referral_url": config.REFERRAL_URL, "github_url": config.GITHUB_URL,
         # Cloudflare's visitor country, so the public site can show the page for excluded countries
         "blocked_country": config.PUBLIC_MODE and request.headers.get("cf-ipcountry", "") in config.BLOCKED_COUNTRIES,
