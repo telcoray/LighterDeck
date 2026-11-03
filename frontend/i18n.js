@@ -274,6 +274,7 @@ const EN = {
   "Breakeven a PnL +%": "Breakeven at PnL +%",
   "Parte da PnL +%": "Starts at PnL +%",
   "% prezzo": "% price",
+  "Conferma {f}%": "Confirm {f}%",
   "Scattato {t}": "Fired {t}",
   "{d} fa": "{d} ago",
   "attivo": "active",

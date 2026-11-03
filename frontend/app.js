@@ -753,7 +753,7 @@ class Panel {
       if (!items.length) return;
       menu.innerHTML = `<div class="cm-price">${fp(this.menuPrice, m)}</div>` + items.map((it, i) =>
         `<button data-cm="${i}" class="${it.cls || ""}${it.line && !(items[i + 1] || {}).line ? " line-last" : ""}">${esc(it.label)}${it.note ? `<small>${esc(it.note)}</small>` : ""}</button>`).join("");
-      this.menuItems = items;
+      this.menuItems = confirmOnTouch(items);
       menu.classList.remove("hidden");
       const r = this.el.getBoundingClientRect(), w = menu.offsetWidth, h = menu.offsetHeight;
       menu.style.left = Math.max(4, Math.min(r.width - w - 4, e.clientX - r.left + 2)) + "px";
@@ -804,7 +804,7 @@ class Panel {
     const menu = $(".chart-menu", this.el);
     menu.innerHTML = `<div class="cm-price">${fp(price, { price_decimals: d })}</div>` + items.map((it, i) =>
       `<button data-cm="${i}" class="${it.cls || ""}${it.line && !(items[i + 1] || {}).line ? " line-last" : ""}">${esc(it.label)}${it.note ? `<small>${esc(it.note)}</small>` : ""}</button>`).join("");
-    this.menuItems = items;
+    this.menuItems = confirmOnTouch(items);
     menu.classList.remove("hidden");
     const r = this.el.getBoundingClientRect();
     menu.style.left = Math.max(4, Math.min(r.width - menu.offsetWidth - 4, e.clientX - r.left + 2)) + "px";
@@ -1404,6 +1404,18 @@ function toggleBook(v) {
 // Buttons carry data-ck="<key>"; tables that redraw call markConfirm() so the state survives.
 let pendingConfirm = null; // { key, text }
 const CONFIRM_MS = 4000;
+
+// the chart menu's items that act at once (the position's SL/TP, a pair's SL/TP, cancelling an order or a
+// pair stop) ask for a second tap on touch screens; filling the ticket or setting an alert doesn't
+function confirmOnTouch(items) {
+  if (!touchUI()) return items;
+  for (const it of items) if (!it.confirm && (it.note === t("subito") || (it.cls || "").includes("danger"))) it.confirm = `${t("Conferma")}: ${it.label}`;
+  return items;
+}
+
+// a finger slips more easily than a mouse: on touch screens the actions that trade on one click
+// (partial closes, cancelling an order, the chart menu's "now" items) ask for a second tap too
+const touchUI = () => matchMedia("(hover: none)").matches;
 
 function askConfirm(key, text) {
   if (pendingConfirm && pendingConfirm.key === key) { cancelConfirm(); return true; }
@@ -2139,7 +2151,7 @@ function renderPositions() {
         <td class="r liq">${fp(p.liq, m)}</td><td class="r pnl ${cls(p.upnl)}">${fusd(p.upnl)}<small>${isFinite(pct) ? fpct(pct) : ""}</small></td>
         <td class="r sltp">${sltpCell(p, m)}</td>
         <td>${trailButton(p.market_id, m)}</td>
-        <td><span class="qbtn">${[25, 50, 75, 100].map((f) => `<button data-close="${p.market_id}" data-f="${f}"${f === 100 ? ` class="all" data-ck="close:${p.market_id}" data-key="F" title="${t("Chiudi tutto · F")}"` : f === 50 ? ` title="${t("Chiudi metà · H")}"` : ""}>${f}%</button>`).join("")}<button class="rev" data-reverse="${p.market_id}" data-ck="reverse:${p.market_id}" data-key="R" title="${t("Reverse: chiude e apre il lato opposto, stessa size · R")}">⇄ Reverse</button></span></td></tr>`;
+        <td><span class="qbtn">${[25, 50, 75, 100].map((f) => `<button data-close="${p.market_id}" data-f="${f}"${f === 100 ? ` class="all" data-ck="close:${p.market_id}" data-key="F" title="${t("Chiudi tutto · F")}"` : ` data-ck="close:${p.market_id}:${f}"${f === 50 ? ` title="${t("Chiudi metà · H")}"` : ""}`}>${f}%</button>`).join("")}<button class="rev" data-reverse="${p.market_id}" data-ck="reverse:${p.market_id}" data-key="R" title="${t("Reverse: chiude e apre il lato opposto, stessa size · R")}">⇄ Reverse</button></span></td></tr>`;
     }).join("")}</tbody></table>`;
   markConfirm();
 }
@@ -2180,7 +2192,7 @@ function pairRow(x) {
     <td class="r liq" title="${t("La liquidazione più vicina fra le due gambe")}">${near ? `<span class="${near.pct < BADGE_LIQ ? "down" : ""}">${near.pct > 100 ? "> 100%" : near.pct.toFixed(1) + "%"}</span><small class="pos-lev">${esc(near.m.symbol)}</small>` : "—"}</td>
     <td class="r pnl ${cls(upnl)}">${fusd(upnl)}<small>${isFinite(pct) ? fpct(pct) : ""}</small></td>
     <td class="r sltp">${stop("tp")}<span class="sltp-sep">/</span>${stop("sl")}</td><td></td>
-    <td><span class="qbtn">${[50, 100].map((f) => `<button data-pclose="${x.id}" data-f="${f}"${f === 100 ? ` class="all" data-ck="pclose:${x.id}"` : ""}>${f}%</button>`).join("")}<button class="unpair" data-unpair="${x.id}" title="${t("Separa: le due posizioni restano aperte, non più come coppia")}">${t("Separa")}</button></span></td></tr>`
+    <td><span class="qbtn">${[50, 100].map((f) => `<button data-pclose="${x.id}" data-f="${f}" class="${f === 100 ? "all" : ""}" data-ck="pclose:${x.id}${f === 100 ? "" : ":" + f}">${f}%</button>`).join("")}<button class="unpair" data-unpair="${x.id}" title="${t("Separa: le due posizioni restano aperte, non più come coppia")}">${t("Separa")}</button></span></td></tr>`
     + legs.map(legRow).join("");
 }
 
@@ -2289,7 +2301,7 @@ async function loadOrders(fresh = false) {
       const m = byId[o.market_id];
       return `<tr><td class="mk">${gotoBtn(o.symbol)}</td><td>${esc(o.type)}</td><td class="${o.is_ask ? "down" : "up"}">${o.is_ask ? "Sell" : "Buy"}</td>
         <td class="r">${fp(o.price, m)}</td><td class="r">${o.trigger_price ? fp(o.trigger_price, m) : "—"}</td><td class="r">${fsize(o.remaining, m)}</td>
-        <td>${o.reduce_only ? t("sì") : "—"}</td><td class="r"><button class="xbtn" data-cancel="${o.market_id}:${o.order_index}">${t("Annulla")}</button></td></tr>`;
+        <td>${o.reduce_only ? t("sì") : "—"}</td><td class="r"><button class="xbtn" data-cancel="${o.market_id}:${o.order_index}" data-ck="cancel:${o.market_id}:${o.order_index}">${t("Annulla")}</button></td></tr>`;
     }).join("")}</tbody></table>`;
 }
 
@@ -3229,6 +3241,7 @@ function wire() {
     if (pc) {
       const f = +pc.dataset.f;
       if (f === 100 && !askConfirm(`pclose:${pc.dataset.pclose}`, t("Chiudi la coppia"))) return;
+      if (f < 100 && touchUI() && !askConfirm(`pclose:${pc.dataset.pclose}:${f}`, t("Conferma {f}%", { f }))) return;
       return closePair(pc.dataset.pclose, f);
     }
     const up = e.target.closest("[data-unpair]");
@@ -3243,6 +3256,7 @@ function wire() {
     if (!b) return;
     const mid = +b.dataset.close, f = +b.dataset.f;
     if (f === 100 && !askConfirm(`close:${mid}`, t("Chiudi tutto"))) return;
+    if (f < 100 && touchUI() && !askConfirm(`close:${mid}:${f}`, t("Conferma {f}%", { f }))) return;
     try { await api(`/close?market_id=${mid}&fraction=${f / 100}`, { method: "POST" }); toast(t("Chiusura {f}% inviata", { f })); } catch (err) { toast(err.message, true); }
   };
   $("#btab-alerts").onchange = (e) => {
@@ -3261,6 +3275,7 @@ function wire() {
     const b = e.target.closest("[data-cancel]");
     if (!b) return;
     const [mid, oi] = b.dataset.cancel.split(":");
+    if (touchUI() && !askConfirm(`cancel:${mid}:${oi}`, t("Conferma"))) return;
     try { await api(`/cancel_order?market_id=${mid}&order_index=${oi}`, { method: "POST" }); toast(t("Ordine annullato")); loadOrders(true); } catch (err) { toast(err.message, true); }
   };
 
