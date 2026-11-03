@@ -449,6 +449,10 @@ select option, select optgroup { background-color: var(--surface); color: var(--
 .auto-alerts label { display: flex; align-items: center; gap: 6px; color: var(--text-2); cursor: pointer; }
 .auto-alerts .auto-note { margin-left: auto; font-size: 10.5px; }
 .table tr.auto td { color: var(--amber); }
+.table tr.done td { opacity: .85; }
+.al-fired { color: var(--amber); font-family: var(--ui); }
+.al-fired small { display: block; margin-top: 2px; color: var(--muted); font-size: 10px; }
+.al-live { margin-right: 10px; color: var(--green); font-family: var(--ui); font-size: 10.5px; }
 body.dragging-line, body.dragging-line * { cursor: ns-resize !important; user-select: none; }
 /* waiting for the second click */
 .execute.confirming { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--amber); }

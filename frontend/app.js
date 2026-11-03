@@ -1923,17 +1923,20 @@ function renderAlerts() {
   const autos = `<div class="auto-alerts"><span class="caps muted">${t("Avvisi automatici")}</span>${AUTO_KINDS.map(([k, name, hint]) =>
     `<label title="${t(hint)}"><input type="checkbox" data-auto="${k}" ${autoAlertsOn[k] ? "checked" : ""}> ${t(name)}</label>`).join("")}
     <span class="muted auto-note">${t("Arrivano con LighterDeck aperto, anche in una tab in secondo piano.")}</span></div>`;
-  const row = (a, fired) => {
-    if (a.auto) return `<tr class="auto"><td class="mk">${a.symbol && bySymbol[a.symbol] ? gotoBtn(a.symbol) : esc(a.symbol || "")}</td><td colspan="4">${esc(a.text)}</td>
-      <td class="r muted">${new Date(a.at).toLocaleString(LOCALE, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</td><td class="r"><span class="muted">${t("scattato")}</span></td></tr>`;
+  // when: the day and time, and how long ago for the fired ones ("12:26 · 5m ago")
+  const when = (ts) => new Date(ts).toLocaleString(LOCALE, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+  const fired = (a) => `<span class="al-fired">${t("Scattato {t}", { t: when(a.at) })}<small>${t("{d} fa", { d: dur(Date.now() - a.at) })}</small></span>`;
+  const row = (a, done) => {
+    if (a.auto) return `<tr class="auto done"><td class="mk">${a.symbol && bySymbol[a.symbol] ? gotoBtn(a.symbol) : esc(a.symbol || "")}</td><td colspan="4">${esc(a.text)}</td>
+      <td class="r muted">—</td><td class="r">${fired(a)}</td></tr>`;
     const m = byId[a.market_id], px = lastPrice(a.market_id);
-    const dist = !fired && px ? ((a.price - px) / px) * 100 : null;
-    return `<tr><td class="mk">${gotoBtn(a.symbol)}</td><td>${a.dir > 0 ? t("sale a") : t("scende a")}</td><td class="r main">${m ? fp(a.price, m) : a.price}</td>
-      <td class="r">${fired ? (m ? fp(a.px, m) : a.px) : px && m ? fp(px, m) : "—"}</td><td class="r ${dist !== null ? cls(dist) : ""}">${dist !== null ? fpct(dist) : "—"}</td>
-      <td class="r muted">${new Date(fired ? a.at : a.created).toLocaleString(LOCALE, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</td>
-      <td class="r">${fired ? `<span class="muted">${t("scattato")}</span>` : `<button class="xbtn" data-alert-del="${a.id}">${t("Togli")}</button>`}</td></tr>`;
+    const dist = !done && px ? ((a.price - px) / px) * 100 : null;
+    return `<tr class="${done ? "done" : ""}"><td class="mk">${gotoBtn(a.symbol)}</td><td>${a.dir > 0 ? t("sale a") : t("scende a")}</td><td class="r main">${m ? fp(a.price, m) : a.price}</td>
+      <td class="r">${done ? (m ? fp(a.px, m) : a.px) : px && m ? fp(px, m) : "—"}</td><td class="r ${dist !== null ? cls(dist) : ""}">${dist !== null ? fpct(dist) : "—"}</td>
+      <td class="r muted">${a.created ? when(a.created) : "—"}</td>
+      <td class="r">${done ? fired(a) : `<span class="al-live">${t("attivo")}</span><button class="xbtn" data-alert-del="${a.id}">${t("Togli")}</button>`}</td></tr>`;
   };
-  const head = `<thead><tr><th>${t("Mercato")}</th><th>${t("Quando il prezzo")}</th><th class="r">${t("Livello")}</th><th class="r">${t("Prezzo")}</th><th class="r">${t("Distanza")}</th><th class="r">${t("Creato / scattato")}</th><th></th></tr></thead>`;
+  const head = `<thead><tr><th>${t("Mercato")}</th><th>${t("Quando il prezzo")}</th><th class="r">${t("Livello")}</th><th class="r" title="${t("Il prezzo ora, o quando l'alert è scattato")}">${t("Prezzo")}</th><th class="r">${t("Distanza")}</th><th class="r">${t("Creato")}</th><th class="r">${t("Stato")}</th></tr></thead>`;
   if (!alerts.length && !alertsFired.length) {
     box.innerHTML = autos + `<div class="empty">${t("Nessun alert. Click destro sul grafico → Alert, oppure punta il mouse a un prezzo e premi A.")}</div>`;
     return;
@@ -4050,6 +4053,7 @@ async function init() {
     else if (chartEls.orders && info.trading && ++orderPolls % 2 === 0) fetchOpenOrders().catch(() => {});
   }, 5000);
   setInterval(loadCalendar, 10 * 60 * 1000);
+  setInterval(() => { if (!$("#btab-alerts").classList.contains("hidden")) renderAlerts(); }, 30000); // "5m ago" moves on
   setInterval(() => panels.forEach((p) => p.load()), 15 * 60 * 1000);
 }
 
