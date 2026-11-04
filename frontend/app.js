@@ -1185,7 +1185,7 @@ function wireBadges() {
     const panel = b.closest(".panel");
     if (panel) { const p = panels.find((x) => x.el === panel); if (p) setActive(p.idx); }
     if (b.dataset.go === "funding") toggleFunding(true);
-    else if (b.dataset.go === "calendar") switchView("calendar");
+    else if (b.dataset.go === "calendar") switchView("cal");
   });
 }
 
@@ -4279,6 +4279,17 @@ async function init() {
   setInterval(loadCalendar, 10 * 60 * 1000);
   setInterval(() => { if (!$("#btab-alerts").classList.contains("hidden")) renderAlerts(); }, 30000); // "5m ago" moves on
   setInterval(() => panels.forEach((p) => p.load()), 15 * 60 * 1000);
+  // a phone that slept (screen off, tab in the background) missed the candles in between: the chart
+  // would join the old ones to the new price with a gap. Coming back after a while reloads them.
+  let hiddenAt = 0;
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) { hiddenAt = Date.now(); return; }
+    if (!hiddenAt || Date.now() - hiddenAt < 15000) return;
+    hiddenAt = 0;
+    panels.forEach((p) => p.load());
+    if (chartEls.orders && info.trading) fetchOpenOrders(true).catch(() => {});
+    loadCalendar().catch(() => {});
+  });
 }
 
 init();
