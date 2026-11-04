@@ -1053,7 +1053,9 @@ function renderMarketBar() {
   $("#stIdx").textContent = fp(p.index, m);
   const f = $("#stFund");
   f.textContent = p.funding.toFixed(4) + "%";
-  f.className = p.funding >= 0 ? "" : "down";
+  // plain while normal; once high (as its badge): red if your position pays it, green if it receives it, amber otherwise
+  const fpos = Math.abs(p.funding) >= BADGE_FUNDING && account && account.positions.find((x) => x.market_id === m.id);
+  f.className = Math.abs(p.funding) < BADGE_FUNDING ? "" : fpos ? (Math.sign(fpos.size) === Math.sign(p.funding) ? "down" : "up") : "warn";
   if (fundView.open && $("#fundPop").dataset.mid !== String(m.id)) { $("#fundPop").dataset.mid = m.id; loadFundingHistory(); }
   $("#stOi").textContent = fcompact(p.oi);
   setBadges($("#mkCtx"), m);

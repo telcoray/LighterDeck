@@ -212,7 +212,7 @@ body.reordering { cursor: grabbing; user-select: none; }
 .stat { display: flex; flex-direction: column; gap: 3px; white-space: nowrap; }
 .stat label { font-size: 9.5px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
 .stat span { font-family: var(--mono); font-size: 12px; color: var(--text); }
-.stat span.up { color: var(--green); } .stat span.down { color: var(--red); } /* the 24h change and a negative funding keep their colour */
+.stat span.up { color: var(--green); } .stat span.down { color: var(--red); } .stat span.warn { color: var(--amber); } /* the 24h change; a high funding */
 .stat-btn { text-align: left; cursor: pointer; margin: -5px -8px; padding: 5px 8px; border-radius: 6px; }
 .stat-btn label { cursor: pointer; }
 .stat-btn:hover, .stat-btn.open { background: var(--raised); }
