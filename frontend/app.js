@@ -215,6 +215,17 @@ class Panel {
       this.renderLegend();
       this.renderEventTip(p, bar);
     });
+    // a finger has no hover: a tap shows the events or fills of the nearest dot or arrow
+    this.chart.subscribeClick((p) => {
+      if (!touchUI() || !p || !p.point) return;
+      const ts = this.chart.timeScale();
+      let best = null, gap = 18;
+      for (const t of new Set([...this.eventBars.keys(), ...this.fillBars.keys()])) {
+        const x = ts.timeToCoordinate(t);
+        if (x !== null && Math.abs(x - p.point.x) < gap) { best = t; gap = Math.abs(x - p.point.x); }
+      }
+      this.renderEventTip(p, best !== null ? this.data.get(best) : null, 18);
+    });
   }
 
   get cfg() { return panelCfg[this.idx]; }
@@ -438,12 +449,15 @@ class Panel {
 
   drawMarkers() {
     const now = Date.now() / 1000;
+    // events and fills older than the first candle would all pile up on it: only the loaded bars get marks
+    const first = this.data.size ? this.data.keys().next().value : Infinity;
     // one discreet dot per bar that had high-impact news for this market
     const bars = new Map();
     const sym = this.market && this.market.symbol;
     for (const e of events) {
       if (!sym || !eventFor(e, sym) || impactFor(e, sym) !== "High" || e.ts > now) continue;
       const t = barStart(this.cfg.tf, e.ts);
+      if (t < first) continue;
       bars.set(t, (bars.get(t) || []).concat(e));
     }
     if (!chartEls.events) bars.clear();
@@ -453,7 +467,6 @@ class Panel {
       text: "",
     }));
     // your fills: an arrow under the bar for buys, over it for sells, one per side and bar
-    const first = this.data.size ? this.data.keys().next().value : Infinity;
     this.fillBars = new Map();
     if (chartEls.fills && info.trading) {
       for (const f of this.fills) {
@@ -489,13 +502,14 @@ class Panel {
   }
 
   // box with the events behind a dot, shown while the pointer is on or near it
-  renderEventTip(p, bar) {
+  // reach: extra room around the mark for a finger
+  renderEventTip(p, bar, reach = 0) {
     const tip = $(".ev-tip", this.el);
     const evs = bar && this.eventBars.get(bar.time);
     const fs = bar && this.fillBars.get(bar.time);
     const lowY = bar && this.series.priceToCoordinate(bar.low), highY = bar && this.series.priceToCoordinate(bar.high);
-    const nearLow = lowY !== null && p.point && p.point.y >= lowY - 6 && p.point.y <= lowY + 34;
-    const nearHigh = highY !== null && p.point && p.point.y <= highY + 6 && p.point.y >= highY - 34;
+    const nearLow = lowY !== null && p.point && p.point.y >= lowY - 6 - reach && p.point.y <= lowY + 34 + reach;
+    const nearHigh = highY !== null && p.point && p.point.y <= highY + 6 + reach && p.point.y >= highY - 34 - reach;
     const showFills = fs && ((nearLow && fs.some((f) => f.side === "buy")) || (nearHigh && fs.some((f) => f.side === "sell")));
     if (!showFills && (!evs || !nearLow)) {
       tip.classList.add("hidden");
