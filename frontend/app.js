@@ -433,7 +433,7 @@ class Panel {
     const m = this.market;
     const p = m && prices[m.id];
     if (!p || !this.last) return;
-    const price = p.last || p.mark;
+    const price = p.mark || p.last; // the mark moves between trades, as on Lighter's chart (history merges it too)
     if (!price) return;
     const barTime = barStart(this.cfg.tf, Math.floor(Date.now() / 1000));
     if (barTime > this.last.time) this.last = { time: barTime, open: price, high: price, low: price, close: price, volume: 0 };

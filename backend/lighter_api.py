@@ -243,6 +243,9 @@ class LighterAPI:
             data = await self._get("/api/v1/candles", {
                 "market_id": market_id, "resolution": resolution,
                 "start_timestamp": end - secs * n, "end_timestamp": end, "count_back": n,
+                # bars without trades take the mark price's moves, as Lighter's own chart: on a thin
+                # market most minutes have no trade and would be flat dashes at the last trade
+                "merge_mark_price": "true",
             })
             page = [{"time": c["t"] // 1000, "open": dp(c["o"]), "high": dp(c["h"]), "low": dp(c["l"]),
                      "close": dp(c["c"]), "volume": ds(c["v"])} for c in data.get("c", [])]
