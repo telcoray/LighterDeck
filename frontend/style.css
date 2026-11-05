@@ -924,7 +924,8 @@ button.pill:hover { border-color: var(--line-3); color: var(--text); }
   .legend { right: 74px; }
 
   /* bottom tables: tabs on one line, table scrolls sideways */
-  .bottom { height: auto; min-height: 160px; }
+  .bottom { height: auto; } /* as tall as its content: an empty tab is one line, not a block */
+  .btab .empty { padding: 14px 14px 16px; }
   .hsplit { display: none; }
   .subtabs { overflow-x: auto; scrollbar-width: none; }
   .subtabs button { flex: none; white-space: nowrap; }
