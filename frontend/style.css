@@ -735,8 +735,11 @@ kbd { font-family: var(--mono); font-size: 9.5px; border: 1px solid var(--line-2
 }
 
 /* ---------- risk / leverage ---------- */
-.lev { font-size: 10.5px; border: 1px solid var(--line-2); padding: 2px 7px; border-radius: 4px; color: var(--text-2); }
-.lev:hover { border-color: var(--line-3); color: var(--text); }
+/* leverage and margin mode: a control, not a label (same size as before) */
+.lev { display: inline-flex; align-items: center; gap: 5px; font-size: 10.5px; font-weight: 600; border: 1px solid var(--line-3); padding: 2px 7px; border-radius: 4px; color: var(--text); background: var(--raised); }
+.lev::after { content: ""; width: 0; height: 0; border-left: 3.5px solid transparent; border-right: 3.5px solid transparent; border-top: 4px solid currentColor; opacity: .7; }
+.lev:hover { border-color: var(--text-2); }
+.lev.iso { color: var(--amber); border-color: color-mix(in srgb, var(--amber) 55%, transparent); }
 .levbox { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 10px; margin-bottom: 12px; }
 .levmode { margin-bottom: 8px; }
 .levmode button { flex: 1; }
@@ -1077,5 +1080,7 @@ body.browser-key :is(.pair-add, #mktSpread) { display: none !important; }
 .res-terms a, .key-remember a { color: var(--green); }
 
 /* cross / isolated next to a position's side */
-.mode-tag { cursor: help; display: inline-block; margin-left: 6px; padding: 0 5px; border: 1px solid var(--line-3); border-radius: 4px; font-family: var(--ui); font-size: 9.5px; line-height: 14px; letter-spacing: .03em; color: var(--text-2); text-transform: uppercase; vertical-align: 1px; }
+.mode-tag { cursor: help; display: inline-flex; align-items: center; height: 14px; margin-left: 6px; padding: 0 4px; border: 1px solid var(--line-3); border-radius: 3px; font-family: var(--ui); font-size: 8.5px; font-weight: 600; line-height: 1; letter-spacing: .05em; color: var(--text-2); text-transform: uppercase; vertical-align: middle; }
+/* the side and its tag on one line, centred */
+.table td.mk small:has(.mode-tag) { display: flex; align-items: center; flex-wrap: wrap; row-gap: 4px; }
 .mode-tag.iso { border-color: color-mix(in srgb, var(--amber) 55%, transparent); color: var(--amber); }

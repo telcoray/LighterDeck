@@ -713,3 +713,7 @@ Object.assign(DICTS.ko, {
   "Isolated: it is liquidated when the loss eats up this position's margin.": "격리: 손실이 이 포지션의 증거금을 모두 소진하면 청산됩니다.",
   "Cross: it is liquidated only when the loss eats up the whole account's collateral, not just this position's margin. That's why it can be very far away.": "교차: 손실이 이 포지션의 증거금이 아니라 계정 전체의 담보를 모두 소진해야 청산됩니다. 그래서 청산가가 매우 멀 수 있습니다.",
 });
+Object.assign(DICTS.ko, {
+  "Close the position to switch between cross and isolated": "교차와 격리를 바꾸려면 포지션을 청산하세요",
+  "Paper: {sym} isolated liquidated at the mark price": "모의: {sym} 격리 포지션이 마크 가격으로 청산됨",
+});

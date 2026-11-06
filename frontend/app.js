@@ -1522,6 +1522,7 @@ function renderTicket() {
   const set = account && account.settings && account.settings[m.id];
   const lev = set ? set.leverage : m.default_leverage;
   $("#tkLev").textContent = `${lev ? lev + "x " : ""}${set && !set.cross ? "Isolated" : "Cross"}`;
+  $("#tkLev").classList.toggle("iso", !!(set && !set.cross));
   $("#tkAvail").textContent = account ? fusd(account.available) : "—";
   $("#tkPos").innerHTML = pos ? `<span class="${pos.size > 0 ? "up" : "down"}">${pos.size > 0 ? "Long" : "Short"} ${fsize(pos.size, m)}</span>` : "—";
   const unit = $("#tkUnit").value;
@@ -1719,10 +1720,18 @@ function renderTicketEstimates(m, p, qty, entry) {
   $("#tkMargin").textContent = qty && !reduce ? `${fusd(Formulas.orderMargin(notional, leverage))} · ${leverage}x` : "—";
   $("#tkFee").textContent = qty ? `${fusd(feeUsd)} · ${(feeRate * 100).toFixed(3)}%` : "—";
   const mark = p && p.mark;
-  const liq = Formulas.liquidationAfterOrder({
-    account, market: m, side, qty, entry, mark, feeUsd,
-    markOf: (id) => prices[id] && prices[id].mark, mmfOf: (id) => (byId[id] ? byId[id].mmf : m.mmf),
-  });
+  const curPos = account && account.positions.find((x) => x.market_id === m.id);
+  const liq = set && set.cross === false
+    ? (() => { // isolated: the position after the order stands on its own margin
+        const size = (curPos ? curPos.size : 0) + side * qty;
+        if (!qty || Math.abs(size) < 1e-12) return null;
+        const avg = curPos && Math.sign(curPos.size) === side ? (curPos.entry * Math.abs(curPos.size) + entry * qty) / Math.abs(size) : entry;
+        return Formulas.isolatedLiquidation(size, avg, Math.abs(size) * avg / leverage, m.mmf);
+      })()
+    : Formulas.liquidationAfterOrder({
+      account, market: m, side, qty, entry, mark, feeUsd,
+      markOf: (id) => prices[id] && prices[id].mark, mmfOf: (id) => (byId[id] ? byId[id].mmf : m.mmf),
+    });
   const liqEl = $("#tkLiq");
   liqEl.textContent = liq ? fp(liq, m) : account ? "—" : t("serve l'account");
   liqEl.className = liq && mark && Math.abs(liq - mark) / mark < 0.05 ? "down" : "";

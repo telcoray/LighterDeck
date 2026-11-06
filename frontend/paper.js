@@ -33,6 +33,7 @@ const Paper = (() => {
   const roundSize = (v, m) => +v.toFixed(m.size_decimals);
   const roundPrice = (v, m) => +v.toFixed(m.price_decimals);
   const lev = (id) => (S.settings[id] && S.settings[id].leverage) || mkt(id).default_leverage || 1;
+  const isolated = (id) => !!(S.settings[id] && S.settings[id].cross === false);
   const now = () => (replay ? replay.at : Date.now());
 
   function note(msg, level = "info") {
@@ -42,29 +43,36 @@ const Paper = (() => {
   }
 
   // ---------- account ----------
+  // Cross positions share the account's collateral; an isolated one stands on its own margin (entry value /
+  // leverage), so its loss can't reach the rest and its liquidation price is its own.
   function account() {
     const positions = [];
-    let upnl = 0, im = 0, mmr = 0;
+    let upnl = 0, im = 0, mmr = 0, isoEquity = 0;
     for (const [id, p] of Object.entries(S.positions)) {
       const m = byId[id];
       if (!m) continue;
       const mark = markOf(id) || p.entry;
-      const u = (mark - p.entry) * p.size, value = Math.abs(p.size) * mark;
+      const u = (mark - p.entry) * p.size, value = Math.abs(p.size) * mark, iso = isolated(id);
+      const margin = iso ? Math.abs(p.size) * p.entry / lev(id) : value / lev(id);
       upnl += u;
-      im += value / lev(id);
-      mmr += value * m.mmf;
+      im += margin;
+      if (iso) isoEquity += margin + u;
+      else mmr += value * m.mmf;
       positions.push({ market_id: +id, symbol: m.symbol, size: p.size, entry: p.entry, value, upnl: u, rpnl: p.rpnl || 0,
-        margin: value / lev(id), leverage: lev(id), cross: true, mark });
+        margin, leverage: lev(id), cross: !iso, mark });
     }
-    const total = S.cash + upnl;
-    for (const p of positions) p.liq = Formulas.liquidationPrice(p.size, p.mark, byId[p.market_id].mmf, total, mmr) || 0;
+    const total = S.cash + upnl, crossTotal = total - isoEquity;
+    for (const p of positions) {
+      const mmf = byId[p.market_id].mmf;
+      p.liq = (p.cross ? Formulas.liquidationPrice(p.size, p.mark, mmf, crossTotal, mmr) : Formulas.isolatedLiquidation(p.size, p.entry, p.margin, mmf)) || 0;
+    }
     // resting orders that add exposure lock their margin too
     const locked = S.orders.filter((o) => o.type === "limit" && !o.reduce_only)
       .reduce((s, o) => s + o.remaining * o.price / lev(o.market_id), 0);
     const settings = {};
-    for (const [id, s] of Object.entries(S.settings)) settings[id] = { leverage: s.leverage, cross: true };
+    for (const [id, s] of Object.entries(S.settings)) settings[id] = { leverage: s.leverage, cross: s.cross !== false };
     return { index: "Paper", paper: true, collateral: S.cash, total_value: total, available: Math.max(0, total - im - locked),
-      maintenance: mmr, positions: positions.map(({ mark, ...p }) => p), settings };
+      maintenance: mmr, cross_value: crossTotal, positions: positions.map(({ mark, ...p }) => p), settings };
   }
 
   // ---------- fills ----------
@@ -516,11 +524,14 @@ const Paper = (() => {
     return { ok: true };
   }
 
-  function setLeverage(id, leverage) {
+  function setLeverage(id, leverage, cross = true) {
     const m = mkt(id);
     if (!(leverage >= 1) || (m.max_leverage && leverage > m.max_leverage)) err(t("Leva fuori dai limiti del mercato"));
-    S.settings[id] = { leverage };
-    if (account().available <= 0 && Object.keys(S.positions).length) { delete S.settings[id]; err(t("Margine insufficiente per questa leva")); }
+    const prev = S.settings[id];
+    // as on Lighter, an open position keeps its margin mode
+    if (S.positions[id] && (prev ? prev.cross !== false : true) !== cross) err(t("Chiudi la posizione per passare tra cross e isolated"));
+    S.settings[id] = { leverage, cross };
+    if (account().available <= 0 && Object.keys(S.positions).length) { if (prev) S.settings[id] = prev; else delete S.settings[id]; err(t("Margine insufficiente per questa leva")); }
     changed = true;
     save();
     return { ok: true };
@@ -658,10 +669,20 @@ const Paper = (() => {
     }
     stepPairs();
     stepEvents();
-    // liquidation: equity at or below the maintenance requirement closes everything at the mark
-    const acc = account();
-    if (acc.positions.length && acc.total_value <= acc.maintenance) {
-      for (const p of acc.positions) fill(p.market_id, -p.size, markOf(p.market_id) || p.entry, "taker");
+    // liquidation: an isolated position when its own margin is used up; the cross ones together when the
+    // account's (cross) equity falls to their maintenance requirement
+    let acc = account();
+    for (const p of acc.positions.filter((x) => !x.cross)) {
+      const mark = markOf(p.market_id);
+      if (mark && p.margin + p.upnl <= Math.abs(p.size) * mark * byId[p.market_id].mmf) {
+        fill(p.market_id, -p.size, mark, "taker");
+        note(t("Paper: {sym} isolated liquidato al prezzo mark", { sym: byId[p.market_id].symbol }), "error");
+      }
+    }
+    acc = account();
+    const cross = acc.positions.filter((x) => x.cross);
+    if (cross.length && acc.cross_value <= acc.maintenance) {
+      for (const p of cross) fill(p.market_id, -p.size, markOf(p.market_id) || p.entry, "taker");
       S.orders = S.orders.filter((o) => o.type === "limit" && !o.reduce_only);
       note(t("Paper: account liquidato, posizioni chiuse al prezzo mark"), "error");
     }
@@ -741,7 +762,7 @@ const Paper = (() => {
     if (p === "/cancel_all" && method === "POST") return run(() => { S.orders = []; changed = true; return { ok: true }; });
     if (p === "/move_order" && method === "POST") return run(() => moveOrder(body()));
     if (p === "/position_sltp" && method === "POST") return run(() => positionSltp(body()));
-    if (p === "/leverage" && method === "POST") return run(() => setLeverage(+qs.get("market_id"), +qs.get("leverage")));
+    if (p === "/leverage" && method === "POST") return run(() => setLeverage(+qs.get("market_id"), +qs.get("leverage"), qs.get("cross") !== "false"));
     if (p === "/open_orders") return run(() => S.orders.map(({ sl, tp, trail, post_only, ts, ...o }) => ({ ...o, symbol: byId[o.market_id] ? byId[o.market_id].symbol : String(o.market_id),
       remaining: o.remaining || Math.abs((S.positions[o.market_id] || {}).size || 0) })));
     if (p === "/trades") return run(() => (qs.has("market_id") ? S.trades.filter((x) => x.market_id === +qs.get("market_id")) : S.trades).slice(0, 100));

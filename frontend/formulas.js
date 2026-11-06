@@ -30,6 +30,14 @@ const Formulas = {
     return liq;
   },
 
+  // an isolated position: its own margin absorbs the loss until only the maintenance part is left
+  // (margin + (liq - entry) x size = mmf x |size| x liq)
+  isolatedLiquidation(size, entry, margin, mmf) {
+    if (!size || !entry) return null;
+    const liq = (entry * size - margin) / (size - mmf * Math.abs(size));
+    return isFinite(liq) && liq > 0 ? liq : null;
+  },
+
   // estimated liquidation price of this market's position after the order fills (cross margin)
   liquidationAfterOrder({ account, market, side, qty, entry, mark, markOf, mmfOf, feeUsd }) {
     if (!account || !qty || !mark) return null;

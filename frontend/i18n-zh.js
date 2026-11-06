@@ -713,3 +713,7 @@ Object.assign(DICTS.zh, {
   "Isolated: it is liquidated when the loss eats up this position's margin.": "逐仓：当亏损耗尽该仓位的保证金时被强平。",
   "Cross: it is liquidated only when the loss eats up the whole account's collateral, not just this position's margin. That's why it can be very far away.": "全仓：只有当亏损耗尽整个账户的抵押品（而不仅是该仓位的保证金）时才会被强平。所以强平价可能离得很远。",
 });
+Object.assign(DICTS.zh, {
+  "Close the position to switch between cross and isolated": "关闭仓位后才能在全仓和逐仓之间切换",
+  "Paper: {sym} isolated liquidated at the mark price": "模拟：{sym} 逐仓按标记价格被强平",
+});
