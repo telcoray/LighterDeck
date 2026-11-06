@@ -1080,7 +1080,7 @@ body.browser-key :is(.pair-add, #mktSpread) { display: none !important; }
 .res-terms a, .key-remember a { color: var(--green); }
 
 /* cross / isolated next to a position's side */
-.mode-tag { cursor: help; display: inline-flex; align-items: center; height: 14px; margin-left: 6px; padding: 0 4px; border: 1px solid var(--line-3); border-radius: 3px; font-family: var(--ui); font-size: 8.5px; font-weight: 600; line-height: 1; letter-spacing: .05em; color: var(--text-2); text-transform: uppercase; vertical-align: middle; }
+.mode-tag { cursor: help; display: inline-flex; align-items: center; height: 15px; margin-left: 6px; padding: 1px 4px 0; border: 1px solid var(--line-3); border-radius: 3px; font-family: var(--ui); font-size: 8.5px; font-weight: 600; line-height: 1; letter-spacing: .05em; color: var(--text-2); text-transform: uppercase; vertical-align: middle; }
 /* the side and its tag on one line, centred */
-.table td.mk small:has(.mode-tag) { display: flex; align-items: center; flex-wrap: wrap; row-gap: 4px; }
+.table td.mk small:has(.mode-tag) { display: flex; align-items: baseline; flex-wrap: wrap; row-gap: 4px; } /* the tag's letters sit on the side's baseline */
 .mode-tag.iso { border-color: color-mix(in srgb, var(--amber) 55%, transparent); color: var(--amber); }
