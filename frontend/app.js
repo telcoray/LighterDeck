@@ -4329,7 +4329,7 @@ async function init() {
   });
   wireBottomSplit();
   wireTrail();
-  applyTheme(load("theme", "fosforo")); // first visit: Phosphor
+  applyTheme(load("theme", "ambra")); // first visit: Ambra
   $("#themeBtn").onclick = (e) => { e.stopPropagation(); $("#langMenu").classList.add("hidden"); $("#themeMenu").classList.toggle("hidden"); fitInView($("#themeMenu")); };
   $("#themeMenu").onclick = (e) => {
     e.stopPropagation();

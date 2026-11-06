@@ -7,7 +7,7 @@
 <title>LighterDeck</title>
 <!-- link previews (Discord, Telegram, X, WhatsApp…) -->
 <meta name="description" content="Every Lighter market, with the events that move it. Multi-chart, funding and a calendar per market. Free and open source.">
-<meta name="theme-color" content="#0a0b0d">
+<meta name="theme-color" content="#000000">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="LighterDeck">
 <meta property="og:url" content="https://lighterdeck.xyz/">
@@ -26,8 +26,8 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script>
   // apply the saved theme before the page paints (no flash of the default colours)
-  try { document.documentElement.dataset.theme = JSON.parse(localStorage.getItem("ld.theme")) || "fosforo"; }
-  catch (e) { document.documentElement.dataset.theme = "fosforo"; }
+  try { document.documentElement.dataset.theme = JSON.parse(localStorage.getItem("ld.theme")) || "ambra"; }
+  catch (e) { document.documentElement.dataset.theme = "ambra"; }
   // any language but Italian: keep the page hidden until i18n.js has swapped the Italian source text
   // (translateDom removes the class; the timeout is a safety net if a script fails)
   try {
@@ -40,7 +40,7 @@
 </script>
 <style>html.i18n-pending body { visibility: hidden; }</style>
 <link rel="icon" href="favicon.svg?v=1" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=159">
+<link rel="stylesheet" href="style.css?v=160">
 <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
 </head>
 <body>
@@ -634,13 +634,13 @@
 </div>
 
 <div class="toast hidden" id="toast"></div>
-<script src="i18n.js?v=159"></script>
-<script src="i18n-zh.js?v=159"></script>
-<script src="i18n-ko.js?v=159"></script>
-<script src="formulas.js?v=159"></script>
-<script src="paper.js?v=159"></script>
-<script src="live.js?v=159"></script>
-<script src="app.js?v=159"></script>
-<script src="picker.js?v=159"></script>
+<script src="i18n.js?v=160"></script>
+<script src="i18n-zh.js?v=160"></script>
+<script src="i18n-ko.js?v=160"></script>
+<script src="formulas.js?v=160"></script>
+<script src="paper.js?v=160"></script>
+<script src="live.js?v=160"></script>
+<script src="app.js?v=160"></script>
+<script src="picker.js?v=160"></script>
 </body>
 </html>
