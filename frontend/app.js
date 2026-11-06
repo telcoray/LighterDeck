@@ -1474,7 +1474,8 @@ function confirmOnTouch(items) {
 }
 
 // a finger slips more easily than a mouse: on touch screens the actions that trade on one click
-// (partial closes, cancelling an order, the chart menu's "now" items) ask for a second tap too
+// (cancelling an order, the chart menu's "now" items) ask for a second tap too; partial closes ask
+// everywhere
 const touchUI = () => matchMedia("(hover: none)").matches;
 
 function askConfirm(key, text) {
@@ -3344,7 +3345,7 @@ function wire() {
     if (pc) {
       const f = +pc.dataset.f;
       if (f === 100 && !askConfirm(`pclose:${pc.dataset.pclose}`, t("Chiudi la coppia"))) return;
-      if (f < 100 && touchUI() && !askConfirm(`pclose:${pc.dataset.pclose}:${f}`, t("Conferma {f}%", { f }))) return;
+      if (f < 100 && !askConfirm(`pclose:${pc.dataset.pclose}:${f}`, t("Conferma {f}%", { f }))) return;
       return closePair(pc.dataset.pclose, f);
     }
     const up = e.target.closest("[data-unpair]");
@@ -3359,7 +3360,7 @@ function wire() {
     if (!b) return;
     const mid = +b.dataset.close, f = +b.dataset.f;
     if (f === 100 && !askConfirm(`close:${mid}`, t("Chiudi tutto"))) return;
-    if (f < 100 && touchUI() && !askConfirm(`close:${mid}:${f}`, t("Conferma {f}%", { f }))) return;
+    if (f < 100 && !askConfirm(`close:${mid}:${f}`, t("Conferma {f}%", { f }))) return;
     try { await api(`/close?market_id=${mid}&fraction=${f / 100}`, { method: "POST" }); toast(t("Chiusura {f}% inviata", { f })); } catch (err) { toast(err.message, true); }
   };
   $("#btab-alerts").onchange = (e) => {
