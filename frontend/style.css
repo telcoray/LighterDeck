@@ -1075,3 +1075,7 @@ body.browser-key :is(.pair-add, #mktSpread) { display: none !important; }
 .statusbar .sb-link:hover { color: var(--text); }
 .res-terms { font-size: 12px; color: var(--muted); }
 .res-terms a, .key-remember a { color: var(--green); }
+
+/* cross / isolated next to a position's side */
+.mode-tag { cursor: help; display: inline-block; margin-left: 6px; padding: 0 5px; border: 1px solid var(--line-3); border-radius: 4px; font-family: var(--ui); font-size: 9.5px; line-height: 14px; letter-spacing: .03em; color: var(--text-2); text-transform: uppercase; vertical-align: 1px; }
+.mode-tag.iso { border-color: color-mix(in srgb, var(--amber) 55%, transparent); color: var(--amber); }

@@ -708,3 +708,8 @@ Object.assign(DICTS.ko, {
   "Entry": "진입가",
   "Buffer": "버퍼",
 });
+// added later
+Object.assign(DICTS.ko, {
+  "Isolated: it is liquidated when the loss eats up this position's margin.": "격리: 손실이 이 포지션의 증거금을 모두 소진하면 청산됩니다.",
+  "Cross: it is liquidated only when the loss eats up the whole account's collateral, not just this position's margin. That's why it can be very far away.": "교차: 손실이 이 포지션의 증거금이 아니라 계정 전체의 담보를 모두 소진해야 청산됩니다. 그래서 청산가가 매우 멀 수 있습니다.",
+});
