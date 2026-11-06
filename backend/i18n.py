@@ -1,4 +1,4 @@
-"""Language of user-facing server messages (Italian or English).
+"""Language of user-facing server messages (Italian, or English for every other language).
 
 The UI sends its language in the X-Lang header; main.py stores it for the request.
 Background work (the automation engine) uses the language the UI last asked for.
@@ -11,7 +11,7 @@ _last_seen = "it"
 
 def set_lang(value):
     global _last_seen
-    lang = "en" if (value or "").lower().startswith("en") else "it"
+    lang = "it" if (value or "").lower().startswith("it") else "en"
     _last_seen = lang
     _request_lang.set(lang)
 

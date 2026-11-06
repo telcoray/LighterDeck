@@ -6,7 +6,7 @@ A trading terminal for the perpetual futures on [Lighter](https://lighter.xyz), 
 
 **Try it at [lighterdeck.xyz](https://lighterdeck.xyz)**: charts, the calendar per market, funding and paper trading on Lighter's live prices, no account needed. To trade for real, run your own copy with your API key (below).
 
-[Leggi in italiano](README.it.md) · The interface is available in English and Italian (button in the top bar).
+[Leggi in italiano](README.it.md) · The interface is available in English, Italian, Chinese (Simplified) and Korean (language menu in the top bar).
 
 ## Features
 
@@ -27,7 +27,7 @@ A trading terminal for the perpetual futures on [Lighter](https://lighter.xyz), 
 | Account | Equity, today's PnL, available margin, leverage and margin used; a PnL curve that leaves out deposits and withdrawals (or the equity curve with them marked), period stats (return, max drawdown, best and worst day, green and red days, volume), a PnL calendar where a click shows that day's trades, realized PnL and funding per market |
 | History | Trades grouped by order or as single fills, realized PnL worked out from each fill |
 | Links | Every page has its own address (`/trade/WTI`, `/calendar`, `/account`…): share a market (its link preview shows that market's chart, price and 24h change), bookmark a page, use the browser's back button |
-| Look | Five themes, English and Italian, layout that works in narrow windows and on phones |
+| Look | Six themes, English, Italian, Chinese and Korean, layout that works in narrow windows and on phones |
 
 ```
 frontend/   web page (HTML/CSS/JS, TradingView Lightweight Charts)

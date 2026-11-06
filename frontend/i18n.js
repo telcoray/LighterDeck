@@ -9,11 +9,16 @@
 const LANGS = [
   { id: "en", name: "English", english: "English", short: "EN", locale: "en-GB" },
   { id: "it", name: "Italiano", english: "Italian", short: "IT", locale: "it-IT" },
+  { id: "zh", name: "简体中文", english: "Chinese (Simplified)", short: "中", locale: "zh-CN" },
+  { id: "ko", name: "한국어", english: "Korean", short: "KO", locale: "ko-KR" },
 ];
+// other languages translate the English text (i18n-zh.js, i18n-ko.js fill this in); what they miss shows in English
+const DICTS = {};
 const localeOf = (id) => (LANGS.find((l) => l.id === id) || LANGS[0]).locale;
 let LANG = (() => {
-  // first visit: English; Italian is one click away in the top bar
-  const guess = "en";
+  // first visit: the browser's language when LighterDeck has it, English otherwise
+  const nav = (navigator.language || "").slice(0, 2).toLowerCase();
+  const guess = ["zh", "ko"].includes(nav) ? nav : "en";
   try { return JSON.parse(localStorage.getItem("ld.lang")) || guess; } catch { return guess; }
 })();
 let LOCALE = localeOf(LANG);
@@ -725,21 +730,29 @@ const EN = {
   "Richiesta rifiutata nel wallet": "Request rejected in the wallet",
 };
 
+// the text in the current language, or undefined when the dictionaries don't have it
+function tr(text) {
+  if (LANG === "it") return undefined;
+  const en = EN[text];
+  if (en === undefined) return LANG === "en" ? undefined : (DICTS[LANG] || {})[text]; // a text written in English in the source
+  return LANG === "en" ? en : ((DICTS[LANG] || {})[en] ?? en);
+}
+
 function t(text, vars) {
-  let out = LANG === "en" && EN[text] !== undefined ? EN[text] : text;
+  let out = tr(text) ?? text;
   if (vars) for (const [k, v] of Object.entries(vars)) out = out.split(`{${k}}`).join(v);
   return out;
 }
 
 // static HTML: swap whole text nodes and a few attributes that match a dictionary entry
 function translateDom(root = document.body) {
-  document.documentElement.lang = LANG;
+  document.documentElement.lang = LOCALE; // zh-CN, ko-KR…: the browser picks the right CJK font
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   for (let n = walker.nextNode(); n; n = walker.nextNode()) {
     if (!originalText.has(n)) originalText.set(n, n.nodeValue);
-    const orig = originalText.get(n), key = orig.trim();
-    if (!key || EN[key] === undefined) continue;
-    const next = LANG === "en" ? orig.replace(key, EN[key]) : orig;
+    const orig = originalText.get(n), key = orig.trim(), out = key ? tr(key) : undefined;
+    if (!key) continue; // a text with no translation goes back to its source (switching back from another language)
+    const next = out !== undefined ? orig.replace(key, out) : orig;
     if (n.nodeValue !== next) n.nodeValue = next;
   }
   for (const attr of I18N_ATTRS) {
@@ -748,7 +761,7 @@ function translateDom(root = document.body) {
       if (el.dataset[store] === undefined) el.dataset[store] = el.getAttribute(attr);
       const orig = el.dataset[store];
       if (EN[orig] === undefined) return;
-      el.setAttribute(attr, LANG === "en" ? EN[orig] : orig);
+      el.setAttribute(attr, tr(orig) ?? orig);
     });
   }
   document.documentElement.classList.remove("i18n-pending"); // reveal the page (see index.html)

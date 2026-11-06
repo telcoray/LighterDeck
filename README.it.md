@@ -27,7 +27,7 @@ Terminale di trading per i perpetual di Lighter (lighter.xyz), con automazioni l
 | Account | Equity, PnL di oggi, margine disponibile, leva e margine usato; curva del PnL senza depositi e prelievi (o dell'equity con i movimenti segnati), statistiche del periodo (rendimento, massimo drawdown, giorno migliore e peggiore, giorni verdi e rossi, volume), calendario del PnL dove un click mostra i trade del giorno, PnL realizzato e funding per mercato |
 | Storico | Trade raggruppati per ordine o come singoli fill, PnL realizzato calcolato da ogni fill |
 | Link | Ogni pagina ha il suo indirizzo (`/trade/WTI`, `/calendar`, `/account`…): condividi un mercato (l'anteprima del link mostra grafico, prezzo e variazione 24h di quel mercato), salva una pagina tra i preferiti, usa il tasto indietro del browser |
-| Aspetto | Cinque temi, italiano e inglese, layout che funziona in finestre strette e sul telefono |
+| Aspetto | Sei temi, italiano, inglese, cinese e coreano, layout che funziona in finestre strette e sul telefono |
 
 ```
 frontend/   pagina web (HTML/CSS/JS, TradingView Lightweight Charts)

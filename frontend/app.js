@@ -2533,7 +2533,7 @@ function dur(ms) {
   if (m < 60) return m + "m";
   const h = Math.floor(m / 60);
   if (h < 24) return `${h}h ${m % 60}m`;
-  return `${Math.floor(h / 24)}${LANG === "en" ? "d" : "g"} ${h % 24}h`;
+  return `${Math.floor(h / 24)}${LANG === "it" ? "g" : "d"} ${h % 24}h`;
 }
 
 function renderSessions() {
