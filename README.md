@@ -122,6 +122,8 @@ Margin, liquidation price and SL/TP formulas (`frontend/formulas.js`), `multipli
 and SL/TP trigger validation are adapted from
 [elliottech/lighter-ts](https://github.com/elliottech/lighter-ts), MIT License, Copyright (c) 2026 Elliot Technologies, Inc.
 
+The language button's translate icon is from Google's [Material Symbols](https://github.com/google/material-design-icons) (Apache-2.0).
+
 Charts by [TradingView Lightweight Charts](https://github.com/tradingview/lightweight-charts) (Apache-2.0).
 
 Orders signed in the browser use Lighter's official signer, built unchanged from

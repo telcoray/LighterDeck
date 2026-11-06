@@ -5,16 +5,18 @@
 // static HTML (text, placeholder, title and aria-label). The original Italian of every node is
 // remembered, so the language can be switched back and forth without reloading the page.
 
+// each language: its own name, the English one (for whoever can't read the current language) and its locale
 const LANGS = [
-  { id: "it", name: "Italiano", short: "IT" },
-  { id: "en", name: "English", short: "EN" },
+  { id: "en", name: "English", english: "English", short: "EN", locale: "en-GB" },
+  { id: "it", name: "Italiano", english: "Italian", short: "IT", locale: "it-IT" },
 ];
+const localeOf = (id) => (LANGS.find((l) => l.id === id) || LANGS[0]).locale;
 let LANG = (() => {
   // first visit: English; Italian is one click away in the top bar
   const guess = "en";
   try { return JSON.parse(localStorage.getItem("ld.lang")) || guess; } catch { return guess; }
 })();
-let LOCALE = LANG === "en" ? "en-GB" : "it-IT";
+let LOCALE = localeOf(LANG);
 const I18N_ATTRS = ["placeholder", "title", "aria-label"];
 const originalText = new WeakMap(); // text node -> its Italian source
 
@@ -757,7 +759,7 @@ let onLangChange = () => {};
 function setLang(id) {
   if (id === LANG) return;
   LANG = id;
-  LOCALE = LANG === "en" ? "en-GB" : "it-IT";
+  LOCALE = localeOf(LANG);
   try { localStorage.setItem("ld.lang", JSON.stringify(id)); } catch {}
   translateDom();
   onLangChange();

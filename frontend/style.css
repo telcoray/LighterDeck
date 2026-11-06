@@ -912,7 +912,9 @@ button.pill:hover { border-color: var(--line-3); color: var(--text); }
 /* language switch */
 .lang-btn { display: inline-flex; align-items: center; gap: 5px; height: 26px; min-width: 34px; padding: 0 9px; border: 1px solid var(--line-2); border-radius: 13px; font-size: 11px; font-weight: 600; letter-spacing: .04em; color: var(--text-2); }
 .lang-btn:hover { border-color: var(--line-3); color: var(--text); }
-.lang-btn .flag { overflow: hidden; width: 14px; height: 10px; border-radius: 2px; box-shadow: 0 0 0 1px rgba(255,255,255,.12); flex: none; }
+.lang-btn .lang-ico { flex: none; }
+.lang-menu { width: 200px; }
+.lang-menu .lang-code { width: 22px; flex: none; font-family: var(--mono); font-size: 10.5px; color: var(--muted); }
 
 /* ---------- narrow screens (side panes, tablets in portrait, phones) ---------- */
 @media (max-width: 860px) {

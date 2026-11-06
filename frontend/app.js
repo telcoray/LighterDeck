@@ -4167,16 +4167,16 @@ function wireKeyDialog() {
 }
 
 // ================= init =================
-// flags drawn as SVG: Windows browsers show emoji flags as plain letters
-const FLAGS = {
-  it: '<rect width="3" height="2" fill="#fff"/><rect width="1" height="2" fill="#009246"/><rect x="2" width="1" height="2" fill="#ce2b37"/>',
-  en: '<rect width="3" height="2" fill="#012169"/><path d="M0 0L3 2M3 0L0 2" stroke="#fff" stroke-width=".4"/><path d="M0 0L3 2M3 0L0 2" stroke="#c8102e" stroke-width=".15"/><path d="M1.5 0V2M0 1H3" stroke="#fff" stroke-width=".6"/><path d="M1.5 0V2M0 1H3" stroke="#c8102e" stroke-width=".35"/>',
-};
+// the language button: the usual "translate" sign (Material Symbols, Apache 2.0) and the current language;
+// the menu lists every language in its own name, with the English one under it
+const TRANSLATE_ICON = '<svg class="lang-ico" viewBox="0 0 24 24" width="15" height="15"><path fill="currentColor" d="M12.87 15.07l-2.54-2.51.03-.03c1.74-1.94 2.98-4.17 3.71-6.53H17V4h-7V2H8v2H1v1.99h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11.76-2.04zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2l-4.5-12zm-2.62 7l1.62-4.33L19.12 17h-3.24z"/></svg>';
 
 function renderLangBtn() {
-  const other = LANGS.find((l) => l.id !== LANG);
-  $("#langBtn").innerHTML = `<svg class="flag" viewBox="0 0 3 2" preserveAspectRatio="none">${FLAGS[other.id]}</svg>${other.short}`;
-  $("#langBtn").title = other.name;
+  const cur = LANGS.find((l) => l.id === LANG) || LANGS[0];
+  $("#langBtn").innerHTML = TRANSLATE_ICON + cur.short;
+  $("#langBtn").title = t("Lingua") + " · " + cur.name;
+  $("#langMenu").innerHTML = LANGS.map((l) => `<button data-lang="${l.id}" class="${l.id === LANG ? "active" : ""}">
+      <span class="lang-code">${l.short}</span><span>${l.name}${l.english !== l.name ? `<small>${l.english}</small>` : ""}</span><span class="check">✓</span></button>`).join("");
 }
 
 // redraw every piece of text built in JavaScript; charts, prices and the book keep running
@@ -4238,7 +4238,13 @@ function setMode(simple, save = true) {
 async function init() {
   translateDom();
   renderLangBtn();
-  $("#langBtn").onclick = () => setLang(LANGS.find((l) => l.id !== LANG).id);
+  $("#langBtn").onclick = (e) => { e.stopPropagation(); $("#themeMenu").classList.add("hidden"); $("#langMenu").classList.toggle("hidden"); fitInView($("#langMenu")); };
+  $("#langMenu").onclick = (e) => {
+    e.stopPropagation();
+    const b = e.target.closest("[data-lang]");
+    if (b) { $("#langMenu").classList.add("hidden"); setLang(b.dataset.lang); }
+  };
+  document.addEventListener("click", () => $("#langMenu").classList.add("hidden"));
   onLangChange = rerenderLanguage;
   try {
     info = await api("/info");
@@ -4281,7 +4287,7 @@ async function init() {
   wireBottomSplit();
   wireTrail();
   applyTheme(load("theme", "fosforo")); // first visit: Phosphor
-  $("#themeBtn").onclick = (e) => { e.stopPropagation(); $("#themeMenu").classList.toggle("hidden"); fitInView($("#themeMenu")); };
+  $("#themeBtn").onclick = (e) => { e.stopPropagation(); $("#langMenu").classList.add("hidden"); $("#themeMenu").classList.toggle("hidden"); fitInView($("#themeMenu")); };
   $("#themeMenu").onclick = (e) => {
     e.stopPropagation();
     const b = e.target.closest("[data-theme]");
