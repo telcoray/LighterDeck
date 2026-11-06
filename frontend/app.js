@@ -1301,11 +1301,20 @@ async function loadFundingHistory() {
 function renderTicker() {
   if (tickerDrag) return; // don't rebuild the row under the pointer
   const box = $("#ticker");
-  const active = activeMarket();
-  box.innerHTML = favs.filter((s) => bySymbol[s]).map((s) => {
+  const active = panelCfg[activeIdx].symbol;
+  box.innerHTML = favs.filter((s) => bySymbol[s] || pairOf(s)).map((s) => {
+    const pr = pairOf(s);
+    if (pr) { // a spread: its ratio and the ratio's 24h change, as in the market bar
+      const [pa, pb] = [prices[pr[0].id], prices[pr[1].id]];
+      const xa = pa && (pa.last || pa.mark), xb = pb && (pb.last || pb.mark), r = xa && xb ? xa / xb : null;
+      const chg = pa && pb ? ((1 + pa.change / 100) / (1 + pb.change / 100) - 1) * 100 : null;
+      return `<button class="tk${active === s ? " active" : ""}" data-sym="${esc(s)}">
+        <span class="pair-ico">${ico(pr[0].symbol, "xs")}${ico(pr[1].symbol, "xs")}</span><b>${esc(s)}</b><span class="num">${r ? fp(r, { price_decimals: ratioDecimals(r) }) : "—"}</span>
+        <span class="chg ${chg !== null ? cls(chg) : ""}">${chg !== null ? fpct(chg) : ""}</span></button>`;
+    }
     const m = bySymbol[s];
     const p = prices[m.id];
-    return `<button class="tk${active && active.symbol === s ? " active" : ""}" data-sym="${s}">
+    return `<button class="tk${active === s ? " active" : ""}" data-sym="${s}">
       ${ico(s, "xs")}<b>${s}</b><span class="num">${p ? fp(p.last || p.mark, m) : "—"}</span>
       <span class="chg ${p ? cls(p.change) : ""}">${p ? fpct(p.change) : ""}</span></button>`;
   }).join("");

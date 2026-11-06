@@ -13,6 +13,12 @@ const TABS = [["all", "Tutti"], ["favs", "Preferiti"], ["CRYPTO", "Crypto"], ["R
 const SUGGESTED_PAIRS = ["ETH/BTC", "SOL/ETH", "XAU/XAG", "WTI/BRENTOIL", "US100/US500", "NVDA/AMD", "MU/SNDK",
   "SAMSUNGUSD/SKHYNIXUSD", "GOOGL/MSFT", "COIN/HOOD", "XPT/XAU"];
 let favPairs = load("favPairs", []);
+// spreads starred before they showed in the favourites strip join it, once
+if (!load("favPairsInStrip", false)) {
+  favs = [...favs, ...favPairs.filter((s) => !favs.includes(s))];
+  store("favs", favs);
+  store("favPairsInStrip", true);
+}
 const spreadZ = {}; // pair -> { at, z } on 1h bars
 const candleCache = {}; // market id -> { at, bars } (1h, for the scanner)
 const SORTS = [
@@ -251,9 +257,13 @@ function pickMarket(sym) {
 }
 
 function toggleFav(sym) {
-  if (sym.includes("/")) {
-    favPairs = favPairs.includes(sym) ? favPairs.filter((x) => x !== sym) : [...favPairs, sym];
+  if (sym.includes("/")) { // a spread: the Spread tab's list and the favourites strip
+    const on = !favPairs.includes(sym);
+    favPairs = on ? [...favPairs, sym] : favPairs.filter((x) => x !== sym);
     store("favPairs", favPairs);
+    favs = on ? [...favs.filter((x) => x !== sym), sym] : favs.filter((x) => x !== sym);
+    store("favs", favs);
+    renderTicker();
     renderPicker();
     return;
   }
