@@ -2434,7 +2434,9 @@ function renderTrades() {
 // ================= calendar =================
 // Which events move a market: its own kind of asset (oil reports for WTI) and the currencies it is
 // priced in (EUR and USD for EURUSD, USD for everything quoted in dollars).
-const MARKET_ASSETS = { WTI: ["oil"], BRENTOIL: ["oil"], NATGAS: ["natgas"] };
+const MARKET_ASSETS = { WTI: ["oil"], BRENTOIL: ["oil"], NATGAS: ["natgas"],
+  // China's data (NBS): its companies and copper (keep in step with MARKET_ASSETS in backend/econ.py)
+  ...Object.fromEntries(["BABA", "TENCENT", "XIAOMI", "BYD", "SMIC", "ZHIPU", "MINIMAX", "UNITREE", "CXMT", "POPMART", "XCU"].map((s) => [s, ["china"]])) };
 const CURRENCIES = ["USD", "EUR", "GBP", "JPY", "CHF", "CAD", "AUD", "NZD", "CNY", "HKD", "KRW"];
 // stocks: their own earnings; ETF and index markets: the earnings of the largest US companies
 function marketFocus(sym) {
@@ -2452,7 +2454,8 @@ const eventFor = (e, sym) => {
 const IMPACT_RANK = { Low: 0, Medium: 1, High: 2 };
 function impactFor(e, sym) {
   const mine = e.assets && sym ? e.assets.filter((a) => marketFocus(sym).assets.includes(a)) : [];
-  if (!mine.length) return e.impact;
+  // a small economy's top release: high for its own currency pairs, medium elsewhere (backend/econ.py rate())
+  if (!mine.length) return (e.impact_ccy && sym && marketFocus(sym).ccy.includes(e.country)) ? e.impact_ccy : e.impact;
   return mine.map((a) => (e.impact_by && e.impact_by[a]) || "High").sort((a, b) => IMPACT_RANK[b] - IMPACT_RANK[a])[0];
 }
 // earnings come with the session only ("before the open"): the time shown is the usual one
@@ -2465,7 +2468,7 @@ const eventDetail = (e) => (e.source === "custom" ? esc((e.markets || []).join("
   : e.source === "Deribit" ? t("scadenza opzioni BTC ed ETH")
   : e.source === "Nasdaq"
   ? `${t(WHEN[e.when] || e.when)} · ${t("stima EPS {f} · anno scorso {p}", { f: esc(e.forecast || "—"), p: esc(e.previous || "—") })}`
-  : t("prev. {f} · prec. {p}", { f: esc(e.forecast || "—"), p: esc(e.previous || "—") }));
+  : e.forecast || e.previous ? t("prev. {f} · prec. {p}", { f: esc(e.forecast || "—"), p: esc(e.previous || "—") }) : "");
 
 // Real sessions come from exchange_hours.json (holidays, half-days, lunch breaks; made by
 // tools/make_exchange_hours.py); past its last date the plain weekday hours below are used.

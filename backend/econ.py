@@ -14,6 +14,12 @@ Sources, merged:
   listed on Lighter and for US companies worth $300B or more (they move the indices). Nasdaq
   only says "before the open" or "after the close", so those times are approximate.
 
+- China: the National Bureau of Statistics' yearly release calendar (CPI and PPI, PMI, the monthly
+  activity data with GDP every quarter; 09:30 / 10:00 Beijing). The weekly feed has only China's PMIs,
+  rated low; these releases move Chinese stocks, copper and oil, so they carry those assets.
+- Ratings: the weekly feed rates a release for its own currency. A small economy's top releases (Canada,
+  Australia, New Zealand, Switzerland) stay high for its own currency pairs and are medium elsewhere.
+
 - Crypto: Deribit's monthly and quarterly BTC/ETH option expiries (last Friday, 08:00 UTC).
   Token unlocks and network upgrades have no free, reliable feed: those go in as the user's own
   events (data/custom_events.json), which can name any market.
@@ -71,6 +77,68 @@ BEA_RELEASES = [
 MONTHS = {m: i for i, m in enumerate(
     ["January", "February", "March", "April", "May", "June", "July", "August",
      "September", "October", "November", "December"], 1)}
+
+
+# China's official calendar (NBS): the list of yearly calendars, and the releases taken from them:
+# (start of the row's name, our title, our title in a GDP month, impact)
+NBS_LIST = "https://www.stats.gov.cn/english/PressRelease/ReleaseCalendar/"
+NBS_RELEASES = [
+    ("National Economic Performance", "Industrial production & retail sales", "GDP, industrial production & retail sales", "High"),
+    ("Monthly Report on Consumer Price Index", "CPI & PPI", "CPI & PPI", "High"),
+    ("Monthly Report on Purchasing Managers", "Manufacturing PMI", "Manufacturing PMI", "High"),
+]
+BEIJING = ZoneInfo("Asia/Shanghai")
+CHINA_ASSETS = {"china": None, "oil": "Medium"}  # None: the release's own impact
+SMALL_ECONOMIES = ("CAD", "AUD", "NZD", "CHF")
+
+
+def rate(e):
+    """Our impact for a weekly-feed release (see the module notes)."""
+    if e["country"] in SMALL_ECONOMIES and e["impact"] == "High":
+        e["impact"], e["impact_ccy"] = "Medium", "High"
+    elif e["country"] == "CNY":  # the private PMIs (RatingDog, ex-Caixin): Chinese markets, medium
+        e["impact"] = "Medium" if e["impact"] == "Low" else e["impact"]
+        e["assets"], e["impact_by"] = ["china"], {"china": e["impact"]}
+    return e
+
+
+def nbs_calendar_url(html, year):
+    m = re.search(rf'href="([^"]+)"[^>]*>[^<]*Calendar of NBS in {year}', html) or re.search(
+        rf'title="[^"]*Calendar of NBS in {year}"[^>]*href="([^"]+)"', html)
+    return NBS_LIST + m.group(1).lstrip("./") if m else None
+
+
+def parse_nbs(html, year):
+    """China's releases from the NBS yearly calendar table: one row per release with a cell per month
+    (empty ones span two rows), the times in the row under it."""
+    rows = []
+    for tr in re.findall(r"<tr[^>]*>([\s\S]*?)</tr>", html):
+        cells = [(bool(re.search(r'rowspan="2"', attrs)), re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", body)).strip())
+                 for attrs, body in re.findall(r"<td([^>]*)>([\s\S]*?)</td>", tr)]
+        rows.append(cells)
+    out = []
+    for i, cells in enumerate(rows):
+        if len(cells) < 14 or i + 1 >= len(rows):
+            continue
+        name = cells[1][1]
+        rel = next((r for r in NBS_RELEASES if name.startswith(r[0])), None)
+        if not rel:
+            continue
+        times = [c[1] for c in rows[i + 1]]
+        for month, (spans, text) in enumerate(cells[2:14], 1):
+            days = re.findall(r"(\d{1,2})/[A-Za-z]", text)  # a month can have two ("4/Wed … 31/Tue")
+            if spans or not days:
+                continue  # no release that month
+            clocks = re.findall(r"(\d{1,2}):(\d{2})", times.pop(0) if times else "")
+            for n, day in enumerate(days):
+                hh, mm = clocks[min(n, len(clocks) - 1)] if clocks else ("10", "00")
+                ts = datetime(year, month, int(day), int(hh), int(mm), tzinfo=BEIJING).timestamp()
+                title = rel[2] if month in (1, 4, 7, 10) else rel[1]
+                e = _make(title, "CNY", ts, rel[3], "NBS")
+                e["assets"] = list(CHINA_ASSETS)
+                e["impact_by"] = {a: imp or rel[3] for a, imp in CHINA_ASSETS.items()}
+                out.append(e)
+    return out
 
 
 # events that move a kind of asset, by title (the weekly feed lists them as low-impact USD)
@@ -283,7 +351,10 @@ def option_expiries(start, end):
 
 # Which events move a market: the same rules as marketFocus / eventFor / impactFor in frontend/app.js
 CURRENCIES = ("USD", "EUR", "GBP", "JPY", "CHF", "CAD", "AUD", "NZD", "CNY", "HKD", "KRW")
-MARKET_ASSETS = {"WTI": ["oil"], "BRENTOIL": ["oil"], "NATGAS": ["natgas"]}
+MARKET_ASSETS = {"WTI": ["oil"], "BRENTOIL": ["oil"], "NATGAS": ["natgas"],
+                 # China's data: its companies and copper (keep in step with MARKET_ASSETS in frontend/app.js)
+                 **{s: ["china"] for s in ("BABA", "TENCENT", "XIAOMI", "BYD", "SMIC", "ZHIPU", "MINIMAX", "UNITREE",
+                                           "CXMT", "POPMART", "XCU")}}
 IMPACT_RANK = {"Low": 0, "Medium": 1, "High": 2}
 
 
@@ -299,7 +370,7 @@ def impact_for(e, assets, ccy):
     if e.get("assets"):
         mine = [a for a in e["assets"] if a in assets]
         return max(((e.get("impact_by") or {}).get(a, "High") for a in mine), key=IMPACT_RANK.get, default=None)
-    return e["impact"] if e["country"] in ccy else None
+    return e.get("impact_ccy", e["impact"]) if e["country"] in ccy else None
 
 
 class Calendar:
@@ -387,8 +458,10 @@ class Calendar:
             for url in FF_FEEDS:
                 for it in await self._fetch(s, url, as_json=True) or []:
                     ts = datetime.fromisoformat(it["date"]).timestamp()
-                    e = _make(it["title"], it["country"], ts, it.get("impact", ""), "ff",
-                              it.get("forecast", ""), it.get("previous", ""))
+                    if it["country"] == "CNY" and it["title"] in ("Manufacturing PMI", "Non-Manufacturing PMI"):
+                        continue  # the official PMI comes from the NBS calendar
+                    e = rate(_make(it["title"], it["country"], ts, it.get("impact", ""), "ff",
+                                   it.get("forecast", ""), it.get("previous", "")))
                     e["date"] = it["date"]
                     e["id"] = _event_id(e)
                     self.events[e["id"]] = e
@@ -406,6 +479,12 @@ class Calendar:
                 found += energy_events(today - timedelta(days=35), today + timedelta(days=OFFICIAL_HORIZON_DAYS),
                                        await self._fetch(s, EIA_WPSR_SCHEDULE), await self._fetch(s, EIA_NGS_SCHEDULE))
                 found += option_expiries(today - timedelta(days=35), today + timedelta(days=OFFICIAL_HORIZON_DAYS))
+                nbs_list = await self._fetch(s, NBS_LIST)
+                for year in sorted({today.year, (today + timedelta(days=OFFICIAL_HORIZON_DAYS)).year}):
+                    url = nbs_list and nbs_calendar_url(nbs_list, year)
+                    page = url and await self._fetch(s, url)
+                    if page:
+                        found += parse_nbs(page, year)
                 stocks = self.stock_symbols()
                 if stocks:
                     for n in range(-35, EARNINGS_AHEAD_DAYS + 1):
