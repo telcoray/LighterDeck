@@ -39,8 +39,6 @@ const EN = {
   "Cambia tema": "Change theme",
   "Tema": "Theme",
   "Semplice": "Simple",
-  "Filtri": "Filters",
-  "ogni impatto": "any impact",
   "Aggiunge {v} alla size: clicca più volte per sommare": "Adds {v} to the size: click several times to add up",
   "Chiudi la posizione per passare tra cross e isolated": "Close the position to switch between cross and isolated",
   "Paper: {sym} isolated liquidato al prezzo mark": "Paper: {sym} isolated liquidated at the mark price",

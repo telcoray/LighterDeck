@@ -2840,13 +2840,6 @@ function evMarkets(e) {
 const cp = { scope: "all", types: ["macro", "energy", "earnings", "crypto", "mine"], impacts: ["High", "Medium"], range: "7", ...load("cp", {}) };
 function saveCp() { store("cp", { scope: cp.scope, types: cp.types, impacts: cp.impacts, range: cp.range, market: cp.market }); }
 
-function wireCalFilters() {
-  $("#cpFiltBtn").onclick = () => {
-    const open = $("#cpFilters").classList.toggle("open");
-    $("#cpFiltBtn").setAttribute("aria-expanded", open);
-  };
-}
-
 function renderCalPage() {
   if ($("#view-cal").classList.contains("hidden")) return;
   const now = Date.now() / 1000, q = $("#cpSearch").value.trim().toLowerCase();
@@ -2870,11 +2863,6 @@ function renderCalPage() {
   });
   if (cp.range === "past") list.reverse();
   $("#cpCount").textContent = t("{n} eventi", { n: list.length }) + (sym ? " · " + t("che muovono {sym}", { sym }) : "");
-  // narrow screens: the filters fold behind one button that says what they are set to
-  const label = (sel) => { const b = $(sel); return b ? b.textContent : ""; };
-  $("#cpFiltSum").textContent = [t("Filtri"), sym || t("Tutti"),
-    cp.impacts.length === 3 ? t("ogni impatto") : $$("#cpImpacts button.active").map((b) => b.textContent).join(" + "),
-    label(`#cpRange [data-range="${cp.range}"]`)].join(" · ");
   let lastDay = "";
   $("#cpList").innerHTML = list.map((e) => {
     const d = new Date(e.ts * 1000), left = e.ts - now;
@@ -3725,7 +3713,6 @@ function wireTrail() {
   wireTpLevels();
   wireBadges();
   wireCardTables();
-  wireCalFilters();
   wirePairGroup();
   wireEventTrades();
   $("#mktSpread").onclick = openSpreadPicker;

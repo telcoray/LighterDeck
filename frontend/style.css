@@ -1087,13 +1087,13 @@ body.browser-key :is(.pair-add, #mktSpread) { display: none !important; }
 /* the position's leverage next to its market */
 .mk-lev { margin-left: 6px; font-family: var(--mono); font-size: 10.5px; color: var(--muted); }
 
-/* ================= calendar filters on a phone: folded behind one button ================= */
-.cp-filt-btn { display: none; }
+/* ================= calendar filters on a phone: all visible, one row each ================= */
 @media (max-width: 860px) {
-  .cp-filt-btn { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; height: 34px; margin: 0 0 12px;
-    padding: 0 12px; border: 1px solid var(--line-2); border-radius: var(--r); background: var(--surface); color: var(--text-2); font-size: 12px; text-align: left; }
-  .cp-filt-btn span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .cp-filt-btn[aria-expanded="true"] svg { transform: rotate(180deg); }
-  .cp-filters:not(.open) { display: none; }
-  .cp-filters.open { margin-bottom: 4px; padding-bottom: 14px; border-bottom: 1px solid var(--line); }
+  .cp-filters { gap: 8px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+  .cp-block { flex-direction: row; align-items: center; gap: 8px; min-width: 0; }
+  .cp-block > .caps { width: 54px; flex: none; font-size: 9px; }
+  .cp-block .chipsel { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; min-width: 0; }
+  .cp-block .chipsel::-webkit-scrollbar { display: none; }
+  .cp-block .chipsel button { flex: none; }
+  .cp-select { width: 112px; flex: none; height: 26px; }
 }
