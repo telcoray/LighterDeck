@@ -487,6 +487,7 @@ body.dragging-line, body.dragging-line * { cursor: ns-resize !important; user-se
 /* waiting for the second click */
 .execute.confirming { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--amber); }
 .qbtn button.confirming, .rule .actions button.confirming { border-color: var(--amber); color: var(--amber); }
+.qbtn button.confirming { background: color-mix(in srgb, var(--amber) 16%, transparent); font-weight: 600; white-space: nowrap; overflow: hidden; }
 .ticket-msg { margin-top: 10px; padding: 9px 10px; border-radius: var(--r); font-size: 11px; line-height: 1.45; border: 1px solid var(--line-2); color: var(--text-2); }
 .ticket-msg.ok { border-color: rgba(43,217,164,.3); color: var(--green); background: var(--green-soft); }
 .ticket-msg.err { border-color: rgba(242,84,109,.3); color: var(--red); background: var(--red-soft); }

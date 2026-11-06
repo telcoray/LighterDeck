@@ -1491,9 +1491,15 @@ function askConfirm(key, text) {
 function markConfirm() {
   if (!pendingConfirm) return;
   for (const el of $$(`[data-ck="${pendingConfirm.key}"]`)) {
-    if (!el.classList.contains("confirming")) el.dataset.ckText = el.textContent;
+    if (!el.classList.contains("confirming")) {
+      el.dataset.ckText = el.textContent;
+      el.dataset.ckTitle = el.title;
+      // the position's close buttons keep their width, so the row doesn't move: a short "OK?" instead
+      if (el.closest(".qbtn")) el.style.width = el.offsetWidth + "px";
+    }
     el.classList.add("confirming");
-    el.textContent = pendingConfirm.text;
+    el.textContent = el.closest(".qbtn") ? "OK?" : pendingConfirm.text;
+    el.title = pendingConfirm.text;
   }
 }
 
@@ -1502,6 +1508,8 @@ function cancelConfirm() {
   for (const el of $$(`[data-ck="${pendingConfirm.key}"]`)) {
     el.classList.remove("confirming");
     el.textContent = el.dataset.ckText;
+    el.title = el.dataset.ckTitle || "";
+    el.style.width = "";
   }
   pendingConfirm = null;
 }
