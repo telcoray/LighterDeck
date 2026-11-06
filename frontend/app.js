@@ -368,11 +368,35 @@ class Panel {
   // a new market or timeframe opens on the latest candle with the gap on its right; the periodic
   // reload of the same chart keeps wherever it was scrolled
   keepGap() {
-    const gap = rightGap(), view = this.cfg.symbol + this.cfg.tf + ":" + gap; // a phone turned wide gets the wider gap
-    if (this.viewFor === view || !this.last || !this.el.clientWidth) return; // a hidden chart gets it once shown
+    if (!this.last || !this.el.clientWidth) return; // a hidden chart gets it once shown
+    const chart = this.cfg.symbol + this.cfg.tf + ":";
+    const gap = Math.max(rightGap(), this.labelGap()), view = chart + gap; // a phone turned wide gets the wider gap
+    if (this.viewFor === view) return;
+    const ts = this.chart.timeScale();
+    // a new market or timeframe starts at the live edge; a gap that grows or shrinks moves the view only
+    // when it is there, not while you look back in time
+    const atEdge = !(this.viewFor || "").startsWith(chart) || Math.abs(ts.scrollPosition() - ts.options().rightOffset) < 2;
     this.viewFor = view;
-    this.chart.timeScale().applyOptions({ rightOffset: gap });
-    this.chart.timeScale().scrollToPosition(gap, false);
+    ts.applyOptions({ rightOffset: gap });
+    if (atEdge) ts.scrollToPosition(gap, false);
+  }
+
+  // A line's label (LONG 0.5, SL, TP, LIMIT…) is drawn at the right edge, over the latest candles. When one
+  // sits within their range, the empty space on the right grows to fit it: bars it needs, or 0.
+  labelGap() {
+    const spacing = this.chart.timeScale().options().barSpacing || 8;
+    const ctx = (Panel.measure ||= document.createElement("canvas").getContext("2d"));
+    ctx.font = "11px 'JetBrains Mono', monospace"; // the chart's own label font
+    let need = 0;
+    for (const l of [...(this.lines || []), ...(this.previewLines || [])]) {
+      const o = l.options();
+      if (!o.title) continue;
+      const n = Math.ceil((ctx.measureText(o.title).width + 16) / spacing) + 1;
+      if (n <= need) continue;
+      const bars = [...this.data.values()].slice(-(n + 10)); // a margin, so the gap doesn't flicker as the price moves
+      if (bars.length && o.price >= Math.min(...bars.map((b) => b.low)) && o.price <= Math.max(...bars.map((b) => b.high))) need = n;
+    }
+    return need;
   }
 
   clearZ() {
