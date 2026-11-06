@@ -39,6 +39,7 @@ const EN = {
   "Cambia tema": "Change theme",
   "Tema": "Theme",
   "Semplice": "Simple",
+  "Aggiunge {v} alla size: clicca più volte per sommare": "Adds {v} to the size: click several times to add up",
   "Chiudi la posizione per passare tra cross e isolated": "Close the position to switch between cross and isolated",
   "Paper: {sym} isolated liquidato al prezzo mark": "Paper: {sym} isolated liquidated at the mark price",
   "Isolated: si liquida quando la perdita si mangia il margine di questa posizione.": "Isolated: it is liquidated when the loss eats up this position's margin.",

@@ -1530,7 +1530,7 @@ function renderTicket() {
     equity_pct: [1, 2, 5, 10].map((v) => [v, v + "%"]),
     risk_usd: [5, 10, 25, 50].map((v) => [v, "$" + v]),
   }[unit];
-  $("#tkChips").innerHTML = chips.map(([v, t]) => `<button data-v="${v}">${t}</button>`).join("");
+  $("#tkChips").innerHTML = chips.map(([v, label]) => `<button data-v="${v}" title="${t("Aggiunge {v} alla size: clicca più volte per sommare", { v: label })}">${label}</button>`).join("");
   const isLimit = ticket.kind === "limit";
   $$(".limit-only").forEach((e) => e.classList.toggle("hidden", !isLimit));
   $$(".market-only").forEach((e) => e.classList.toggle("hidden", isLimit));
@@ -3293,7 +3293,17 @@ function wire() {
     updateTicketSummary();
   };
   ["#tkSize", "#tkPrice"].forEach((s) => ($(s).oninput = updateTicketSummary));
-  $("#tkChips").onclick = (e) => { const b = e.target.closest("[data-v]"); if (b) { $("#tkSize").value = b.dataset.v; updateTicketSummary(); } };
+  // each click adds to the size (4 × $100 = $400); clear the field to start again
+  $("#tkChips").onclick = (e) => {
+    const b = e.target.closest("[data-v]");
+    if (!b) return;
+    const m = activeMarket(), unit = $("#tkUnit").value;
+    let v = (+$("#tkSize").value || 0) + +b.dataset.v;
+    v = unit === "base" && m ? +v.toFixed(m.size_decimals) : +v.toFixed(2);
+    if (unit === "equity_pct") v = Math.min(100, v);
+    $("#tkSize").value = v;
+    updateTicketSummary();
+  };
   $("#tkMid").onclick = fillMid;
   $("#tkExec").onclick = (e) => (info.trading ? executeTicket(e.detail > 0) : openKeyDialog());
   ["#tkSl", "#tkTp", "#tkSlip"].forEach((s) => ($(s).oninput = updateTicketSummary));

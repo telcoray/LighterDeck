@@ -717,3 +717,4 @@ Object.assign(DICTS.zh, {
   "Close the position to switch between cross and isolated": "关闭仓位后才能在全仓和逐仓之间切换",
   "Paper: {sym} isolated liquidated at the mark price": "模拟：{sym} 逐仓按标记价格被强平",
 });
+Object.assign(DICTS.zh, { "Adds {v} to the size: click several times to add up": "在数量上加 {v}：多次点击可累加" });
