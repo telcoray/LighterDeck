@@ -73,6 +73,29 @@
   --amber: #fdaa35;
   --blue: #6b91cd;
 }
+/* Ambra: the pro terminal look, amber text on pure black. Up/down stay a saturated green and red; warnings
+   turn yellow so they don't blend into the amber text */
+:root[data-theme="ambra"] {
+  --bg: #000000;
+  --surface: #070605;
+  --raised: #110e09;
+  --hover: #0c0a06;
+  --line: #1d170d;
+  --line-2: #2b2212;
+  --line-3: #4d3b1a;
+  --chart-grid: #0e0b06;
+  --text: #ffc04d;
+  --text-2: #f5a623;
+  --muted: #c4831f;
+  --faint: #7c5316;
+  --green: #2ee88a;
+  --green-ink: #03140b;
+  --green-soft: rgba(46, 232, 138, .1);
+  --red: #ff4b3e;
+  --red-soft: rgba(255, 75, 62, .1);
+  --amber: #ffe14d;
+  --blue: #5aa9ff;
+}
 /* Ghiaccio: cool blue-black with ice-blue text */
 :root[data-theme="ghiaccio"] {
   --bg: #07090c;
