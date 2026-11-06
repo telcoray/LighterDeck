@@ -3013,6 +3013,7 @@ async function loadCalendar() {
   events = [...events.filter((e) => !String(e.id).startsWith("my")), ...myEvents()].sort((a, b) => a.ts - b.ts);
   renderEcon();
   renderEventSelect();
+  renderCalPage(); // the Calendar page opened before the events arrived
   panels.forEach((p) => p.drawMarkers());
 }
 
