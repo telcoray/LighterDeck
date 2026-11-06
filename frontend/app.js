@@ -20,12 +20,13 @@ function barStart(tf, ts) {
   const secs = TF_SECS[tf];
   return Math.floor(ts / secs) * secs;
 }
-const C = { green: "#2bd9a4", red: "#f2546d" };
+// up and down: the theme's own green and red (read when used, so a theme change carries over)
+const C = { get green() { return cssVar("--green") || "#2bd9a4"; }, get red() { return cssVar("--red") || "#f2546d"; } };
 
 // ---------- themes: colours live in CSS variables (style.css), charts read them from there ----------
 const THEMES = [ // Classic first, then alphabetical
   { id: "classic", name: "Classic", note: "i colori di Lighter" },
-  { id: "ambra", name: "Ambra", note: "pro terminal look, testo ambra sul nero" },
+  { id: "ambra", name: "Ambra", note: "pro terminal look: nero, arancio e bianco" },
   { id: "champagne", name: "Champagne", note: "nero caldo, testo sabbia e oro" },
   { id: "fosforo", name: "Fosforo", note: "sfondo grafite, testo verde da terminale" },
   { id: "ghiaccio", name: "Ghiaccio", note: "blu notte, testo azzurro ghiaccio" },
@@ -50,7 +51,12 @@ function applyTheme(id) {
   const theme = THEMES.find((t) => t.id === id) || THEMES[0];
   document.documentElement.dataset.theme = theme.id;
   store("theme", theme.id);
-  panels.forEach((p) => p.chart.applyOptions(chartTheme()));
+  panels.forEach((p) => {
+    p.chart.applyOptions(chartTheme());
+    p.series.applyOptions({ upColor: C.green, downColor: C.red, wickUpColor: C.green, wickDownColor: C.red });
+    p.drawLines();
+    p.drawMarkers();
+  });
   $("#themeName").textContent = t(theme.name);
   $("#themeSwatch").innerHTML = swatch();
   $("#themeMenu").innerHTML = THEMES.map((th) => `<button data-theme="${th.id}" class="${th.id === theme.id ? "active" : ""}">

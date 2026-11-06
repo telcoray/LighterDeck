@@ -498,7 +498,7 @@ const EN = {
   "Trailing rimosso: lo stop già piazzato resta su Lighter.": "Trailing removed: the stop already placed stays on Lighter.",
   "Salva": "Save",
   "i colori di Lighter": "Lighter's own colours",
-  "pro terminal look, testo ambra sul nero": "pro terminal look, amber text on black",
+  "pro terminal look: nero, arancio e bianco": "pro terminal look: black, orange and white",
   "Categorie precedenti": "Previous categories",
   "Altre categorie": "More categories",
   "Trascina per ridimensionare · doppio clic per ripristinare": "Drag to resize · double-click to reset",
