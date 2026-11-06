@@ -1089,7 +1089,6 @@ function renderMarketBar() {
   f.className = Math.abs(p.funding) < BADGE_FUNDING ? "" : fpos ? (Math.sign(fpos.size) === Math.sign(p.funding) ? "down" : "up") : "warn";
   if (fundView.open && $("#fundPop").dataset.mid !== String(m.id)) { $("#fundPop").dataset.mid = m.id; loadFundingHistory(); }
   $("#stOi").textContent = fcompact(p.oi);
-  setBadges($("#mkCtx"), m);
 }
 
 // a spread in the market bar: the ratio and its 24h change; the rest belongs to each market
@@ -1108,8 +1107,6 @@ function renderPairBar([a, b]) {
   ch.textContent = chg !== null ? fpct(chg) : "—";
   ch.className = chg !== null ? cls(chg) : "";
   for (const id of ["#stVol", "#stIdx", "#stFund", "#stOi"]) { $(id).textContent = "—"; $(id).className = ""; }
-  $("#mkCtx").innerHTML = "";
-  $("#mkCtx").dataset.html = "";
 }
 
 // ---------- context badges: what matters about a market right now ----------

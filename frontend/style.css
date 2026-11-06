@@ -1017,8 +1017,6 @@ button.pill:hover { border-color: var(--line-3); color: var(--text); }
 .table td small.tp-step, .table td small.pos-lev { display: block; margin-top: 2px; font-family: var(--ui); font-size: 10px; }
 .table td small.tp-step { color: var(--green); }
 
-/* market-bar badges would be cut off where the bar scrolls: each chart shows them under its title */
-@media (max-width: 1100px) { #mkCtx { display: none; } }
 
 /* ================= phones: bottom tables as cards ================= */
 @media (max-width: 640px) {
