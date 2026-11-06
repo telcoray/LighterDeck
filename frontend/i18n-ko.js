@@ -718,3 +718,4 @@ Object.assign(DICTS.ko, {
   "Paper: {sym} isolated liquidated at the mark price": "모의: {sym} 격리 포지션이 마크 가격으로 청산됨",
 });
 Object.assign(DICTS.ko, { "Adds {v} to the size: click several times to add up": "수량에 {v}를 더합니다: 여러 번 눌러 합산" });
+Object.assign(DICTS.ko, { "Filters": "필터", "any impact": "모든 영향" });
