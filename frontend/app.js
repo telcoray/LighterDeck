@@ -2219,9 +2219,9 @@ function renderPositions() {
       // PnL % on the initial margin (entry value / leverage), as Lighter and the ticket show it
       const margin = p.leverage ? (Math.abs(p.size) * p.entry) / p.leverage : 0;
       const pct = margin ? (p.upnl / margin) * 100 : 0;
-      return `<tr><td class="mk">${gotoBtn(p.symbol)}<small class="${p.size > 0 ? "up" : "down"}">${p.size > 0 ? "Long" : "Short"}${marginTag(p)}<button class="pair-add" data-pairfrom="${p.market_id}" title="${t("Fai una coppia con una posizione dal lato opposto")}">+ ${t("Coppia")}</button></small></td>
+      return `<tr><td class="mk">${gotoBtn(p.symbol)}${p.leverage ? `<span class="mk-lev">${p.leverage}x</span>` : ""}<small class="${p.size > 0 ? "up" : "down"}">${p.size > 0 ? "Long" : "Short"}${marginTag(p)}<button class="pair-add" data-pairfrom="${p.market_id}" title="${t("Fai una coppia con una posizione dal lato opposto")}">+ ${t("Coppia")}</button></small></td>
         <td class="r ${p.size > 0 ? "up" : "down"}">${fsize(p.size, m)} <span class="unit-sym">${esc(p.symbol)}</span>${paired[p.market_id] ? `<small class="pos-lev">${t("di cui {q} in coppia", { q: fsize(paired[p.market_id], m) })}</small>` : ""}</td><td class="r main">${fusd(p.value)}</td>
-        <td class="r">${margin ? fusd(margin) : "—"}${p.leverage ? `<small class="pos-lev">${p.leverage}x</small>` : ""}</td><td class="r">${fp(p.entry, m)}</td><td class="r main">${fp(mark, m)}</td>
+        <td class="r">${margin ? fusd(margin) : "—"}</td><td class="r">${fp(p.entry, m)}</td><td class="r main">${fp(mark, m)}</td>
         <td class="r liq" title="${p.cross === false ? t("Isolated: si liquida quando la perdita si mangia il margine di questa posizione.") : t("Cross: si liquida solo quando la perdita si mangia il collaterale di tutto l'account, non solo il margine di questa posizione. Per questo può essere molto lontana.")}">${fp(p.liq, m)}</td><td class="r pnl ${cls(p.upnl)}">${fusd(p.upnl)}<small>${isFinite(pct) ? fpct(pct) : ""}</small></td>
         <td class="r sltp">${sltpCell(p, m)}</td>
         <td>${trailButton(p.market_id, m)}</td>

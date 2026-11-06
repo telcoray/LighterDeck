@@ -1084,3 +1084,6 @@ body.browser-key :is(.pair-add, #mktSpread) { display: none !important; }
 /* the side and its tag on one line, centred */
 .table td.mk small:has(.mode-tag) { display: flex; align-items: baseline; flex-wrap: wrap; row-gap: 4px; } /* the tag's letters sit on the side's baseline */
 .mode-tag.iso { border-color: color-mix(in srgb, var(--amber) 55%, transparent); color: var(--amber); }
+
+/* the position's leverage next to its market */
+.mk-lev { margin-left: 6px; font-family: var(--mono); font-size: 10.5px; color: var(--muted); }
