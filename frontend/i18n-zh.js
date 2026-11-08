@@ -719,3 +719,4 @@ Object.assign(DICTS.zh, {
 });
 Object.assign(DICTS.zh, { "Adds {v} to the size: click several times to add up": "在数量上加 {v}：多次点击可累加" });
 Object.assign(DICTS.zh, { "Leverage: scroll or drag \u00b7 click for cross / isolated": "杠杆：滚动或拖动 · 点击切换全仓 / 逐仓" });
+Object.assign(DICTS.zh, { "Share of what the available margin can open, at this leverage": "可用保证金在当前杠杆下可开仓位的比例", "Position margin": "仓位保证金", "Est. price": "预估价格", "TP/SL slippage": "止盈/止损滑点", "est. {e}%": "预估 {e}%", "max {m}%": "最大 {m}%", "Slippage": "滑点" });

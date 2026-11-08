@@ -40,7 +40,7 @@
 </script>
 <style>html.i18n-pending body { visibility: hidden; }</style>
 <link rel="icon" href="favicon.svg?v=1" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=163">
+<link rel="stylesheet" href="style.css?v=169">
 <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
 </head>
 <body>
@@ -207,6 +207,10 @@
         </label>
         <div class="field"><label><span class="solo-only">Size</span><span class="pair-only">Valore totale</span></label><input id="tkSize" autocomplete="off" type="number" min="0" step="any"><span class="unit" id="tkSizeUnit">USD</span></div>
         <div class="chips" id="tkChips"></div>
+        <div class="size-pct solo-only" id="tkPctRow">
+          <div class="pct-track"><input id="tkPct" type="range" min="0" max="100" step="1" value="0" autocomplete="off" title="Quota di quanto il margine disponibile può aprire, a questa leva"><i style="left:0"></i><i style="left:25%"></i><i style="left:50%"></i><i style="left:75%"></i><i style="left:100%"></i></div>
+          <label class="pct-box"><input id="tkPctIn" type="number" min="0" max="100" step="1" autocomplete="off" placeholder="0"><span>%</span></label>
+        </div>
         <div class="field limit-only hidden"><label>Prezzo limite</label><input id="tkPrice" autocomplete="off" type="number" step="any"><button class="unit link" id="tkMid">Mid</button></div>
         <div class="checks solo-only">
           <label><input type="checkbox" id="tkReduce" autocomplete="off"> Reduce only</label>
@@ -226,12 +230,16 @@
           <div class="field sm"><label>Slippage massimo · bps</label><input id="tkSlip" autocomplete="off" type="number" min="1" step="1" value="50"></div>
         </details>
         <dl class="kv summary pair-only" id="tkPairSum"></dl>
-        <dl class="kv summary solo-only">
-          <dt>Valore ordine</dt><dd id="tkNotional">—</dd>
-          <dt>Quantità</dt><dd id="tkQty">—</dd>
-          <dt>Margine richiesto</dt><dd id="tkMargin">—</dd>
-          <dt>Commissioni stimate</dt><dd id="tkFee">—</dd>
-          <dt>Liquidazione stimata</dt><dd id="tkLiq">—</dd>
+        <dl class="kv summary rows solo-only">
+          <div><dt>Valore ordine</dt><dd id="tkNotional">—</dd></div>
+          <div><dt>Quantità</dt><dd id="tkQty">—</dd></div>
+          <div><dt>Margine richiesto</dt><dd id="tkMargin">—</dd></div>
+          <div><dt class="hidden" id="tkPosMarginDt">Margine posizione</dt><dd class="hidden" id="tkPosMargin">—</dd></div>
+          <div><dt class="market-only">Prezzo stimato</dt><dd class="market-only" id="tkEstPx">—</dd></div>
+          <div><dt class="market-only ticket-extra">Slippage</dt><dd class="market-only ticket-extra" id="tkEstSlip">—</dd></div>
+          <div><dt class="hidden ticket-extra" id="tkTpslSlipDt">Slippage TP/SL</dt><dd class="hidden ticket-extra" id="tkTpslSlip">—</dd></div>
+          <div><dt>Commissioni stimate</dt><dd id="tkFee">—</dd></div>
+          <div><dt>Liquidazione stimata</dt><dd id="tkLiq">—</dd></div>
         </dl>
         <div class="risk-note hidden" id="tkRisk"></div>
         <button class="execute" id="tkExec" data-ck="order">Esegui</button>
@@ -632,13 +640,13 @@
 </div>
 
 <div class="toast hidden" id="toast"></div>
-<script src="i18n.js?v=163"></script>
-<script src="i18n-zh.js?v=163"></script>
-<script src="i18n-ko.js?v=163"></script>
-<script src="formulas.js?v=163"></script>
-<script src="paper.js?v=163"></script>
-<script src="live.js?v=163"></script>
-<script src="app.js?v=163"></script>
-<script src="picker.js?v=163"></script>
+<script src="i18n.js?v=169"></script>
+<script src="i18n-zh.js?v=169"></script>
+<script src="i18n-ko.js?v=169"></script>
+<script src="formulas.js?v=169"></script>
+<script src="paper.js?v=169"></script>
+<script src="live.js?v=169"></script>
+<script src="app.js?v=169"></script>
+<script src="picker.js?v=169"></script>
 </body>
 </html>

@@ -719,3 +719,4 @@ Object.assign(DICTS.ko, {
 });
 Object.assign(DICTS.ko, { "Adds {v} to the size: click several times to add up": "수량에 {v}를 더합니다: 여러 번 눌러 합산" });
 Object.assign(DICTS.ko, { "Leverage: scroll or drag \u00b7 click for cross / isolated": "레버리지: 스크롤 또는 드래그 · 클릭하면 교차 / 격리" });
+Object.assign(DICTS.ko, { "Share of what the available margin can open, at this leverage": "사용 가능 증거금으로 현재 레버리지에서 열 수 있는 비중", "Position margin": "포지션 증거금", "Est. price": "예상 가격", "TP/SL slippage": "TP/SL 슬리피지", "est. {e}%": "예상 {e}%", "max {m}%": "최대 {m}%", "Slippage": "슬리피지" });

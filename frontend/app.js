@@ -1708,9 +1708,88 @@ function updateTicketSummary() {
   tpHint();
   $("#tkNotional").textContent = qty ? fusd(qty * ref) : "—";
   $("#tkQty").textContent = qty ? `${qty.toFixed(m.size_decimals)} ${m.symbol}` : "—";
+  syncSizeSlider(m, qty, ref);
   renderTicketEstimates(m, p, qty, ref);
   clearTimeout(updateTicketSummary.t);
   updateTicketSummary.t = setTimeout(previewTicket, 350);
+}
+
+// ---------- size slider: a share of what the margin can open at this leverage ----------
+// An order against the position first closes it, which frees its margin; reduce-only goes up to the position.
+function sizeMax(m, ref) {
+  if (!account || !m || !ref) return null;
+  const set = levSet(m), lev = (set && set.leverage) || m.default_leverage || 1;
+  const side = ticket.side === "buy" ? 1 : -1;
+  const pos = account.positions.find((x) => x.market_id === m.id);
+  const against = pos && Math.sign(pos.size) !== side;
+  if ($("#tkReduce").checked) return against ? Math.abs(pos.size) : 0;
+  const fee = ticket.kind === "limit" && $("#tkPost").checked ? m.maker_fee : m.taker_fee;
+  const posValue = against ? Math.abs(pos.size) * ref : 0, freed = against ? posValue / lev : 0;
+  return (posValue + (account.available + freed) / (1 / lev + (fee || 0))) / ref; // in the market's own unit
+}
+
+const floorTo = (v, d) => Math.floor(v * 10 ** d + 1e-9) / 10 ** d;
+
+function sizeFromPct(pct) {
+  const m = activeMarket(), p = m && prices[m.id], unit = $("#tkUnit").value;
+  const ref = ticket.kind === "limit" && +$("#tkPrice").value ? +$("#tkPrice").value : p ? (ticket.side === "buy" ? p.ask : p.bid) || p.mark : 0;
+  const max = sizeMax(m, ref);
+  if (!max) return;
+  const qty = max * Math.max(0, Math.min(100, pct)) / 100;
+  const v = unit === "base" ? floorTo(qty, m.size_decimals) : floorTo(qty * ref, 2);
+  $("#tkSize").value = v > 0 ? v : "";
+  updateTicketSummary();
+}
+
+function syncSizeSlider(m, qty, ref) {
+  const row = $("#tkPctRow"), unit = $("#tkUnit").value, max = sizeMax(m, ref);
+  row.classList.toggle("hidden", !(unit === "usd" || unit === "base") || !account);
+  row.classList.toggle("sell", ticket.side === "sell");
+  const range = $("#tkPct"), box = $("#tkPctIn");
+  const pct = max && qty ? Math.min(100, (qty / max) * 100) : 0;
+  if (document.activeElement !== range || !range.matches(":active")) range.value = Math.round(pct);
+  range.style.setProperty("--p", range.value + "%");
+  if (document.activeElement !== box) box.value = qty ? Math.round(pct) : "";
+}
+
+// ---------- estimated price: the order walked through the book ----------
+const estBook = { market: null, at: 0, asks: [], bids: [], busy: false };
+
+function renderEstFill(m, qty, entry) {
+  const buy = ticket.side === "buy", maxSlip = (+$("#tkSlip").value || 50) / 100;
+  const px = $("#tkEstPx"), slip = $("#tkEstSlip");
+  const levels = estBook.market === m.id ? (buy ? estBook.asks : estBook.bids) : [];
+  const maxText = t("max {m}%", { m: +maxSlip.toFixed(2) });
+  if (!qty || !levels.length) {
+    px.textContent = qty && entry ? fp(entry, m) : "—";
+    slip.textContent = maxText;
+    slip.classList.remove("down");
+    return;
+  }
+  let left = qty, cost = 0;
+  for (const [price, size] of levels) {
+    const take = Math.min(left, size);
+    cost += take * price;
+    left -= take;
+    if (left <= 1e-12) break;
+  }
+  const filled = qty - Math.max(0, left), avg = cost / (filled || 1);
+  const best = levels[0][0], other = (buy ? estBook.bids : estBook.asks)[0];
+  const mid = other ? (best + other[0]) / 2 : best;
+  const est = Math.abs(avg - mid) / mid * 100, deep = left > 1e-12; // past the levels we can see
+  px.textContent = `${deep ? "≈ " : ""}${fp(avg, m)}`;
+  slip.textContent = `${t("stimato {e}%", { e: (deep ? "> " : "") + est.toFixed(2) })} · ${maxText}`;
+  slip.classList.toggle("down", est >= maxSlip || deep);
+}
+
+function refreshEstBook(m, qty, entry) {
+  if (!qty || ticket.kind === "limit" || estBook.busy) return;
+  if (estBook.market === m.id && Date.now() - estBook.at < 3000) return;
+  estBook.busy = true;
+  api(`/orderbook?market_id=${m.id}`).then((b) => {
+    Object.assign(estBook, { market: m.id, at: Date.now(), asks: b.asks || [], bids: b.bids || [] });
+    if (activeMarket() === m) renderEstFill(m, qty, entry);
+  }).catch(() => {}).finally(() => { estBook.busy = false; });
 }
 
 // margin, fees, liquidation and SL/TP outcome (formulas.js, ported from lighter-ts)
@@ -1724,7 +1803,14 @@ function renderTicketEstimates(m, p, qty, entry) {
   const feeUsd = Formulas.fee(notional, feeRate);
   const reduce = $("#tkReduce").checked;
   $("#tkMargin").textContent = qty && !reduce ? `${fusd(Formulas.orderMargin(notional, leverage))} · ${leverage}x` : "—";
-  $("#tkFee").textContent = qty ? `${fusd(feeUsd)} · ${(feeRate * 100).toFixed(3)}%` : "—";
+  const feePct = (r) => +((r || 0) * 100).toFixed(3);
+  $("#tkFee").textContent = `${qty ? fusd(feeUsd) + " · " : ""}T ${feePct(m.taker_fee)}% · M ${feePct(m.maker_fee)}%`;
+  renderEstFill(m, qty, entry);
+  refreshEstBook(m, qty, entry);
+  // SL/TP fill within the same slippage as the order
+  const hasStops = !reduce && (+$("#tkSl").value > 0 || +$("#tkTp").value > 0 || !!readTpLevels());
+  for (const id of ["#tkTpslSlipDt", "#tkTpslSlip"]) $(id).classList.toggle("hidden", !hasStops);
+  $("#tkTpslSlip").textContent = t("max {m}%", { m: +((+$("#tkSlip").value || 50) / 100).toFixed(2) });
   const mark = p && p.mark;
   const curPos = account && account.positions.find((x) => x.market_id === m.id);
   const liq = set && set.cross === false
@@ -1739,8 +1825,20 @@ function renderTicketEstimates(m, p, qty, entry) {
       markOf: (id) => prices[id] && prices[id].mark, mmfOf: (id) => (byId[id] ? byId[id].mmf : m.mmf),
     });
   const liqEl = $("#tkLiq");
-  liqEl.textContent = liq ? fp(liq, m) : account ? "—" : t("serve l'account");
+  // with a position: what it is now, and what this order makes of it
+  const closes = curPos && qty && Math.abs(curPos.size + side * qty) < 10 ** -m.size_decimals;
+  liqEl.textContent = curPos && curPos.liq
+    ? (qty ? `${fp(curPos.liq, m)} → ${liq && !closes ? fp(liq, m) : "—"}` : fp(curPos.liq, m))
+    : liq ? fp(liq, m) : account ? "—" : t("serve l'account");
   liqEl.className = liq && mark && Math.abs(liq - mark) / mark < 0.05 ? "down" : "";
+  const marginOf = (size, price) => Math.abs(size) * price / leverage;
+  for (const id of ["#tkPosMarginDt", "#tkPosMargin"]) $(id).classList.toggle("hidden", !curPos);
+  if (curPos) {
+    const next = curPos.size + side * (qty || 0), adds = Math.sign(curPos.size) === side;
+    const nextEntry = adds ? (Math.abs(curPos.size) * curPos.entry + (qty || 0) * entry) / Math.abs(next || 1)
+      : Math.sign(next) === Math.sign(curPos.size) ? curPos.entry : entry;
+    $("#tkPosMargin").textContent = qty ? `${fusd(marginOf(curPos.size, curPos.entry))} → ${closes ? "—" : fusd(marginOf(next, nextEntry))}` : fusd(marginOf(curPos.size, curPos.entry));
+  }
   const draft = { market: m.id, side, entry, liq: qty && !reduce ? liq : null, lines: [] };
   if (ticket.kind === "limit" && +$("#tkPrice").value) draft.lines.push({ kind: "limit", price: entry, title: `LIMIT ${side > 0 ? "BUY" : "SELL"}${qty ? " " + fsize(qty, m) : ""}` });
   // The ticket's SL/TP are position-tied on Lighter (size 0): when they fire they close the whole position.
@@ -3531,6 +3629,9 @@ function wire() {
     updateTicketSummary();
   };
   ["#tkSize", "#tkPrice"].forEach((s) => ($(s).oninput = updateTicketSummary));
+  $("#tkPct").oninput = (e) => sizeFromPct(+e.target.value);
+  $("#tkPctIn").oninput = (e) => { if (e.target.value === "") { $("#tkSize").value = ""; updateTicketSummary(); } else sizeFromPct(+e.target.value); };
+  $("#tkPct").onchange = (e) => e.target.blur(); // let go: it follows the size again
   // each click adds to the size (4 × $100 = $400); clear the field to start again
   $("#tkChips").onclick = (e) => {
     const b = e.target.closest("[data-v]");
@@ -4282,7 +4383,7 @@ function wireHotkeys() {
   $("#hkOpen").onclick = () => toggleHotkeys(true);
   $("#hkClose").onclick = $("#hkVeil").onmousedown = () => toggleHotkeys(false);
   // Enter in the ticket's fields sends the order, like the button (which asks to confirm)
-  for (const id of ["#tkSize", "#tkPrice", "#tkSl", "#tkTp"]) {
+  for (const id of ["#tkSize", "#tkPctIn", "#tkPrice", "#tkSl", "#tkTp"]) {
     $(id).addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); $("#tkExec").click(); } });
   }
   document.addEventListener("keydown", (e) => {
