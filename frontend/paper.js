@@ -251,8 +251,8 @@ const Paper = (() => {
     let worst = o.kind === "limit" || (o.kind === "conditional" && o.cond_exec === "limit") ? ref : ref * (1 + side * slip / 10000);
     const extra = {};
     if (o.kind === "twap") {
-      if (!(o.twap_minutes >= 5 && o.twap_minutes <= 43200)) err(t("La durata del TWAP va da 5 minuti a 30 giorni"));
-      worst = o.price || ref * (1 + side * 0.05); // no price given: it stops 5% away from where it started
+      if (!(o.twap_minutes >= 5 && o.twap_minutes <= 1440)) err(t("La durata del TWAP va da 5 minuti a 24 ore"));
+      worst = o.price || ref * (1 + side * 0.03); // no price given: Lighter's 3% maximum slippage for a TWAP
     } else if (o.kind === "conditional") {
       const at = markOf(m.id) || ref;
       extra.cond_stop = side > 0 ? o.trigger_price > at : o.trigger_price < at; // Lighter's stop types, or its take-profit ones

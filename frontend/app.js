@@ -1749,7 +1749,7 @@ function renderAdvHints(m, p, qty) {
   if (ticket.kind === "twap") {
     const end = mins >= 5 ? new Date(Date.now() + mins * 60000).toLocaleString(LOCALE, { weekday: "short", hour: "2-digit", minute: "2-digit" }) : "—";
     const px = +$("#tkTwapPx").value;
-    $("#tkTwapHint").textContent = t("Finisce {end}.", { end }) + " " + (px ? t(buy ? "Non compra sopra {p}." : "Non vende sotto {p}.", { p: fp(px, m) }) : t("Senza limite, si ferma al 5% dal prezzo attuale."));
+    $("#tkTwapHint").textContent = t("Finisce {end}.", { end }) + " " + (px ? t(buy ? "Non compra sopra {p}." : "Non vende sotto {p}.", { p: fp(px, m) }) : t("Senza limite, si ferma al 3% dal prezzo attuale."));
   }
   if (ticket.kind === "scale") {
     const s = scalePreview(m);

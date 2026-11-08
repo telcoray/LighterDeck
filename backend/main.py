@@ -405,7 +405,7 @@ class OrderReq(BaseModel):
     # kind "conditional": waits for the mark to reach trigger_price, then a market order or a limit at `price`
     trigger_price: float | None = None
     cond_exec: str = "market"                # "market" | "limit"
-    # kind "twap": over twap_minutes, never past `price` (5% from the quote if not given)
+    # kind "twap": over twap_minutes, never past `price` (3% from the quote if not given)
     twap_minutes: int | None = None
     # kind "scale": scale_count limit orders from scale_from to scale_to
     scale_from: float | None = None
@@ -443,8 +443,8 @@ def exit_levels(o: OrderReq, m, size, side, ref, mark, check_sides):
     return out
 
 
-TWAP_MINUTES = (5, 43200)  # Lighter takes from 5 minutes to 30 days
-TWAP_DEFAULT_BOUND = 0.05  # no price given: it stops 5% away from where it started
+TWAP_MINUTES = (5, 1440)  # Lighter's docs: from 5 minutes to 24 hours
+TWAP_DEFAULT_BOUND = 0.03  # no price given: Lighter's 3% maximum slippage for a TWAP
 
 
 def scale_prices(o: OrderReq, m):
@@ -511,7 +511,7 @@ async def plan_order(o: OrderReq, check_sides=True):
     extra = {}
     if o.kind == "twap":
         if not o.twap_minutes or not TWAP_MINUTES[0] <= o.twap_minutes <= TWAP_MINUTES[1]:
-            raise Blocked(L("La durata del TWAP va da 5 minuti a 30 giorni", "A TWAP lasts from 5 minutes to 30 days"))
+            raise Blocked(L("La durata del TWAP va da 5 minuti a 24 ore", "A TWAP lasts from 5 minutes to 24 hours"))
         worst = o.price or ref * (1 + side * TWAP_DEFAULT_BOUND)
     elif o.kind == "conditional":
         at = feed.mark(o.market_id) or ref
