@@ -21,6 +21,7 @@ const Live = (() => {
   let acc = null, accAt = 0, timer = null;
   let nonce = null, queue = Promise.resolve();
   let auth = { token: null, until: 0 };
+  let fees = null, feesAt = 0; // this account's own rates (its plan, not the market's listing)
   const orders = {};        // market -> { at, list }
   const logs = [];
   let seq = 0, changed = false;
@@ -190,11 +191,24 @@ const Live = (() => {
       });
     }
     const next = { index: cred.account_index, collateral: +(a.collateral || 0), available: +(a.available_balance || 0),
-      total_value: +(a.total_asset_value || 0), positions, settings };
+      total_value: +(a.total_asset_value || 0), positions, settings, fees };
+    refreshFees();
     if (acc && JSON.stringify(acc.positions) !== JSON.stringify(positions)) changed = true;
     acc = next;
     accAt = Date.now();
     return acc;
+  }
+
+  // one fee tick is 1/1,000,000 (premium's 280 ticks are 0.028%); asked every 10 minutes
+  async function refreshFees() {
+    if (Date.now() - feesAt < 600000) return;
+    feesAt = Date.now();
+    try {
+      const d = await get("accountLimits", { account_index: cred.account_index }, true);
+      fees = { taker: d.current_taker_fee_tick / 1e6, maker: d.current_maker_fee_tick / 1e6, tier: d.user_tier_name || d.user_tier };
+      if (acc) acc = { ...acc, fees };
+      changed = true;
+    } catch {} // the ticket falls back on the market's listed fees
   }
 
   async function activeOrders(id, fresh = false) {
@@ -447,6 +461,8 @@ const Live = (() => {
     clearInterval(autoTimer);
     auto = { on: false };
     cred = acc = null;
+    fees = null;
+    feesAt = 0;
     nonce = null;
     auth = { token: null, until: 0 };
     for (const k in orders) delete orders[k];

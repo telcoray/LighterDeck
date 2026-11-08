@@ -1615,7 +1615,7 @@ function updatePairSummary() {
     const set = account && account.settings && account.settings[m.id];
     const lev = (set && set.leverage) || m.default_leverage || 1;
     const usd = size > 0 ? size / 2 : 0, qty = ref && usd ? usd / ref : 0;
-    return { m, ref, lev, usd, qty, fee: usd * (m.taker_fee || 0), margin: usd / lev };
+    return { m, ref, lev, usd, qty, fee: usd * feeRates(m).taker, margin: usd / lev };
   });
   const row = (x, i) => `<dt><span class="${i === 0 ? "up" : "down"}">${i === 0 ? "Long" : "Short"}</span> ${esc(x.m.symbol)}</dt><dd>${x.qty ? `${x.qty.toFixed(x.m.size_decimals)} · ${fusd(x.usd)}` : "—"}</dd>`;
   const tot = (k) => legs.reduce((s, x) => s + x[k], 0);
@@ -1726,10 +1726,13 @@ function sizeMax(m, ref) {
   const pos = account.positions.find((x) => x.market_id === m.id);
   const against = pos && Math.sign(pos.size) !== side;
   if ($("#tkReduce").checked) return against ? Math.abs(pos.size) : 0;
-  const fee = ticket.kind === "limit" && $("#tkPost").checked ? m.maker_fee : m.taker_fee;
+  const fee = feeRates(m)[ticket.kind === "limit" && $("#tkPost").checked ? "maker" : "taker"];
   const posValue = against ? Math.abs(pos.size) * ref : 0, freed = against ? posValue / lev : 0;
   return (posValue + (account.available + freed) / (1 / lev + (fee || 0))) / ref; // in the market's own unit
 }
+
+// what this account pays: its plan when known (paper has none), otherwise the market's listing
+const feeRates = (m) => (account && account.fees ? account.fees : { taker: m.taker_fee || 0, maker: m.maker_fee || 0 });
 
 const floorTo = (v, d) => Math.floor(v * 10 ** d + 1e-9) / 10 ** d;
 
@@ -1816,13 +1819,13 @@ function renderTicketEstimates(m, p, qty, entry) {
   const leverage = (set && set.leverage) || m.default_leverage;
   const notional = qty ? qty * entry : 0;
   const isMaker = ticket.kind === "limit" && $("#tkPost").checked;
-  const feeRate = isMaker ? m.maker_fee : m.taker_fee;
+  const rates = feeRates(m), feeRate = isMaker ? rates.maker : rates.taker;
   const feeUsd = Formulas.fee(notional, feeRate);
   const reduce = $("#tkReduce").checked;
   $("#tkMargin").textContent = qty && !reduce ? `${fusd(Formulas.orderMargin(notional, leverage))} · ${leverage}x` : "—";
   const feePct = (r) => +((r || 0) * 100).toFixed(3);
-  $("#tkFee").textContent = `${qty ? fusd(feeUsd) + " · " : ""}T ${feePct(m.taker_fee)}% · M ${feePct(m.maker_fee)}%`;
-  $("#tkFee").classList.toggle("hidden", !m.taker_fee && !m.maker_fee); // no fees, no row
+  $("#tkFee").textContent = `${qty ? fusd(feeUsd) + " · " : ""}T ${feePct(rates.taker)}% · M ${feePct(rates.maker)}%`;
+  $("#tkFee").classList.toggle("hidden", !rates.taker && !rates.maker); // no fees, no row
   const fillPx = ticket.kind === "market" ? renderEstFill(m, qty, entry) || entry : entry;
   refreshEstBook(m, qty, entry);
   // SL/TP fill within the same slippage as the order

@@ -132,6 +132,7 @@ class LighterAPI:
         self.markets = {}  # market_id -> Market
         self.signer = None
         self._auth = (None, 0)  # (token, expires_at)
+        self._fees = (None, 0)  # (the account's fee rates, fetched at)
         self._orders_today = (time.strftime("%Y-%m-%d"), 0)
         self._send_lock = asyncio.Lock()
         self._candle_cache = {}  # (market, timeframe, count) -> (fetched_at, bars)
@@ -178,6 +179,7 @@ class LighterAPI:
         Raises ValueError (and keeps the current signer) when Lighter does not accept it."""
         signer = await self.make_signer(account_index, api_key_index, private_key)
         await self.disconnect()
+        self._fees = (None, 0)
         self.signer = signer
         config.ACCOUNT_INDEX, config.API_KEY_INDEX, config.API_PRIVATE_KEY = account_index, api_key_index, private_key
         log.info("trading enabled for account %s (api key %s)", account_index, api_key_index)
@@ -317,7 +319,25 @@ class LighterAPI:
             "total_value": float(acc.get("total_asset_value") or 0),
             "positions": positions,
             "settings": settings,
+            "fees": await self.fee_rates(),
         }
+
+    async def fee_rates(self):
+        """This account's taker and maker fees as fractions (its plan, not the market's listing: one fee tick is
+        1/1,000,000, premium's 280 ticks are 0.028%). None until known; asked every 10 minutes."""
+        fees, at = self._fees
+        if not self.signer or time.time() - at < 600:
+            return fees
+        self._fees = (fees, time.time())
+        try:
+            data = await self._get("/api/v1/accountLimits", {"account_index": self.account_index},
+                                   headers={"authorization": await self._auth_token()})
+            fees = {"taker": data["current_taker_fee_tick"] / 1e6, "maker": data["current_maker_fee_tick"] / 1e6,
+                    "tier": data.get("user_tier_name") or data.get("user_tier")}
+            self._fees = (fees, time.time())
+        except Exception as e:  # the ticket falls back on the market's listed fees
+            log.info("account fees not read: %s", e)
+        return fees
 
     async def orderbook(self, market_id, depth=14):
         data = await self._get("/api/v1/orderBookOrders", {"market_id": market_id, "limit": 100})
