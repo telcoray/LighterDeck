@@ -605,6 +605,7 @@ class Panel {
       const tick = 10 ** -decimals(m);
       for (const o of openOrders[m.id] || []) {
         const kind = orderKind(o);
+        if (kind === "TWAP") continue; // it has no level on the chart: it fills over time, in the orders table
         // the managed stop's own order is drawn by the stop line below
         if (chartEls.stop && s && s.stop && kind === "SL" && Math.abs(o.trigger_price - s.stop) < tick * 1.5) continue;
         const price = o.trigger_price || o.price;
@@ -650,7 +651,7 @@ class Panel {
     };
     for (const l of d.lines) {
       const line = add(l.price, colour[l.kind], l.title, l.dashed ? 3 : 1);
-      if (line && l.kind !== "trail") this.dragPreview.push({ line, price: l.price, label: l.label || l.kind.toUpperCase(), kind: l.kind, input: l.input, preview: true });
+      if (line && l.kind !== "trail" && !l.fixed) this.dragPreview.push({ line, price: l.price, label: l.label || l.kind.toUpperCase(), kind: l.kind, input: l.input, preview: true });
       if (line && l.kind === "trail") this.previewTrail.push(l.price);
     }
     if (d.liq) add(d.liq, C.red, t("LIQ stimata"), 3);
@@ -945,7 +946,8 @@ const CHART_ELEMENTS = [
 let chartEls = { orders: true, stop: true, position: true, liq: true, mark: false, events: true, fills: true, alerts: true, zscore: true, preview: true, ...load("chartEls", {}) };
 let openOrders = {}; // market id -> open orders on Lighter, shared by the chart lines and the Orders tab
 const fade = (c) => (/^#[0-9a-f]{6}$/i.test(c) ? c + "b0" : c); // hex colour at ~70% for provisional lines
-const orderKind = (o) => (/stop/i.test(o.type) ? "SL" : /take/i.test(o.type) ? "TP" : "LIMIT");
+// a trigger order that isn't reduce-only opens a position: it is no SL or TP
+const orderKind = (o) => (/twap/i.test(o.type) ? "TWAP" : !/stop|take/i.test(o.type) ? "LIMIT" : !o.reduce_only ? "COND" : /stop/i.test(o.type) ? "SL" : "TP");
 
 function renderChartEls() {
   $("#elMenu").innerHTML = `<div class="caps muted">${t("Elementi del grafico")}</div>` +
@@ -1540,11 +1542,17 @@ function renderTicket() {
     risk_usd: [5, 10, 25, 50].map((v) => [v, "$" + v]),
   }[unit];
   $("#tkChips").innerHTML = chips.map(([v, label]) => `<button data-v="${v}" title="${t("Aggiunge {v} alla size: clicca più volte per sommare", { v: label })}">${label}</button>`).join("");
-  const isLimit = ticket.kind === "limit";
-  $$(".limit-only").forEach((e) => e.classList.toggle("hidden", !isLimit));
-  $$(".market-only").forEach((e) => e.classList.toggle("hidden", isLimit));
+  const showsLimit = hasLimitField(), showsMarket = ticket.kind === "market" || (ticket.kind === "conditional" && ticketAdv.exec === "market");
+  $$(".limit-only").forEach((e) => e.classList.toggle("hidden", !showsLimit));
+  $$(".market-only").forEach((e) => e.classList.toggle("hidden", !showsMarket));
+  $("#tkPost").closest("label").classList.toggle("hidden", !(ticket.kind === "limit" || ticket.kind === "scale"));
+  $(".ticket").dataset.kind = ticket.kind;
   $$("#sideSel button").forEach((b) => b.classList.toggle("active", b.dataset.side === ticket.side));
-  $$("#kindSel button").forEach((b) => b.classList.toggle("active", b.dataset.kind === ticket.kind));
+  $$("#kindSel [data-kind]").forEach((b) => b.classList.toggle("active", b.dataset.kind === ticket.kind));
+  $("#advBtn").classList.toggle("active", !isBasicKind());
+  $("#advName").textContent = { conditional: t("Condizionale"), twap: "TWAP", scale: "Scale" }[ticket.kind] || t("Avanzati");
+  $$("#tkCondExec [data-exec]").forEach((b) => b.classList.toggle("active", b.dataset.exec === ticketAdv.exec));
+  $$("#tkScaleDist [data-dist]").forEach((b) => b.classList.toggle("active", b.dataset.dist === ticketAdv.dist));
   const ex = $("#tkExec");
   ex.className = "execute" + (!info.trading ? " connect" : ticket.side === "sell" ? " sell" : "");
   ex.textContent = info.trading ? `${ticket.side === "buy" ? "Buy / Long" : "Sell / Short"} ${m.symbol}${Paper.on ? " · Paper" : ""}`
@@ -1561,6 +1569,23 @@ function ticketBody() {
     market_id: m.id, side: ticket.side, kind: ticket.kind, size: +$("#tkSize").value, unit: $("#tkUnit").value,
     reduce_only: $("#tkReduce").checked,
   };
+  // the advanced kinds carry their own fields; SL, TP and trailing go on the position afterwards
+  if (ticket.kind === "conditional") {
+    body.trigger_price = +$("#tkTrig").value;
+    body.cond_exec = ticketAdv.exec;
+    if (ticketAdv.exec === "limit") body.price = +$("#tkPrice").value;
+    else body.slippage_bps = +$("#tkSlip").value || 50;
+    return body;
+  }
+  if (ticket.kind === "twap") {
+    body.twap_minutes = Math.round(+$("#tkTwapMin").value);
+    if (+$("#tkTwapPx").value) body.price = +$("#tkTwapPx").value;
+    return body;
+  }
+  if (ticket.kind === "scale") {
+    Object.assign(body, { scale_from: +$("#tkScaleFrom").value, scale_to: +$("#tkScaleTo").value, scale_count: Math.round(+$("#tkScaleN").value), scale_dist: ticketAdv.dist, post_only: $("#tkPost").checked });
+    return body;
+  }
   if (+$("#tkSl").value) body.sl_price = +$("#tkSl").value;
   const levels = readTpLevels();
   if (levels) {
@@ -1690,6 +1715,88 @@ function pairLegFailed(r) {
 }
 
 // local estimate, refined by the server preview (which also runs every risk check)
+// ---------- advanced orders: conditional, TWAP, scale ----------
+const ticketAdv = { exec: "market", dist: "even", twapFees: null };
+const isBasicKind = () => ticket.kind === "market" || ticket.kind === "limit";
+const hasLimitField = () => ticket.kind === "limit" || (ticket.kind === "conditional" && ticketAdv.exec === "limit");
+
+// a scale order's prices and sizes, as the order will have them (paper.js / main.py scale_prices)
+function scalePreview(m) {
+  const a = +$("#tkScaleFrom").value, b = +$("#tkScaleTo").value, n = Math.round(+$("#tkScaleN").value);
+  if (!(a > 0 && b > 0) || a === b || !(n >= 2 && n <= 20)) return null;
+  const lo = Math.min(a, b), hi = Math.max(a, b);
+  const prices = Array.from({ length: n }, (_, i) => +(lo + (hi - lo) * i / (n - 1)).toFixed(decimals(m)));
+  const weights = prices.map((_, i) => (ticketAdv.dist === "low" ? n - i : ticketAdv.dist === "high" ? i + 1 : 1));
+  const total = weights.reduce((s, w) => s + w, 0), shares = weights.map((w) => w / total);
+  return { prices, shares, avg: prices.reduce((s, x, i) => s + x * shares[i], 0) };
+}
+
+// the price the ticket's numbers are worked out at
+function ticketRef(m, p) {
+  const quote = p ? (ticket.side === "buy" ? p.ask : p.bid) || p.mark : 0;
+  if (ticket.kind === "limit") return +$("#tkPrice").value || quote;
+  if (ticket.kind === "conditional") return (ticketAdv.exec === "limit" && +$("#tkPrice").value) || +$("#tkTrig").value || quote;
+  if (ticket.kind === "scale") { const s = scalePreview(m); return s ? s.avg : quote; }
+  return quote;
+}
+
+function renderAdvHints(m, p, qty) {
+  const mark = p && p.mark, buy = ticket.side === "buy";
+  const trig = +$("#tkTrig").value;
+  $("#tkCondHint").textContent = ticket.kind === "conditional" && trig > 0 && mark
+    ? t(trig > mark ? "Si attiva quando il mark sale a {p}." : "Si attiva quando il mark scende a {p}.", { p: fp(trig, m) }) : "";
+  const mins = +$("#tkTwapMin").value;
+  if (ticket.kind === "twap") {
+    const end = mins >= 5 ? new Date(Date.now() + mins * 60000).toLocaleString(LOCALE, { weekday: "short", hour: "2-digit", minute: "2-digit" }) : "—";
+    const px = +$("#tkTwapPx").value;
+    $("#tkTwapHint").textContent = t("Finisce {end}.", { end }) + " " + (px ? t(buy ? "Non compra sopra {p}." : "Non vende sotto {p}.", { p: fp(px, m) }) : t("Senza limite, si ferma al 5% dal prezzo attuale."));
+  }
+  if (ticket.kind === "scale") {
+    const s = scalePreview(m);
+    $("#tkScaleHint").textContent = s && qty ? t("{n} ordini da {a} a {b}, media {avg}.", { n: s.prices.length, a: fp(s.prices[0], m), b: fp(s.prices[s.prices.length - 1], m), avg: fp(s.avg, m) }) : "";
+  }
+}
+
+async function loadTwapFees() {
+  if (ticketAdv.twapFees) return;
+  ticketAdv.twapFees = await api("/twap_fees").catch(() => null);
+  updateTicketSummary();
+}
+
+// what a TWAP costs on this account's plan; it has its own fee, even where the rest is free
+const twapRate = () => {
+  const fees = ticketAdv.twapFees || {}, tier = (account && account.fees && account.fees.tier) || "standard";
+  return fees[tier] ?? fees.standard ?? 0;
+};
+
+function wireAdvOrders() {
+  const menu = $("#advMenu");
+  $("#advBtn").onclick = (e) => { e.stopPropagation(); menu.classList.toggle("hidden"); fitInView(menu); };
+  menu.onclick = (e) => {
+    e.stopPropagation();
+    const b = e.target.closest("[data-adv]");
+    if (!b) return;
+    ticket.kind = b.dataset.adv;
+    menu.classList.add("hidden");
+    if (ticket.kind === "twap") loadTwapFees();
+    renderTicket();
+  };
+  document.addEventListener("click", () => menu.classList.add("hidden"));
+  $("#tkCondExec").onclick = (e) => {
+    const b = e.target.closest("[data-exec]");
+    if (!b) return;
+    ticketAdv.exec = b.dataset.exec;
+    if (ticketAdv.exec === "limit" && !$("#tkPrice").value) fillMid();
+    renderTicket();
+  };
+  $("#tkScaleDist").onclick = (e) => { const b = e.target.closest("[data-dist]"); if (b) { ticketAdv.dist = b.dataset.dist; renderTicket(); } };
+  $("#tkTwapChips").onclick = (e) => { const b = e.target.closest("[data-min]"); if (b) { $("#tkTwapMin").value = b.dataset.min; updateTicketSummary(); } };
+  $$(".adv-box input").forEach((el) => {
+    el.oninput = updateTicketSummary;
+    el.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); $("#tkExec").click(); } });
+  });
+}
+
 function updateTicketSummary() {
   if (activePair()) return updatePairSummary();
   const m = activeMarket();
@@ -1697,7 +1804,7 @@ function updateTicketSummary() {
   const size = +$("#tkSize").value;
   const unit = $("#tkUnit").value;
   const sl = +$("#tkSl").value;
-  const ref = ticket.kind === "limit" && +$("#tkPrice").value ? +$("#tkPrice").value : p ? (ticket.side === "buy" ? p.ask : p.bid) || p.mark : 0;
+  const ref = m ? ticketRef(m, p) : 0;
   let qty = null;
   if (m && ref && size > 0) {
     if (unit === "usd") qty = size / ref;
@@ -1747,7 +1854,7 @@ const riskNeedsStop = (ref) => $("#tkUnit").value === "risk_usd" && !(+$("#tkSl"
 
 function sizeFromPct(pct) {
   const m = activeMarket(), p = m && prices[m.id], unit = $("#tkUnit").value;
-  const ref = ticket.kind === "limit" && +$("#tkPrice").value ? +$("#tkPrice").value : p ? (ticket.side === "buy" ? p.ask : p.bid) || p.mark : 0;
+  const ref = ticketRef(m, p);
   const max = sliderMax(m, ref);
   if (!max || riskNeedsStop(ref)) return;
   const qty = max * Math.max(0, Math.min(100, pct)) / 100;
@@ -1826,10 +1933,16 @@ function renderTicketEstimates(m, p, qty, entry) {
   const feePct = (r) => +((r || 0) * 100).toFixed(3);
   $("#tkFee").textContent = `${qty ? fusd(feeUsd) + " · " : ""}T ${feePct(rates.taker)}% · M ${feePct(rates.maker)}%`;
   $("#tkFee").classList.toggle("hidden", !rates.taker && !rates.maker); // no fees, no row
-  const fillPx = ticket.kind === "market" ? renderEstFill(m, qty, entry) || entry : entry;
+  if (ticket.kind === "twap") { // its own fee, shown even on a plan with no others
+    const rate = twapRate();
+    $("#tkFee").textContent = `${qty ? fusd(notional * rate) + " · " : ""}TWAP ${feePct(rate)}%`;
+    $("#tkFee").classList.toggle("hidden", !rate);
+  }
+  renderAdvHints(m, p, qty);
+  const fillPx = ticket.kind === "market" ? renderEstFill(m, qty, entry) || entry : (renderEstFill(m, null, entry), entry);
   refreshEstBook(m, qty, entry);
   // SL/TP fill within the same slippage as the order
-  const hasStops = !reduce && (+$("#tkSl").value > 0 || +$("#tkTp").value > 0 || !!readTpLevels());
+  const hasStops = isBasicKind() && !reduce && (+$("#tkSl").value > 0 || +$("#tkTp").value > 0 || !!readTpLevels());
   for (const id of ["#tkTpslSlipDt", "#tkTpslSlip"]) $(id).classList.toggle("hidden", !hasStops);
   $("#tkTpslSlip").textContent = t("max {m}%", { m: +((+$("#tkSlip").value || 50) / 100).toFixed(2) });
   const mark = p && p.mark;
@@ -1864,7 +1977,13 @@ function renderTicketEstimates(m, p, qty, entry) {
     $("#tkEntry").textContent = changes ? `${fp(curPos.entry, m)} → ${closes ? "—" : fp(nextEntry, m)}` : fp(curPos.entry, m);
   }
   const draft = { market: m.id, side, entry, liq: qty && !reduce ? liq : null, lines: [] };
-  if (ticket.kind === "limit" && +$("#tkPrice").value) draft.lines.push({ kind: "limit", price: entry, title: `LIMIT ${side > 0 ? "BUY" : "SELL"}${qty ? " " + fsize(qty, m) : ""}` });
+  const sideWord = side > 0 ? "BUY" : "SELL", sizeWord = qty ? " " + fsize(qty, m) : "";
+  if (hasLimitField() && +$("#tkPrice").value) draft.lines.push({ kind: "limit", price: +$("#tkPrice").value, title: `LIMIT ${sideWord}${ticket.kind === "limit" ? sizeWord : ""}` });
+  if (ticket.kind === "conditional" && +$("#tkTrig").value > 0) draft.lines.push({ kind: "limit", label: "COND", input: $("#tkTrig"), price: +$("#tkTrig").value, title: `COND ${sideWord}${sizeWord}` });
+  if (ticket.kind === "scale") { // one line per order; they move with the two prices in the ticket
+    const s = scalePreview(m);
+    if (s) s.prices.forEach((price, i) => draft.lines.push({ kind: "limit", fixed: true, price, title: `${i + 1}/${s.prices.length} ${sideWord}${qty ? " " + fsize(qty * s.shares[i], m) : ""}` }));
+  }
   // The ticket's SL/TP are position-tied on Lighter (size 0): when they fire they close the whole position.
   // So with a position already open on this side, the outcome is for the position plus this order,
   // at their average entry; the side check still uses this order's price.
@@ -1872,8 +1991,8 @@ function renderTicketEstimates(m, p, qty, entry) {
   const held = pos && !reduce && Math.sign(pos.size) === side ? Math.abs(pos.size) : 0;
   const totQty = (qty || 0) + held;
   const avgEntry = totQty ? ((qty || 0) * entry + (held ? held * pos.entry : 0)) / totQty : entry;
-  const levels = readTpLevels();
-  for (const [id, isSL] of levels ? [["Sl", true]] : [["Sl", true], ["Tp", false]]) {
+  const levels = isBasicKind() ? readTpLevels() : null;
+  for (const [id, isSL] of !isBasicKind() ? [] : levels ? [["Sl", true]] : [["Sl", true], ["Tp", false]]) {
     const trigger = +$("#tk" + id).value;
     const out = $(`#tk${id}Out`);
     const check = Formulas.sltpOutcome({ isSL, side, entry, trigger, qty: qty || 1, leverage });
@@ -1901,7 +2020,7 @@ function renderTicketEstimates(m, p, qty, entry) {
       draft.lines.push({ kind: "tp", price: l.price, label: `TP${i + 1}`, input: inputs[i], title: `TP${i + 1} ${+l.pct.toFixed(1)}%${outcome}` });
     });
   }
-  draft.lines.push(...trailDraft(m, side, entry, leverage));
+  if (isBasicKind()) draft.lines.push(...trailDraft(m, side, entry, leverage));
   setTicketDraft(draft);
 }
 
@@ -2271,7 +2390,7 @@ function positionStops(p) {
   const out = {};
   for (const o of openOrders[p.market_id] || []) {
     const kind = orderKind(o);
-    if (kind === "LIMIT" || o.is_ask !== p.size > 0) continue;
+    if ((kind !== "SL" && kind !== "TP") || o.is_ask !== p.size > 0) continue;
     if (kind === "SL" && s && s.stop && Math.abs(o.trigger_price - s.stop) < tick * 1.5) continue;
     const k = kind.toLowerCase(), cur = out[k];
     if (!cur || Math.abs(o.trigger_price - mark) < Math.abs(cur.trigger_price - mark)) out[k] = o;
@@ -4053,6 +4172,7 @@ function wireTrail() {
   wireTpLevels();
   wireBadges();
   wireCardTables();
+  wireAdvOrders();
   wirePairGroup();
   wireEventTrades();
   $("#mktSpread").onclick = openSpreadPicker;
@@ -4603,6 +4723,7 @@ function setMode(simple, save = true) {
     if ($("#tkTrail").checked) { $("#tkTrail").checked = false; renderTicketTrail(); }
     const levels = readTpLevels();
     if (levels) { $("#tkTp").value = levels[0] && levels[0].price ? levels[0].price : ""; renderTpLevels(null); }
+    if (!isBasicKind()) ticket.kind = "market"; // the advanced orders are a Pro tool
     if (["auto", "activity"].includes(curView)) switchView("trade");
     if (!$("#btab-log").classList.contains("hidden")) switchBottom("positions");
     if (activePair() && !$("#picker").classList.contains("hidden")) closePalette();

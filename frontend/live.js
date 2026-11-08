@@ -12,7 +12,7 @@ const Live = (() => {
   const SLIP = 0.005;   // worst-price margin of closes and SL/TP, as the server's MAX_SLIPPAGE_PCT
   const ORDERS_TTL = 4000;
   // order types and time in force, as the signer numbers them
-  const LIMIT = 0, MARKET = 1, STOP_LOSS = 2, TAKE_PROFIT = 4;
+  const LIMIT = 0, MARKET = 1, STOP_LOSS = 2, STOP_LOSS_LIMIT = 3, TAKE_PROFIT = 4, TAKE_PROFIT_LIMIT = 5, TWAP = 6;
   const IOC = 0, GTT = 1, POST_ONLY = 2;
   const OTO = 1, OTOCO = 3;
 
@@ -274,6 +274,28 @@ const Live = (() => {
     if (o.trail || o.tp_levels) needAuto();
     const pl = plan(o, true), m = mkt(o.market_id), signed = pl.size * pl.side;
     const before = (position(m.id) || {}).size || 0;
+    if (o.kind === "conditional") { // waits for the mark, then a market order or a limit (lighter_api.conditional_order)
+      const limit = o.cond_exec === "limit";
+      await createOrder(m, { coi: coi(), base: sizeInt(m, signed), price: priceInt(m, roundPrice(m, pl.worst)), isAsk: signed < 0,
+        type: pl.cond_stop ? (limit ? STOP_LOSS_LIMIT : STOP_LOSS) : (limit ? TAKE_PROFIT_LIMIT : TAKE_PROFIT), tif: limit ? GTT : IOC,
+        reduce: !!o.reduce_only, trigger: priceInt(m, roundPrice(m, o.trigger_price)), expiry: -1 });
+      note(`conditional ${o.side} ${pl.size} ${m.symbol} @ ${o.trigger_price}`, "warning");
+      return { ok: true, size: pl.size, armed: auto.armed };
+    }
+    if (o.kind === "twap") { // Lighter splits it over the time, never past the price
+      await createOrder(m, { coi: coi(), base: sizeInt(m, signed), price: priceInt(m, roundPrice(m, pl.worst)), isAsk: signed < 0, type: TWAP, tif: GTT,
+        reduce: !!o.reduce_only, expiry: Date.now() + o.twap_minutes * 60000 });
+      note(`twap ${o.side} ${pl.size} ${m.symbol} over ${o.twap_minutes}m`, "warning");
+      return { ok: true, size: pl.size, armed: auto.armed };
+    }
+    if (o.kind === "scale") { // several limits, each its own transaction
+      for (const [i, x] of pl.scale_levels.entries()) {
+        try { await limitOrder(m, x.qty * pl.side, x.price, !!o.reduce_only, !!o.post_only); }
+        catch (e) { err(t("Scale: {i} ordini su {n} inviati, poi: {err}", { i, n: pl.scale_levels.length, err: e.message })); }
+      }
+      note(`scale ${o.side} ${pl.size} ${m.symbol}, ${pl.scale_levels.length} orders`, "warning");
+      return { ok: true, size: pl.size, armed: auto.armed };
+    }
     if (o.reduce_only) {
       if (o.kind === "limit") await limitOrder(m, signed, o.price, true, o.post_only);
       else await marketOrder(m, signed, pl.ref, true, pl.slippage_bps / 10000);
@@ -313,6 +335,7 @@ const Live = (() => {
     const o = (await activeOrders(market_id, true)).find((x) => x.order_index === +order_index) || err(t("Ordine non trovato: forse è già stato eseguito o annullato"));
     price = roundPrice(m, price);
     if (price <= 0) err(t("Prezzo non valido"));
+    if (o.type === "twap") err(t("Un TWAP non si sposta: annullalo e inviane un altro"));
     const p = prices[market_id] || {};
     if (o.trigger_price) {
       const isSl = /stop/.test(o.type);

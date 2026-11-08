@@ -181,6 +181,19 @@ const Paper = (() => {
   }
 
   // ---------- orders (the server's /api/preview and /api/order) ----------
+  // a scale order's prices and each one's share of the size
+  function scalePrices(o, m) {
+    const n = o.scale_count;
+    if (!(n >= 2 && n <= 20)) err(t("Scale: da 2 a 20 ordini"));
+    if (!(o.scale_from > 0 && o.scale_to > 0) || o.scale_from === o.scale_to) err(t("Scale: inserisci i due prezzi"));
+    if (o.unit === "risk_usd") err(t("Scale: usa USD, quantità o % capitale"));
+    const lo = Math.min(o.scale_from, o.scale_to), hi = Math.max(o.scale_from, o.scale_to);
+    const prices = Array.from({ length: n }, (_, i) => roundPrice(lo + (hi - lo) * i / (n - 1), m));
+    const weights = prices.map((_, i) => (o.scale_dist === "low" ? n - i : o.scale_dist === "high" ? i + 1 : 1));
+    const total = weights.reduce((s, w) => s + w, 0);
+    return { prices, shares: weights.map((w) => w / total) };
+  }
+
   // ctx: where prices and the account come from; live trading with the key in the browser (live.js)
   // sizes its orders here too, with Lighter's account
   function plan(o, checkSides = true, ctx = { px, account }) {
@@ -188,10 +201,18 @@ const Paper = (() => {
     const side = o.side === "buy" ? 1 : -1;
     const p = ctx.px(m.id);
     const markOf = (id) => { const q = ctx.px(id); return q && q.mark ? q.mark : null; };
+    if (["conditional", "twap", "scale"].includes(o.kind) && (o.sl_price || o.tp_price || o.trail || o.tp_levels)) err(t("SL, TP e trailing si aggiungono alla posizione dopo l'ordine"));
+    const scale = o.kind === "scale" ? scalePrices(o, m) : null;
     let ref;
     if (o.kind === "limit") {
       if (!o.price) err(t("Gli ordini limit richiedono un prezzo"));
       ref = o.price;
+    } else if (o.kind === "conditional") {
+      if (!(o.trigger_price > 0)) err(t("Inserisci il prezzo di attivazione"));
+      if (o.cond_exec === "limit" && !o.price) err(t("Gli ordini limit richiedono un prezzo"));
+      ref = o.cond_exec === "limit" ? o.price : o.trigger_price;
+    } else if (scale) {
+      ref = scale.prices.reduce((s, x, i) => s + x * scale.shares[i], 0);
     } else {
       ref = p && (side > 0 ? p.ask : p.bid) || markOf(m.id);
       if (!ref) err(t("Nessun prezzo per questo mercato in questo momento"));
@@ -227,13 +248,60 @@ const Paper = (() => {
     }
     const levels = o.tp_levels ? exitLevels(o, m, size, side, ref, o.kind === "market" ? markOf(m.id) : null, checkSides) : null;
     const slip = o.slippage_bps ?? 50;
-    const worst = o.kind === "limit" ? ref : ref * (1 + side * slip / 10000);
-    return { size, side, ref, worst: roundPrice(worst, m), notional: size * ref, slippage_bps: slip, ...(levels ? { tp_levels: levels } : {}) };
+    let worst = o.kind === "limit" || (o.kind === "conditional" && o.cond_exec === "limit") ? ref : ref * (1 + side * slip / 10000);
+    const extra = {};
+    if (o.kind === "twap") {
+      if (!(o.twap_minutes >= 5 && o.twap_minutes <= 43200)) err(t("La durata del TWAP va da 5 minuti a 30 giorni"));
+      worst = o.price || ref * (1 + side * 0.05); // no price given: it stops 5% away from where it started
+    } else if (o.kind === "conditional") {
+      const at = markOf(m.id) || ref;
+      extra.cond_stop = side > 0 ? o.trigger_price > at : o.trigger_price < at; // Lighter's stop types, or its take-profit ones
+    } else if (scale) {
+      let left = size;
+      extra.scale_levels = scale.prices.map((price, i) => {
+        const qty = roundSize(i === scale.prices.length - 1 ? left : size * scale.shares[i], m);
+        left -= qty;
+        if (qty < m.min_base || qty * price < m.min_quote) err(t("Scale: {qty} {sym} a {price} è sotto il minimo dell'exchange ({base} {sym} o {quote} USD). Usa meno ordini o una size più grande.", { qty, sym: m.symbol, price, base: m.min_base, quote: m.min_quote }));
+        return { price, qty };
+      });
+      if (checkSides) for (const x of extra.scale_levels) {
+        if ((side > 0 && p && p.ask && x.price >= p.ask) || (side < 0 && p && p.bid && x.price <= p.bid)) err(t("Scale: {price} attraverserebbe il prezzo e verrebbe eseguito subito", { price: x.price }));
+      }
+    }
+    return { size, side, ref, worst: roundPrice(worst, m), notional: size * ref, slippage_bps: slip, ...(levels ? { tp_levels: levels } : {}), ...extra };
   }
 
   function placeOrder(o) {
     const pl = plan(o);
     const m = mkt(o.market_id), id = m.id, qty = pl.side * pl.size, p = px(id);
+    if (o.kind === "conditional") {
+      const limit = o.cond_exec === "limit";
+      S.orders.push({ order_index: S.next++, client_order_index: 0, market_id: id, is_ask: pl.side < 0, type: (pl.cond_stop ? "stop-loss" : "take-profit") + (limit ? "-limit" : ""),
+        price: pl.worst, trigger_price: roundPrice(o.trigger_price, m), remaining: pl.size, reduce_only: !!o.reduce_only, status: "open", cond: true, ts: now() });
+      note(t("Paper: condizionale {side} {size} {sym} a {price}", { side: o.side, size: pl.size, sym: m.symbol, price: fp(o.trigger_price, m) }));
+      changed = true;
+      save();
+      return { ok: true, size: pl.size, armed: true };
+    }
+    if (o.kind === "twap") {
+      S.orders.push({ order_index: S.next++, client_order_index: 0, market_id: id, is_ask: pl.side < 0, type: "twap", price: pl.worst, trigger_price: 0, remaining: pl.size,
+        total: pl.size, start: now(), end: now() + o.twap_minutes * 60000, reduce_only: !!o.reduce_only, status: "open", ts: now() });
+      note(t("Paper: TWAP {side} {size} {sym} in {min} minuti", { side: o.side, size: pl.size, sym: m.symbol, min: o.twap_minutes }));
+      changed = true;
+      save();
+      return { ok: true, size: pl.size, armed: true };
+    }
+    if (o.kind === "scale") {
+      if (!o.reduce_only) checkMargin(id, qty, pl.ref);
+      for (const x of pl.scale_levels) {
+        S.orders.push({ order_index: S.next++, client_order_index: 0, market_id: id, is_ask: pl.side < 0, type: "limit", price: x.price, trigger_price: 0, remaining: x.qty,
+          reduce_only: !!o.reduce_only, status: "open", post_only: !!o.post_only, ts: now() });
+      }
+      note(t("Paper: scale {side} {size} {sym}, {n} ordini", { side: o.side, size: pl.size, sym: m.symbol, n: pl.scale_levels.length }));
+      changed = true;
+      save();
+      return { ok: true, size: pl.size, armed: true };
+    }
     if (o.trail) trailFields(o.trail);
     let fillQty = qty;
     if (o.reduce_only) {
@@ -475,13 +543,15 @@ const Paper = (() => {
     const m = mkt(market_id), o = findOrder(market_id, order_index), p = px(market_id) || {};
     price = roundPrice(price, m);
     if (price <= 0) err(t("Prezzo non valido"));
+    if (o.type === "twap") err(t("Un TWAP non si sposta: annullalo e inviane un altro"));
     if (o.trigger_price) {
-      const isSl = o.type === "stop-loss", below = isSl === o.is_ask, mark = p.mark;
+      const isSl = /^stop/.test(o.type), below = isSl === o.is_ask, mark = p.mark;
       if (mark && (below ? price >= mark : price <= mark)) {
         const what = isSl ? t("Lo stop-loss") : t("Il take-profit");
         err(t(below ? "{what} deve stare sotto il prezzo mark ({mark}), altrimenti scatterebbe subito" : "{what} deve stare sopra il prezzo mark ({mark}), altrimenti scatterebbe subito", { what, mark: +mark.toPrecision(10) }));
       }
-      o.trigger_price = o.price = price;
+      o.price = o.cond ? roundPrice(o.price * price / o.trigger_price, m) : price; // a conditional keeps its gap
+      o.trigger_price = price;
     } else {
       if ((!o.is_ask && p.ask && price >= p.ask) || (o.is_ask && p.bid && price <= p.bid))
         err(t("Il limite attraverserebbe il prezzo e verrebbe eseguito subito"));
@@ -615,6 +685,34 @@ const Paper = (() => {
     try { stepAll(); } finally { auto = false; }
   }
 
+  // a TWAP fills evenly over its time, at the market's price as long as that is within its limit
+  const TWAP_FEE = 0.0001; // Lighter's standard plan
+  function stepTwap(o, p, m, pos) {
+    const t0 = now(), done = Math.min(1, (t0 - o.start) / (o.end - o.start));
+    let due = roundSize(o.total * done - (o.total - o.remaining), m);
+    if (t0 >= o.end) due = o.remaining;
+    const price = (o.is_ask ? p.bid : p.ask) || p.mark;
+    const within = o.is_ask ? price >= o.price : price <= o.price;
+    if (due >= 10 ** -m.size_decimals && due * price >= 1 && within) {
+      let qty = (o.is_ask ? -1 : 1) * Math.min(due, o.remaining);
+      if (o.reduce_only) qty = pos && Math.sign(pos.size) !== Math.sign(qty) ? Math.sign(qty) * Math.min(Math.abs(qty), Math.abs(pos.size)) : 0;
+      if (qty) {
+        try {
+          if (!o.reduce_only) checkMargin(o.market_id, qty, price);
+          fill(o.market_id, qty, price, "taker", o.order_index);
+          S.cash -= Math.abs(qty) * price * TWAP_FEE;
+          o.remaining = roundSize(o.remaining - Math.abs(qty), m);
+          changed = true;
+        } catch { o.remaining = 0; note(t("Paper: TWAP su {sym} fermato: margine insufficiente", { sym: m.symbol }), "error"); }
+      }
+    }
+    if (t0 >= o.end || o.remaining < 10 ** -m.size_decimals) {
+      S.orders.splice(S.orders.indexOf(o), 1);
+      changed = true;
+      note(t("Paper: TWAP su {sym} finito", { sym: m.symbol }));
+    }
+  }
+
   function stepAll() {
     for (const o of [...S.orders]) {
       const p = px(o.market_id), m = byId[o.market_id];
@@ -636,6 +734,26 @@ const Paper = (() => {
           if (o.trail) setStop(o.market_id, o.trail);
         }
         note(t("Paper: limit eseguito {side} {size} {sym} a {price}", { side: o.is_ask ? "sell" : "buy", size: Math.abs(qty), sym: m.symbol, price: fp(o.price, m) }));
+        continue;
+      }
+      if (o.type === "twap") { stepTwap(o, p, m, pos); continue; }
+      if (o.cond) { // a conditional order: when the mark gets there, a market order or a resting limit
+        const isStop = /^stop/.test(o.type), below = isStop === o.is_ask;
+        if (!(below ? p.mark <= o.trigger_price : p.mark >= o.trigger_price)) continue;
+        changed = true;
+        if (/limit$/.test(o.type)) { Object.assign(o, { type: "limit", trigger_price: 0, cond: false }); continue; }
+        S.orders.splice(S.orders.indexOf(o), 1);
+        let qty = (o.is_ask ? -1 : 1) * o.remaining;
+        if (o.reduce_only) {
+          if (!pos || Math.sign(pos.size) === Math.sign(qty)) continue;
+          qty = Math.sign(qty) * Math.min(Math.abs(qty), Math.abs(pos.size));
+        }
+        const price = replayFill ? replayFill(o.trigger_price, p.mark) : (o.is_ask ? p.bid : p.ask) || p.mark;
+        try {
+          if (!o.reduce_only) checkMargin(o.market_id, qty, price);
+          fill(o.market_id, qty, price, "taker", o.order_index);
+          note(t("Paper: condizionale eseguito {side} {size} {sym} a {price}", { side: o.is_ask ? "sell" : "buy", size: Math.abs(qty), sym: m.symbol, price: fp(price, m) }));
+        } catch (e) { note(e.message, "error"); }
         continue;
       }
       // SL/TP: reduce-only triggers on the mark price; gone once there is nothing left to close

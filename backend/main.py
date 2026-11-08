@@ -322,6 +322,19 @@ async def open_orders(market_ids: str = "", fresh: bool = False):
     return out
 
 
+_tiers_cache = (0, {})
+
+
+@app.get("/api/twap_fees")
+async def twap_fees():
+    """TWAP's fee per plan, as a fraction: it has its own, even on the plan with no other fees."""
+    global _tiers_cache
+    if time.time() - _tiers_cache[0] > 3600:
+        data = await api._get("/api/v1/feeTiers")
+        _tiers_cache = (time.time(), {t["name"]: t.get("twap_fee_ticks", 0) / 1e6 for t in data.get("user_tiers", [])})
+    return _tiers_cache[1]
+
+
 _book_cache = {}  # market -> (fetched at, book): many visitors, one request a second to Lighter
 
 
@@ -389,6 +402,16 @@ class OrderReq(BaseModel):
     trail: TrailReq | None = None     # managed stop to start once the order fills
     tp_levels: list[TpLevel] | None = None   # scaled exits instead of tp_price: 2 to 5 levels
     be_after_tp1: bool = True                # with tp_levels: stop to breakeven once TP1 fills
+    # kind "conditional": waits for the mark to reach trigger_price, then a market order or a limit at `price`
+    trigger_price: float | None = None
+    cond_exec: str = "market"                # "market" | "limit"
+    # kind "twap": over twap_minutes, never past `price` (5% from the quote if not given)
+    twap_minutes: int | None = None
+    # kind "scale": scale_count limit orders from scale_from to scale_to
+    scale_from: float | None = None
+    scale_to: float | None = None
+    scale_count: int = 5
+    scale_dist: str = "even"                 # "even" | "low" (more size at the lower prices) | "high"
 
 
 def exit_levels(o: OrderReq, m, size, side, ref, mark, check_sides):
@@ -420,16 +443,49 @@ def exit_levels(o: OrderReq, m, size, side, ref, mark, check_sides):
     return out
 
 
+TWAP_MINUTES = (5, 43200)  # Lighter takes from 5 minutes to 30 days
+TWAP_DEFAULT_BOUND = 0.05  # no price given: it stops 5% away from where it started
+
+
+def scale_prices(o: OrderReq, m):
+    """A scale order's prices and each one's share of the size."""
+    n = o.scale_count
+    if not 2 <= n <= 20:
+        raise Blocked(L("Scale: da 2 a 20 ordini", "Scale: from 2 to 20 orders"))
+    if not (o.scale_from and o.scale_to) or o.scale_from == o.scale_to or o.scale_from < 0 or o.scale_to < 0:
+        raise Blocked(L("Scale: inserisci i due prezzi", "Scale: enter the two prices"))
+    if o.unit == "risk_usd":
+        raise Blocked(L("Scale: usa USD, quantità o % capitale", "Scale: use USD, quantity or % of equity"))
+    lo, hi = sorted((o.scale_from, o.scale_to))
+    prices = [m.round_price(lo + (hi - lo) * i / (n - 1)) for i in range(n)]
+    weights = {"low": list(range(n, 0, -1)), "high": list(range(1, n + 1))}.get(o.scale_dist, [1] * n)
+    total = sum(weights)
+    return prices, [w / total for w in weights]
+
+
 async def plan_order(o: OrderReq, check_sides=True):
     """Size, prices and risk checks for a ticket. Raises Blocked / ValueError."""
     m = api.markets.get(o.market_id)
     if not m:
         raise Blocked(L("Mercato sconosciuto", "Unknown market"))
     side = 1 if o.side == "buy" else -1
+    advanced = o.kind in ("conditional", "twap", "scale")
+    if advanced and (o.sl_price or o.tp_price or o.trail or o.tp_levels):
+        raise Blocked(L("SL, TP e trailing si aggiungono alla posizione dopo l'ordine",
+                        "SL, TP and trailing are added to the position after the order"))
+    scale = scale_prices(o, m) if o.kind == "scale" else None
     if o.kind == "limit":
         if not o.price:
             raise Blocked(L("Gli ordini limit richiedono un prezzo", "Limit orders need a price"))
         ref = o.price
+    elif o.kind == "conditional":
+        if not o.trigger_price or o.trigger_price <= 0:
+            raise Blocked(L("Inserisci il prezzo di attivazione", "Enter the trigger price"))
+        if o.cond_exec == "limit" and not o.price:
+            raise Blocked(L("Gli ordini limit richiedono un prezzo", "Limit orders need a price"))
+        ref = o.price if o.cond_exec == "limit" else o.trigger_price
+    elif scale:
+        ref = sum(p * w for p, w in zip(*scale))
     else:
         ref = risk.quote(o.market_id, side)
     acc = engine.account
@@ -451,7 +507,32 @@ async def plan_order(o: OrderReq, check_sides=True):
     if size <= 0:
         raise Blocked(L("Size sotto la precisione del mercato", "Size is below market precision"))
     slip_bps = o.slippage_bps if o.slippage_bps is not None else risk.limits["slippage_bps_cap"]
-    worst = ref if o.kind == "limit" else ref * (1 + side * slip_bps / 10000)
+    worst = ref if o.kind == "limit" or (o.kind == "conditional" and o.cond_exec == "limit") else ref * (1 + side * slip_bps / 10000)
+    extra = {}
+    if o.kind == "twap":
+        if not o.twap_minutes or not TWAP_MINUTES[0] <= o.twap_minutes <= TWAP_MINUTES[1]:
+            raise Blocked(L("La durata del TWAP va da 5 minuti a 30 giorni", "A TWAP lasts from 5 minutes to 30 days"))
+        worst = o.price or ref * (1 + side * TWAP_DEFAULT_BOUND)
+    elif o.kind == "conditional":
+        at = feed.mark(o.market_id) or ref
+        extra["cond_stop"] = o.trigger_price > at if side > 0 else o.trigger_price < at
+    elif scale:
+        levels_, left = [], size
+        for i, (price, share) in enumerate(zip(*scale)):
+            qty = round(left if i == len(scale[0]) - 1 else size * share, m.size_decimals)
+            left -= qty
+            if qty < m.min_base or qty * price < m.min_quote:
+                raise Blocked(L(f"Scale: {qty:g} {m.symbol} a {price:g} è sotto il minimo dell'exchange ({m.min_base:g} {m.symbol} o {m.min_quote:g} USD). Usa meno ordini o una size più grande.",
+                                f"Scale: {qty:g} {m.symbol} at {price:g} is below the exchange minimum ({m.min_base:g} {m.symbol} or {m.min_quote:g} USD). Use fewer orders or a larger size."))
+            levels_.append({"price": price, "qty": qty})
+        if check_sides:  # a price on the other side of the market would fill at once
+            stats = feed.stats.get(o.market_id) or {}
+            ask, bid = stats.get("ask"), stats.get("bid")
+            for x in levels_:
+                if (side > 0 and ask and x["price"] >= ask) or (side < 0 and bid and x["price"] <= bid):
+                    raise Blocked(L(f"Scale: {x['price']:g} attraverserebbe il prezzo e verrebbe eseguito subito",
+                                    f"Scale: {x['price']:g} would cross the price and fill at once"))
+        extra["scale_levels"] = levels_
     if o.reduce_only and (o.sl_price or o.tp_price or o.trail or o.tp_levels):
         raise Blocked(L("Le chiusure reduce-only non possono avere SL/TP", "Reduce-only closes cannot attach SL/TP"))
     if o.trail:
@@ -463,7 +544,7 @@ async def plan_order(o: OrderReq, check_sides=True):
     await risk.review(acc, o.market_id, side, size, ref, o.sl_price, o.tp_price, slip_bps, o.reduce_only, mark,
                       check_sides=check_sides)
     return {"size": size, "side": side, "ref": ref, "worst": m.round_price(worst), "notional": size * ref,
-            "slippage_bps": slip_bps, **({"tp_levels": levels} if levels else {})}
+            "slippage_bps": slip_bps, **({"tp_levels": levels} if levels else {}), **extra}
 
 
 @app.post("/api/preview")
@@ -485,7 +566,19 @@ async def place_order(o: OrderReq):
     m = api.markets[o.market_id]
     signed = plan["size"] * plan["side"]
     try:
-        if o.reduce_only:
+        if o.kind == "conditional":
+            await api.conditional_order(o.market_id, signed, plan["cond_stop"], o.trigger_price, plan["worst"],
+                                        o.cond_exec == "limit", o.reduce_only)
+        elif o.kind == "twap":
+            await api.twap_order(o.market_id, signed, plan["worst"], o.twap_minutes, o.reduce_only)
+        elif o.kind == "scale":
+            for i, x in enumerate(plan["scale_levels"]):
+                try:
+                    await api.limit_order(o.market_id, x["qty"] * plan["side"], x["price"], reduce_only=o.reduce_only, post_only=o.post_only)
+                except Exception as e:
+                    raise RuntimeError(L(f"Scale: {i} ordini su {len(plan['scale_levels'])} inviati, poi: {e}",
+                                         f"Scale: {i} of {len(plan['scale_levels'])} orders sent, then: {e}"))
+        elif o.reduce_only:
             if o.kind == "limit":
                 await api.limit_order(o.market_id, signed, o.price, reduce_only=True, post_only=o.post_only)
             else:
@@ -926,6 +1019,8 @@ async def move_order(r: MoveReq):
     if not order:
         raise HTTPException(400, L("Ordine non trovato: forse è già stato eseguito o annullato",
                                    "Order not found: it may have filled or been cancelled"))
+    if order["type"] == "twap":
+        raise HTTPException(400, L("Un TWAP non si sposta: annullalo e inviane un altro", "A TWAP can't be moved: cancel it and send another"))
     managed = (engine.market_stop(r.market_id) or {}).get("state", {})
     if managed.get("coi") and managed["coi"] == order["client_order_index"]:
         raise HTTPException(400, L("È lo stop del trailing: cambialo dal bottone Trailing della posizione",

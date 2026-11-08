@@ -589,6 +589,49 @@ class LighterAPI:
             ), label)
         return coi
 
+    async def conditional_order(self, market_id, size, stop, trigger, price, limit=False, reduce_only=False):
+        """An order that waits for the mark to reach `trigger`, then goes at market (`price` is the worst fill)
+        or as a limit at `price`. stop: Lighter's stop types (a buy above the mark, a sell below it), otherwise
+        its take-profit types (a buy below, a sell above)."""
+        import lighter
+
+        S = lighter.SignerClient
+        m = self.markets[market_id]
+        if not reduce_only:
+            self._check_limits(abs(size) * price)
+        elif not self.signer:
+            raise RuntimeError("trading disabled")
+        order_type = ((S.ORDER_TYPE_STOP_LOSS_LIMIT if limit else S.ORDER_TYPE_STOP_LOSS) if stop
+                      else (S.ORDER_TYPE_TAKE_PROFIT_LIMIT if limit else S.ORDER_TYPE_TAKE_PROFIT))
+        coi = self._coi()
+        await self._send(lambda: self.signer.create_order(
+            market_index=market_id, client_order_index=coi, base_amount=m.size_int(size),
+            price=m.price_int(m.round_price(price)), is_ask=size < 0, order_type=order_type,
+            time_in_force=S.ORDER_TIME_IN_FORCE_GOOD_TILL_TIME if limit else S.ORDER_TIME_IN_FORCE_IMMEDIATE_OR_CANCEL,
+            reduce_only=reduce_only, trigger_price=m.price_int(m.round_price(trigger)),
+            api_key_index=self.api_key_index,
+        ), f"conditional {'sell' if size < 0 else 'buy'} {abs(size)} {m.symbol} @ {trigger}")
+        return coi
+
+    async def twap_order(self, market_id, size, price, minutes, reduce_only=False):
+        """Lighter's own TWAP: it splits `size` over `minutes`, never past `price`."""
+        import lighter
+
+        S = lighter.SignerClient
+        m = self.markets[market_id]
+        if not reduce_only:
+            self._check_limits(abs(size) * price)
+        elif not self.signer:
+            raise RuntimeError("trading disabled")
+        coi = self._coi()
+        await self._send(lambda: self.signer.create_order(
+            market_index=market_id, client_order_index=coi, base_amount=m.size_int(size),
+            price=m.price_int(m.round_price(price)), is_ask=size < 0, order_type=S.ORDER_TYPE_TWAP,
+            time_in_force=S.ORDER_TIME_IN_FORCE_GOOD_TILL_TIME, reduce_only=reduce_only,
+            order_expiry=int(time.time() * 1000) + minutes * 60000, api_key_index=self.api_key_index,
+        ), f"twap {'sell' if size < 0 else 'buy'} {abs(size)} {m.symbol} over {minutes}m")
+        return coi
+
     async def set_leverage(self, market_id, leverage, cross=True):
         import lighter
 

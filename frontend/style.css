@@ -1133,3 +1133,19 @@ body.simple .ticket .kv.rows > div:has(> .ticket-extra) { display: none; }
 body.simple .ticket-extra { display: none !important; }
 .size-pct.off { opacity: .4; }
 .size-pct.off input[type="range"] { cursor: not-allowed; }
+
+/* ================= ticket: advanced orders ================= */
+.adv-pick { position: relative; margin-left: auto; }
+#advBtn { display: inline-flex; align-items: center; gap: 4px; padding: 4px 0 8px; color: var(--muted); border-bottom: 1px solid transparent; margin-bottom: -1px; }
+#advBtn:hover { color: var(--text); }
+#advBtn.active { color: var(--text); border-bottom-color: var(--text); }
+.adv-menu { width: 230px; }
+.adv-box { display: none; margin-bottom: 12px; }
+.ticket[data-kind="conditional"] .adv-conditional, .ticket[data-kind="twap"] .adv-twap, .ticket[data-kind="scale"] .adv-scale { display: block; }
+.ticket.pair .adv-box { display: none; }
+.adv-box .chips { margin-bottom: 10px; }
+.adv-seg { margin-bottom: 8px; }
+.adv-seg button { flex: 1; }
+.adv-box .trail-hint:empty { display: none; }
+.ticket:not([data-kind="market"]):not([data-kind="limit"]) .basic-only { display: none !important; }
+body.simple .adv-pick { display: none; }
