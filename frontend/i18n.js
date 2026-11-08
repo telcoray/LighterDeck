@@ -39,6 +39,7 @@ const EN = {
   "Cambia tema": "Change theme",
   "Tema": "Theme",
   "Semplice": "Simple",
+  "Leva: rotella o trascina · clic per cross / isolated": "Leverage: scroll or drag \u00b7 click for cross / isolated",
   "Aggiunge {v} alla size: clicca più volte per sommare": "Adds {v} to the size: click several times to add up",
   "Chiudi la posizione per passare tra cross e isolated": "Close the position to switch between cross and isolated",
   "Paper: {sym} isolated liquidato al prezzo mark": "Paper: {sym} isolated liquidated at the mark price",

@@ -741,8 +741,6 @@ kbd { font-family: var(--mono); font-size: 9.5px; border: 1px solid var(--line-2
 .lev::after { content: ""; width: 0; height: 0; border-left: 3.5px solid transparent; border-right: 3.5px solid transparent; border-top: 4px solid currentColor; opacity: .7; }
 .lev:hover { border-color: var(--text-2); }
 .lev.iso { color: var(--amber); border-color: color-mix(in srgb, var(--amber) 55%, transparent); }
-.levbox { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 10px; margin-bottom: 12px; }
-.levmode { margin-bottom: 8px; }
 .levmode button { flex: 1; }
 .hint { color: var(--muted); font-size: 10.5px; line-height: 1.45; margin: 0 0 8px; }
 .risk-note { margin-bottom: 8px; padding: 8px 10px; border-radius: var(--r); font-size: 11px; line-height: 1.45; color: var(--amber); background: rgba(232,177,74,.07); border: 1px solid rgba(232,177,74,.25); }
@@ -1097,3 +1095,14 @@ body.browser-key :is(.pair-add, #mktSpread) { display: none !important; }
   .cp-block .chipsel button { flex: none; }
   .cp-select { width: 112px; flex: none; height: 26px; }
 }
+
+/* ================= leverage: a wheel on the ticket's button ================= */
+.lev { touch-action: none; cursor: ns-resize; user-select: none; }
+.lev-drum { position: fixed; z-index: 40; width: 112px; padding: 0 6px 6px; background: var(--surface); border: 1px solid var(--float-border); border-radius: var(--float-radius); box-shadow: var(--float-shadow); touch-action: none; user-select: none; }
+.lev-cyl { position: relative; height: 138px; overflow: hidden; perspective: 420px; cursor: ns-resize; }
+/* the band of the chosen value, across the cylinder's front */
+.lev-cyl::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 26px; margin-top: -13px; border-block: 1px solid var(--line-3); background: var(--raised); border-radius: 4px; pointer-events: none; }
+.lev-row { position: absolute; left: 0; right: 0; top: 50%; height: 26px; margin-top: -13px; display: flex; align-items: center; justify-content: center; font-family: var(--mono); font-size: 13px; color: var(--muted); backface-visibility: hidden; transform-style: preserve-3d; }
+.lev-row.on { color: var(--text); font-weight: 600; }
+.lev-drum .levmode { margin-top: 6px; }
+.lev-drum .levmode button { flex: 1; min-width: 0; padding: 0 2px; font-size: 10px; }

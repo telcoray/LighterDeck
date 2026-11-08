@@ -718,3 +718,4 @@ Object.assign(DICTS.zh, {
   "Paper: {sym} isolated liquidated at the mark price": "模拟：{sym} 逐仓按标记价格被强平",
 });
 Object.assign(DICTS.zh, { "Adds {v} to the size: click several times to add up": "在数量上加 {v}：多次点击可累加" });
+Object.assign(DICTS.zh, { "Leverage: scroll or drag \u00b7 click for cross / isolated": "杠杆：滚动或拖动 · 点击切换全仓 / 逐仓" });

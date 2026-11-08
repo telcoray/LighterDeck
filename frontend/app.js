@@ -1525,9 +1525,9 @@ function renderTicket() {
   if (!m) return;
   $("#tkSym").textContent = m.symbol;
   const pos = account && account.positions.find((p) => p.market_id === m.id);
-  const set = account && account.settings && account.settings[m.id];
-  const lev = set ? set.leverage : m.default_leverage;
-  $("#tkLev").textContent = `${lev ? lev + "x " : ""}${set && !set.cross ? "Isolated" : "Cross"}`;
+  const set = levSet(m);
+  const levNow = set ? set.leverage : m.default_leverage;
+  $("#tkLev").textContent = `${levNow ? levNow + "x " : ""}${set && !set.cross ? "Isolated" : "Cross"}`;
   $("#tkLev").classList.toggle("iso", !!(set && !set.cross));
   $("#tkAvail").textContent = account ? fusd(account.available) : "—";
   $("#tkPos").innerHTML = pos ? `<span class="${pos.size > 0 ? "up" : "down"}">${pos.size > 0 ? "Long" : "Short"} ${fsize(pos.size, m)}</span>` : "—";
@@ -1716,7 +1716,7 @@ function updateTicketSummary() {
 // margin, fees, liquidation and SL/TP outcome (formulas.js, ported from lighter-ts)
 function renderTicketEstimates(m, p, qty, entry) {
   const side = ticket.side === "buy" ? 1 : -1;
-  const set = account && account.settings && account.settings[m.id];
+  const set = levSet(m);
   const leverage = (set && set.leverage) || m.default_leverage;
   const notional = qty ? qty * entry : 0;
   const isMaker = ticket.kind === "limit" && $("#tkPost").checked;
@@ -1831,6 +1831,7 @@ function ticketMsg(text, kind) {
 
 async function executeTicket(byMouse = false) {
   if (activePair()) return executePair(byMouse);
+  if (!(await levFlush())) return; // the leverage on screen didn't go through: no order on the wrong one
   const m = activeMarket();
   const size = +$("#tkSize").value;
   if (!m || !(size > 0)) return ticketMsg(t("Inserisci una size valida."), "err");
@@ -3096,20 +3097,247 @@ function renderLimitValues() {
   }
 }
 
-let levCross = true;
-function openLeverage() {
-  const m = activeMarket();
-  const box = $("#levBox");
-  if (!box.classList.contains("hidden")) { box.classList.add("hidden"); return; }
+// ---------- leverage: a wheel on the ticket's button ----------
+// Mouse wheel or finger on the button turn a drum of 1x…max right there, no window to open: down towards the
+// maximum, up towards 1x, and it stops dead at both ends. A change is sent once the drum has rested for a moment,
+// because on Lighter each one is a transaction; an order about to go out sends a waiting one first.
+const LEV_ROW = 26, LEV_STEP_DEG = 20, LEV_SEND_MS = 800, LEV_IDLE_CLOSE_MS = 1400;
+const LEV_RADIUS = LEV_ROW / (2 * Math.tan((LEV_STEP_DEG / 2) * Math.PI / 180));
+const lev = { open: false, pinned: false, market: null, max: 1, pos: 0, target: 0, cross: true, raf: 0, last: 0,
+  drag: null, sendTimer: 0, closeTimer: 0, snapTimer: 0, pending: null, sending: null };
+
+// the market's settings, with a change that is on its way counted as made
+function levSet(m) {
   const set = account && account.settings && account.settings[m.id];
-  const cap = info.limits && info.limits.on && info.limits.on.leverage_cap ? info.limits.leverage_cap : null;
-  $("#levInput").value = set ? Math.round(set.leverage) : Math.min(m.default_leverage || 5, cap || Infinity);
-  $("#levInput").max = m.max_leverage || 50;
-  levCross = set ? set.cross : true;
-  $$(".levmode button").forEach((b) => b.classList.toggle("active", (b.dataset.cross === "1") === levCross));
-  $("#levHint").textContent = cap ? t("{sym}: massimo dell'exchange {max}x, tuo limite {cap}x.", { sym: m.symbol, max: m.max_leverage || "—", cap })
-    : t("{sym}: massimo dell'exchange {max}x.", { sym: m.symbol, max: m.max_leverage || "—" });
-  box.classList.remove("hidden");
+  const p = lev.pending;
+  if (!p || p.id !== m.id) return set;
+  if ((set && set.leverage === p.leverage && set.cross === p.cross) || Date.now() - p.at > 15000) { lev.pending = null; return set; }
+  return { leverage: p.leverage, cross: p.cross };
+}
+
+function levMax(m) {
+  const cap = info.limits && info.limits.on && info.limits.on.leverage_cap ? info.limits.leverage_cap : Infinity;
+  return Math.max(1, Math.floor(Math.min(m.max_leverage || 50, cap)));
+}
+
+function levPlace() {
+  const r = $("#tkLev").getBoundingClientRect(), box = $("#levDrum");
+  // the drum's centre row sits on the button, as if the button had become the wheel
+  const top = r.top + r.height / 2 - $("#levCyl").offsetHeight / 2;
+  box.style.top = Math.max(4, Math.min(innerHeight - box.offsetHeight - 4, top)) + "px";
+  box.style.left = Math.max(4, Math.min(innerWidth - box.offsetWidth - 4, r.right - box.offsetWidth)) + "px";
+}
+
+function levOpen(pinned) {
+  const m = activeMarket();
+  if (!m || activePair()) return false;
+  if (!info.trading) { toast(t("Sola lettura: nessuna API key"), true); return false; }
+  if (lev.open) { lev.pinned = lev.pinned || pinned; return true; }
+  const set = levSet(m);
+  lev.market = m;
+  lev.max = levMax(m);
+  lev.cross = set ? set.cross !== false : true;
+  lev.last = Math.max(1, Math.min(lev.max, Math.round(set ? set.leverage : Math.min(m.default_leverage || 5, lev.max))));
+  lev.pos = lev.target = lev.last - 1;
+  lev.open = true;
+  lev.pinned = pinned;
+  $("#levCyl").innerHTML = Array.from({ length: lev.max }, (_, i) => `<div class="lev-row" data-lev="${i + 1}">${i + 1}x</div>`).join("");
+  $$("#levDrum .levmode button").forEach((b) => b.classList.toggle("active", (b.dataset.cross === "1") === lev.cross));
+  $("#levDrum").classList.remove("hidden");
+  levPlace();
+  levDraw();
+  return true;
+}
+
+// the drum on the value it is heading for, at once
+function levSettle() {
+  if (!lev.open) return;
+  lev.drag = null;
+  lev.target = lev.pos = Math.round(lev.target);
+  levDraw();
+}
+
+function levClose() {
+  if (!lev.open) return;
+  levSettle();
+  lev.open = lev.pinned = false;
+  cancelAnimationFrame(lev.raf);
+  lev.raf = 0;
+  clearTimeout(lev.closeTimer);
+  clearTimeout(lev.snapTimer);
+  $("#levDrum").classList.add("hidden");
+  if (lev.sendTimer) levSend(); // what is showing is what gets set
+}
+
+function levDraw() {
+  $$("#levCyl .lev-row").forEach((el, i) => {
+    const angle = (lev.pos - i) * LEV_STEP_DEG;
+    const seen = Math.abs(angle) < 80;
+    el.style.visibility = seen ? "visible" : "hidden";
+    if (!seen) return;
+    el.style.transform = `translateZ(${-LEV_RADIUS}px) rotateX(${angle}deg) translateZ(${LEV_RADIUS}px)`;
+    el.style.opacity = Math.max(0.12, Math.cos(angle * Math.PI / 180) ** 2);
+    el.classList.toggle("on", Math.abs(lev.pos - i) < 0.5);
+  });
+  const value = Math.round(lev.pos) + 1;
+  if (value !== lev.last) {
+    lev.last = value;
+    levChanged();
+    if (touchUI() && navigator.vibrate) navigator.vibrate(4); // a tick under the finger
+  }
+}
+
+// the button and the ticket follow at once; the change goes out when the drum rests
+function levChanged() {
+  lev.pending = { id: lev.market.id, leverage: lev.last, cross: lev.cross, at: Date.now() };
+  renderTicket();
+  updateTicketSummary();
+  clearTimeout(lev.sendTimer);
+  lev.sendTimer = setTimeout(levSend, LEV_SEND_MS);
+}
+
+function levAnimate() {
+  if (lev.raf || !lev.open) return;
+  const step = () => {
+    lev.raf = 0;
+    if (!lev.open) return;
+    lev.pos += (lev.target - lev.pos) * 0.3;
+    if (Math.abs(lev.target - lev.pos) < 0.004) lev.pos = lev.target;
+    levDraw();
+    if (lev.pos !== lev.target) lev.raf = requestAnimationFrame(step);
+  };
+  lev.raf = requestAnimationFrame(step);
+}
+
+// a hard stop at both ends: nothing goes past them and nothing springs back
+const levClamp = (v) => Math.max(0, Math.min(lev.max - 1, v));
+
+function levRest() {
+  clearTimeout(lev.closeTimer);
+  if (!lev.pinned) lev.closeTimer = setTimeout(levClose, LEV_IDLE_CLOSE_MS);
+}
+
+async function levSend() {
+  clearTimeout(lev.sendTimer);
+  // still turning, or held by a finger: only the value it comes to rest on goes out
+  if (lev.open && (lev.drag || lev.pos !== lev.target)) { lev.sendTimer = setTimeout(levSend, 200); return; }
+  lev.sendTimer = 0;
+  const p = lev.pending;
+  if (!p) return;
+  const m = byId[p.id], set = account && account.settings && account.settings[p.id];
+  if (set && set.leverage === p.leverage && set.cross === p.cross) { lev.pending = null; return; }
+  const run = api(`/leverage?market_id=${p.id}&leverage=${p.leverage}&cross=${p.cross}`, { method: "POST" }).then(() => {
+    toast(t("{sym}: leva {lev}x {mode} inviata", { sym: m.symbol, lev: p.leverage, mode: p.cross ? "cross" : "isolated" }));
+    return true;
+  }).catch((e) => {
+    toast(e.message, true);
+    if (lev.pending === p) lev.pending = null;
+    if (lev.open && lev.market.id === p.id) { // back to what the account really has
+      const now = levSet(m);
+      lev.cross = now ? now.cross !== false : true;
+      lev.last = Math.max(1, Math.min(lev.max, Math.round(now ? now.leverage : Math.min(m.default_leverage || 5, lev.max))));
+      lev.pos = lev.target = lev.last - 1;
+      $$("#levDrum .levmode button").forEach((b) => b.classList.toggle("active", (b.dataset.cross === "1") === lev.cross));
+      levDraw();
+    }
+    renderTicket();
+    updateTicketSummary();
+    return false;
+  });
+  lev.sending = run;
+  const ok = await run;
+  if (lev.sending === run) lev.sending = null;
+  return ok;
+}
+
+// before an order: a change still waiting or on its way has to land first. False when it failed.
+async function levFlush() {
+  levSettle();
+  if (lev.sendTimer) return (await levSend()) !== false;
+  if (lev.sending) return (await lev.sending) !== false;
+  return true;
+}
+
+function wireLevWheel() {
+  const btn = $("#tkLev"), box = $("#levDrum");
+  const onWheel = (e) => {
+    if (!levOpen(lev.pinned)) return;
+    e.preventDefault();
+    const px = e.deltaMode === 1 ? e.deltaY * 33 : e.deltaMode === 2 ? e.deltaY * 300 : e.deltaY;
+    lev.target = levClamp(lev.target + px / 100); // one notch of a mouse wheel is one step
+    levAnimate();
+    clearTimeout(lev.snapTimer);
+    lev.snapTimer = setTimeout(() => { lev.target = Math.round(lev.target); levAnimate(); }, 120); // a trackpad rests on a value
+    levRest();
+  };
+  btn.addEventListener("wheel", onWheel, { passive: false });
+  box.addEventListener("wheel", onWheel, { passive: false });
+
+  // a finger, or the mouse held down: the drum follows it; a short flick carries on and stops at the ends
+  const down = (e) => {
+    if (e.button || e.target.closest(".levmode")) return;
+    lev.drag = { y: e.clientY, from: lev.open ? lev.target : null, moved: false, lastY: e.clientY, lastT: e.timeStamp, v: 0, target: e.target, onBtn: e.currentTarget === btn };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+  const move = (e) => {
+    const d = lev.drag;
+    if (!d) return;
+    if (!d.moved) {
+      if (Math.abs(e.clientY - d.y) < 4) return;
+      if (!levOpen(lev.pinned)) { lev.drag = null; return; }
+      d.moved = true;
+      if (d.from === null) d.from = lev.target;
+      clearTimeout(lev.closeTimer);
+    }
+    e.preventDefault();
+    lev.target = lev.pos = levClamp(d.from + (d.y - e.clientY) / LEV_ROW); // finger up: the rows go up, towards the maximum
+    const dt = e.timeStamp - d.lastT;
+    if (dt > 0) d.v = (d.lastY - e.clientY) / LEV_ROW / dt;
+    d.lastY = e.clientY;
+    d.lastT = e.timeStamp;
+    levDraw();
+  };
+  const up = (e) => {
+    const d = lev.drag;
+    if (!d) return;
+    lev.drag = null;
+    if (!d.moved) { // a tap: on the button it opens or closes the drum, on a row it picks that row
+      if (d.onBtn) { if (lev.open) levClose(); else levOpen(true); return; }
+      const row = d.target.closest && d.target.closest("[data-lev]");
+      if (row) { lev.target = levClamp(+row.dataset.lev - 1); levAnimate(); }
+      return;
+    }
+    const flick = e.timeStamp - d.lastT < 80 ? d.v * 220 : 0;
+    lev.target = Math.round(levClamp(lev.target + flick));
+    levAnimate();
+    levRest();
+  };
+  for (const el of [btn, box]) {
+    el.addEventListener("pointerdown", down);
+    el.addEventListener("pointermove", move);
+    el.addEventListener("pointerup", up);
+    el.addEventListener("pointercancel", () => { lev.drag = null; });
+  }
+  $$("#levDrum .levmode button").forEach((b) => (b.onclick = () => {
+    lev.cross = b.dataset.cross === "1";
+    $$("#levDrum .levmode button").forEach((x) => x.classList.toggle("active", x === b));
+    levChanged();
+  }));
+  btn.addEventListener("click", (e) => { if (e.detail === 0) { if (lev.open) levClose(); else levOpen(true); } }); // from the keyboard
+  document.addEventListener("pointerdown", (e) => { if (lev.open && !e.target.closest("#levDrum, #tkLev")) levClose(); });
+  document.addEventListener("keydown", (e) => {
+    if (!lev.open) return;
+    if (e.key === "Escape" || e.key === "Enter") { e.preventDefault(); e.stopPropagation(); levClose(); }
+    else if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+      e.preventDefault();
+      e.stopPropagation();
+      lev.target = levClamp(Math.round(lev.target) + (e.key === "ArrowDown" ? 1 : -1));
+      levAnimate();
+      levRest();
+    }
+  }, true);
+  window.addEventListener("resize", () => { if (lev.open) levPlace(); });
+  document.addEventListener("scroll", () => { if (lev.open && !lev.drag) levPlace(); }, true);
 }
 
 function renderArmed(armed) {
@@ -3318,21 +3546,7 @@ function wire() {
   $("#tkExec").onclick = (e) => (info.trading ? executeTicket(e.detail > 0) : openKeyDialog());
   ["#tkSl", "#tkTp", "#tkSlip"].forEach((s) => ($(s).oninput = updateTicketSummary));
   ["#tkReduce", "#tkPost"].forEach((s) => ($(s).onchange = updateTicketSummary));
-  $("#tkLev").onclick = openLeverage;
-  $$(".levmode button").forEach((b) => (b.onclick = () => {
-    levCross = b.dataset.cross === "1";
-    $$(".levmode button").forEach((x) => x.classList.toggle("active", x === b));
-  }));
-  $("#levApply").onclick = async () => {
-    const m = activeMarket();
-    const lev = Math.round(+$("#levInput").value);
-    if (!info.trading) return toast(t("Sola lettura: nessuna API key"), true);
-    try {
-      await api(`/leverage?market_id=${m.id}&leverage=${lev}&cross=${levCross}`, { method: "POST" });
-      toast(t("{sym}: leva {lev}x {mode} inviata", { sym: m.symbol, lev, mode: levCross ? "cross" : "isolated" }));
-      $("#levBox").classList.add("hidden");
-    } catch (e) { toast(e.message, true); }
-  };
+  wireLevWheel();
   $("#limitsForm").oninput = renderLimitValues;
   $("#limitsForm").onsubmit = async (e) => {
     e.preventDefault();
