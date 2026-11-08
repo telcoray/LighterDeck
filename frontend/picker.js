@@ -225,7 +225,7 @@ function openPalette() {
   renderPicker();
   const cur = pk.base ? -1 : pk.rows.findIndex((m) => m === activeMarket());
   if (cur >= 0) { pk.sel = cur; renderPickerList(); scrollSel(); }
-  $("#pkSearch").focus();
+  if (!touchUI()) $("#pkSearch").focus(); // on a phone the keyboard would cover the list: it opens on a tap in the search
   clearInterval(pk.timer);
   pk.timer = setInterval(() => { if (!document.querySelector("#pkList:hover")) renderPickerList(); }, 1500);
 }
@@ -298,7 +298,7 @@ function moveSel(d) {
     else if (inSearch && e.key === "Tab") { e.preventDefault(); $("#pkList").focus(); }
   });
   $("#pickerShade").addEventListener("mousedown", closePalette);
-  $("#pkBase").addEventListener("click", (e) => { if (e.target.closest("#pkBaseOff")) { pk.base = null; $("#pkBase").classList.add("hidden"); $("#pkSearch").focus(); } });
+  $("#pkBase").addEventListener("click", (e) => { if (e.target.closest("#pkBaseOff")) { pk.base = null; $("#pkBase").classList.add("hidden"); if (!touchUI()) $("#pkSearch").focus(); } });
   $("#pkClose").addEventListener("click", closePalette);
   $("#picker").addEventListener("click", (e) => {
     const t = e.target;
