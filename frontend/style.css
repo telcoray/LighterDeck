@@ -1131,3 +1131,5 @@ body.browser-key :is(.pair-add, #mktSpread) { display: none !important; }
 body.simple .ticket .kv.rows > div:has(> .ticket-extra) { display: none; }
 /* Simple keeps the summary short */
 body.simple .ticket-extra { display: none !important; }
+.size-pct.off { opacity: .4; }
+.size-pct.off input[type="range"] { cursor: not-allowed; }

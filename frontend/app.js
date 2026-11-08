@@ -1708,6 +1708,9 @@ function updateTicketSummary() {
   tpHint();
   $("#tkNotional").textContent = qty ? fusd(qty * ref) : "—";
   $("#tkQty").textContent = qty ? `${qty.toFixed(m.size_decimals)} ${m.symbol}` : "—";
+  // the size is already in one of them: no need to repeat it
+  $("#tkNotional").classList.toggle("hidden", unit === "usd");
+  $("#tkQty").classList.toggle("hidden", unit === "base");
   syncSizeSlider(m, qty, ref);
   renderTicketEstimates(m, p, qty, ref);
   clearTimeout(updateTicketSummary.t);
@@ -1730,22 +1733,37 @@ function sizeMax(m, ref) {
 
 const floorTo = (v, d) => Math.floor(v * 10 ** d + 1e-9) / 10 ** d;
 
+// the slider's 100%: what the margin can open; a % of equity also stops at 100% of it, where the field does
+function sliderMax(m, ref) {
+  const max = sizeMax(m, ref);
+  return max && $("#tkUnit").value === "equity_pct" ? Math.min(max, account.total_value / ref) : max;
+}
+
+// $ risk needs the stop to be worked out
+const riskNeedsStop = (ref) => $("#tkUnit").value === "risk_usd" && !(+$("#tkSl").value > 0 && +$("#tkSl").value !== ref);
+
 function sizeFromPct(pct) {
   const m = activeMarket(), p = m && prices[m.id], unit = $("#tkUnit").value;
   const ref = ticket.kind === "limit" && +$("#tkPrice").value ? +$("#tkPrice").value : p ? (ticket.side === "buy" ? p.ask : p.bid) || p.mark : 0;
-  const max = sizeMax(m, ref);
-  if (!max) return;
+  const max = sliderMax(m, ref);
+  if (!max || riskNeedsStop(ref)) return;
   const qty = max * Math.max(0, Math.min(100, pct)) / 100;
-  const v = unit === "base" ? floorTo(qty, m.size_decimals) : floorTo(qty * ref, 2);
+  const v = unit === "base" ? floorTo(qty, m.size_decimals)
+    : unit === "equity_pct" ? floorTo(qty * ref / account.total_value * 100, 2)
+    : unit === "risk_usd" ? floorTo(qty * Math.abs(ref - +$("#tkSl").value), 2)
+    : floorTo(qty * ref, 2);
   $("#tkSize").value = v > 0 ? v : "";
   updateTicketSummary();
 }
 
 function syncSizeSlider(m, qty, ref) {
-  const row = $("#tkPctRow"), unit = $("#tkUnit").value, max = sizeMax(m, ref);
-  row.classList.toggle("hidden", !(unit === "usd" || unit === "base") || !account);
+  const row = $("#tkPctRow"), max = sliderMax(m, ref), off = riskNeedsStop(ref);
+  row.classList.toggle("hidden", !account);
   row.classList.toggle("sell", ticket.side === "sell");
+  row.classList.toggle("off", off);
+  row.title = off ? t("Imposta lo stop-loss: il rischio si calcola da lì") : "";
   const range = $("#tkPct"), box = $("#tkPctIn");
+  range.disabled = box.disabled = off;
   const pct = max && qty ? Math.min(100, (qty / max) * 100) : 0;
   if (document.activeElement !== range || !range.matches(":active")) range.value = Math.round(pct);
   range.style.setProperty("--p", range.value + "%");
@@ -1757,14 +1775,13 @@ const estBook = { market: null, at: 0, asks: [], bids: [], busy: false };
 
 function renderEstFill(m, qty, entry) {
   const buy = ticket.side === "buy", maxSlip = (+$("#tkSlip").value || 50) / 100;
-  const px = $("#tkEstPx"), slip = $("#tkEstSlip");
+  const slip = $("#tkEstSlip");
   const levels = estBook.market === m.id ? (buy ? estBook.asks : estBook.bids) : [];
   const maxText = t("max {m}%", { m: +maxSlip.toFixed(2) });
   if (!qty || !levels.length) {
-    px.textContent = qty && entry ? fp(entry, m) : "—";
     slip.textContent = maxText;
     slip.classList.remove("down");
-    return;
+    return entry;
   }
   let left = qty, cost = 0;
   for (const [price, size] of levels) {
@@ -1777,9 +1794,9 @@ function renderEstFill(m, qty, entry) {
   const best = levels[0][0], other = (buy ? estBook.bids : estBook.asks)[0];
   const mid = other ? (best + other[0]) / 2 : best;
   const est = Math.abs(avg - mid) / mid * 100, deep = left > 1e-12; // past the levels we can see
-  px.textContent = `${deep ? "≈ " : ""}${fp(avg, m)}`;
   slip.textContent = `${t("stimato {e}%", { e: (deep ? "> " : "") + est.toFixed(2) })} · ${maxText}`;
   slip.classList.toggle("down", est >= maxSlip || deep);
+  return avg;
 }
 
 function refreshEstBook(m, qty, entry) {
@@ -1788,7 +1805,7 @@ function refreshEstBook(m, qty, entry) {
   estBook.busy = true;
   api(`/orderbook?market_id=${m.id}`).then((b) => {
     Object.assign(estBook, { market: m.id, at: Date.now(), asks: b.asks || [], bids: b.bids || [] });
-    if (activeMarket() === m) renderEstFill(m, qty, entry);
+    if (activeMarket() === m) renderTicketEstimates(m, prices[m.id], qty, entry);
   }).catch(() => {}).finally(() => { estBook.busy = false; });
 }
 
@@ -1805,7 +1822,8 @@ function renderTicketEstimates(m, p, qty, entry) {
   $("#tkMargin").textContent = qty && !reduce ? `${fusd(Formulas.orderMargin(notional, leverage))} · ${leverage}x` : "—";
   const feePct = (r) => +((r || 0) * 100).toFixed(3);
   $("#tkFee").textContent = `${qty ? fusd(feeUsd) + " · " : ""}T ${feePct(m.taker_fee)}% · M ${feePct(m.maker_fee)}%`;
-  renderEstFill(m, qty, entry);
+  $("#tkFee").classList.toggle("hidden", !m.taker_fee && !m.maker_fee); // no fees, no row
+  const fillPx = ticket.kind === "market" ? renderEstFill(m, qty, entry) || entry : entry;
   refreshEstBook(m, qty, entry);
   // SL/TP fill within the same slippage as the order
   const hasStops = !reduce && (+$("#tkSl").value > 0 || +$("#tkTp").value > 0 || !!readTpLevels());
@@ -1832,12 +1850,15 @@ function renderTicketEstimates(m, p, qty, entry) {
     : liq ? fp(liq, m) : account ? "—" : t("serve l'account");
   liqEl.className = liq && mark && Math.abs(liq - mark) / mark < 0.05 ? "down" : "";
   const marginOf = (size, price) => Math.abs(size) * price / leverage;
-  for (const id of ["#tkPosMarginDt", "#tkPosMargin"]) $(id).classList.toggle("hidden", !curPos);
+  for (const id of ["#tkPosMarginDt", "#tkPosMargin", "#tkEntryDt", "#tkEntry"]) $(id).classList.toggle("hidden", !curPos);
   if (curPos) {
+    // adding moves the average entry; reducing leaves it; going past zero opens at the order's price
     const next = curPos.size + side * (qty || 0), adds = Math.sign(curPos.size) === side;
-    const nextEntry = adds ? (Math.abs(curPos.size) * curPos.entry + (qty || 0) * entry) / Math.abs(next || 1)
-      : Math.sign(next) === Math.sign(curPos.size) ? curPos.entry : entry;
+    const nextEntry = adds ? (Math.abs(curPos.size) * curPos.entry + (qty || 0) * fillPx) / Math.abs(next || 1)
+      : Math.sign(next) === Math.sign(curPos.size) ? curPos.entry : fillPx;
     $("#tkPosMargin").textContent = qty ? `${fusd(marginOf(curPos.size, curPos.entry))} → ${closes ? "—" : fusd(marginOf(next, nextEntry))}` : fusd(marginOf(curPos.size, curPos.entry));
+    const changes = qty && (closes || fp(nextEntry, m) !== fp(curPos.entry, m));
+    $("#tkEntry").textContent = changes ? `${fp(curPos.entry, m)} → ${closes ? "—" : fp(nextEntry, m)}` : fp(curPos.entry, m);
   }
   const draft = { market: m.id, side, entry, liq: qty && !reduce ? liq : null, lines: [] };
   if (ticket.kind === "limit" && +$("#tkPrice").value) draft.lines.push({ kind: "limit", price: entry, title: `LIMIT ${side > 0 ? "BUY" : "SELL"}${qty ? " " + fsize(qty, m) : ""}` });

@@ -40,7 +40,7 @@
 </script>
 <style>html.i18n-pending body { visibility: hidden; }</style>
 <link rel="icon" href="favicon.svg?v=1" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=169">
+<link rel="stylesheet" href="style.css?v=170">
 <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
 </head>
 <body>
@@ -233,9 +233,9 @@
         <dl class="kv summary rows solo-only">
           <div><dt>Valore ordine</dt><dd id="tkNotional">—</dd></div>
           <div><dt>Quantità</dt><dd id="tkQty">—</dd></div>
-          <div><dt>Margine richiesto</dt><dd id="tkMargin">—</dd></div>
+          <div><dt class="hidden" id="tkEntryDt">Prezzo d'entrata</dt><dd class="hidden" id="tkEntry">—</dd></div>
+          <div><dt>Margine</dt><dd id="tkMargin">—</dd></div>
           <div><dt class="hidden" id="tkPosMarginDt">Margine posizione</dt><dd class="hidden" id="tkPosMargin">—</dd></div>
-          <div><dt class="market-only">Prezzo stimato</dt><dd class="market-only" id="tkEstPx">—</dd></div>
           <div><dt class="market-only ticket-extra">Slippage</dt><dd class="market-only ticket-extra" id="tkEstSlip">—</dd></div>
           <div><dt class="hidden ticket-extra" id="tkTpslSlipDt">Slippage TP/SL</dt><dd class="hidden ticket-extra" id="tkTpslSlip">—</dd></div>
           <div><dt>Commissioni stimate</dt><dd id="tkFee">—</dd></div>
@@ -640,13 +640,13 @@
 </div>
 
 <div class="toast hidden" id="toast"></div>
-<script src="i18n.js?v=169"></script>
-<script src="i18n-zh.js?v=169"></script>
-<script src="i18n-ko.js?v=169"></script>
-<script src="formulas.js?v=169"></script>
-<script src="paper.js?v=169"></script>
-<script src="live.js?v=169"></script>
-<script src="app.js?v=169"></script>
-<script src="picker.js?v=169"></script>
+<script src="i18n.js?v=170"></script>
+<script src="i18n-zh.js?v=170"></script>
+<script src="i18n-ko.js?v=170"></script>
+<script src="formulas.js?v=170"></script>
+<script src="paper.js?v=170"></script>
+<script src="live.js?v=170"></script>
+<script src="app.js?v=170"></script>
+<script src="picker.js?v=170"></script>
 </body>
 </html>
