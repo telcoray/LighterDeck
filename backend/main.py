@@ -678,6 +678,48 @@ async def pair_order(r: PairReq):
     return {"ok": True, "legs": done}
 
 
+# ---------- RFQ: ask the market makers for liquidity, then trade against the book as usual ----------
+class RfqReq(BaseModel):
+    market_id: int
+    side: str
+    size: float
+    unit: str = "usd"
+    reduce_only: bool = False
+
+
+def rfq_error(e):
+    return L("Hai già 3 RFQ aperte su questo mercato: aspetta che si chiudano", "You already have 3 RFQs open on this market: wait for them to close") if "64013" in str(e) else str(e)
+
+
+@app.post("/api/rfq")
+async def rfq_create(r: RfqReq):
+    try:
+        plan = await plan_order(OrderReq(market_id=r.market_id, side=r.side, kind="market", size=r.size, unit=r.unit, reduce_only=r.reduce_only))
+        view = await api.rfq_create(r.market_id, plan["side"] > 0, plan["size"])
+    except Exception as e:
+        raise HTTPException(400, rfq_error(e))
+    engine.note(f"RFQ {view['id']}: {r.side} {plan['size']} {api.markets[r.market_id].symbol}", "warning")
+    return {**view, "size": plan["size"]}
+
+
+@app.get("/api/rfq/{rfq_id}")
+async def rfq_get(rfq_id: int):
+    try:
+        return await api.rfq_get(rfq_id)
+    except Exception as e:
+        raise HTTPException(400, rfq_error(e))
+
+
+@app.post("/api/rfq/{rfq_id}/status")
+async def rfq_status(rfq_id: int, status: str):
+    if status not in ("order_created", "closed"):
+        raise HTTPException(400, L("Stato non valido", "Invalid status"))
+    try:
+        return await api.rfq_update(rfq_id, status)
+    except Exception as e:
+        raise HTTPException(400, rfq_error(e))
+
+
 # ---------- basket: several markets in one send ----------
 class BasketLeg(BaseModel):
     market_id: int

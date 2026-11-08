@@ -1141,7 +1141,7 @@ body.simple .ticket-extra { display: none !important; }
 #advBtn.active { color: var(--text); border-bottom-color: var(--text); }
 .adv-menu { width: 230px; }
 .adv-box { display: none; margin-bottom: 12px; }
-.ticket[data-kind="conditional"] .adv-conditional, .ticket[data-kind="twap"] .adv-twap, .ticket[data-kind="scale"] .adv-scale, .ticket[data-kind="chase"] .adv-chase, .ticket[data-kind="iceberg"] .adv-iceberg, .ticket[data-kind="basket"] .adv-basket { display: block; }
+.ticket[data-kind="conditional"] .adv-conditional, .ticket[data-kind="twap"] .adv-twap, .ticket[data-kind="scale"] .adv-scale, .ticket[data-kind="chase"] .adv-chase, .ticket[data-kind="iceberg"] .adv-iceberg, .ticket[data-kind="basket"] .adv-basket, .ticket[data-kind="rfq"] .adv-rfq { display: block; }
 .ticket.pair .adv-box { display: none; }
 .adv-box .chips { margin-bottom: 10px; }
 .adv-seg { margin-bottom: 8px; }
@@ -1189,3 +1189,10 @@ body.simple #accLevDt, body.simple #accLev { display: none; }
 .bk-del { height: 28px; background: none; border: 0; color: var(--muted); font-size: 14px; cursor: pointer; }
 .bk-del:hover { color: var(--text); }
 .bk-add { display: block; margin-bottom: 8px; font-size: 11px; }
+
+/* ticket: RFQ */
+.rfq-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 4px; font-size: 12px; }
+.rfq-live .trail-hint { margin: 0 0 4px; }
+.rfq-nudge { display: block; width: 100%; margin-bottom: 8px; text-align: left; font-size: 11px; }
+body.simple .rfq-nudge { display: none; }
+.ticket.rfq-on #sideSel, .ticket.rfq-on #tkChips, .ticket.rfq-on #tkPctRow, .ticket.rfq-on .checks:has(#tkReduce) { display: none; }

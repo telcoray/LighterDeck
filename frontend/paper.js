@@ -395,6 +395,30 @@ const Paper = (() => {
     return { ok: true, size: -size };
   }
 
+  // RFQ in paper: market makers answer on a timer, as they might. The simulated book doesn't change, and the
+  // real one only would if they chose to add to it
+  const rfqs = {};
+  let rfqNext = 1;
+  function rfqRead(id) {
+    const q = rfqs[id];
+    if (!q) err(t("RFQ non trovata"));
+    const age = now() - q.at;
+    if (q.status !== "closed" && age > 90000) q.status = "closed";
+    const responses = [];
+    if (age > 3000) responses.push({ status: age > 7000 ? "liquidity_provided" : "acknowledged" });
+    if (age > 5000) responses.push({ status: age > 12000 ? "liquidity_provided" : "acknowledged" });
+    if (age > 9000) responses.push({ status: "not_interested" });
+    return { id: q.id, market_id: q.market_id, side: q.side, status: q.status, responses, created_at: q.at };
+  }
+  function rfqCreate(b) {
+    const pl = plan({ ...b, kind: "market" }), m = mkt(b.market_id);
+    if (Object.keys(rfqs).filter((k) => rfqs[k].market_id === m.id && rfqRead(k).status === "opened").length >= 3) err(t("Hai già 3 RFQ aperte su questo mercato: aspetta che si chiudano"));
+    const id = rfqNext++;
+    rfqs[id] = { id, market_id: m.id, side: b.side, status: "opened", at: now() };
+    note(t("Paper: RFQ {side} {size} {sym}", { side: b.side, size: pl.size, sym: m.symbol }));
+    return { ...rfqRead(id), size: pl.size };
+  }
+
   // several markets at once: in paper they all fill, as a batch that went through
   function basketOrder(r) {
     const legs = r.legs || [];
@@ -932,6 +956,11 @@ const Paper = (() => {
     if (p === "/order" && method === "POST") return run(() => placeOrder(body()));
     if (p === "/pair_order" && method === "POST") return run(() => pairOrder(body()));
     if (p === "/basket" && method === "POST") return run(() => basketOrder(body()));
+    if (p === "/rfq" && method === "POST") return run(() => rfqCreate(body()));
+    const rfqStatus = p.match(/^\/rfq\/(\d+)\/status$/);
+    if (rfqStatus && method === "POST") return run(() => { rfqRead(rfqStatus[1]); rfqs[rfqStatus[1]].status = qs.get("status"); return rfqRead(rfqStatus[1]); });
+    const rfqOne = p.match(/^\/rfq\/(\d+)$/);
+    if (rfqOne) return run(() => rfqRead(rfqOne[1]));
     if (p === "/rules" && method === "GET") return run(() => S.rules.map((r) => ({ ...r, description: describe(r) })));
     if (p === "/rules" && method === "POST") return run(() => addRule(body()));
     const rule = p.match(/^\/rules\/(.+)$/);

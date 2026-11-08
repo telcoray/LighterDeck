@@ -486,6 +486,36 @@ class LighterAPI:
                 return {"status": o["status"], "filled": m.disp_size(o.get("filled_base_amount") or 0)}
         return None
 
+    # ---------- RFQ: it only tells the market makers. No price is locked and nothing settles here:
+    # they add ordinary orders to the book, and the trade is an ordinary market order against it ----------
+    async def _post(self, path, data):
+        async with self.http.post(path, data=data, headers={"authorization": await self._auth_token()}) as r:
+            body = await r.json(content_type=None)
+            if r.status != 200 or body.get("code", 200) != 200:
+                raise RuntimeError(f"{body.get('code', r.status)} {body.get('message', '')}".strip())
+            return body
+
+    @staticmethod
+    def _rfq_view(d):
+        return {"id": d["id"], "market_id": d["market_index"], "side": "buy" if d["direction"] == 1 else "sell", "status": d["status"],
+                "responses": [{"status": x["status"]} for x in d.get("responses") or []], "created_at": d.get("created_at")}
+
+    async def rfq_create(self, market_id, is_buy, size):
+        if not self.signer:
+            raise RuntimeError("trading disabled: no API key configured")
+        m = self.markets[market_id]
+        return self._rfq_view(await self._post("/api/v1/rfq/create", {"market_index": market_id, "direction": 1 if is_buy else 0, "base_amount": str(abs(m.size_int(size)))}))
+
+    async def rfq_get(self, rfq_id):
+        if not self.signer:
+            raise RuntimeError("trading disabled: no API key configured")
+        return self._rfq_view(await self._get("/api/v1/rfq/get", {"rfq_id": rfq_id}, headers={"authorization": await self._auth_token()}))
+
+    async def rfq_update(self, rfq_id, status):
+        if not self.signer:
+            raise RuntimeError("trading disabled: no API key configured")
+        return self._rfq_view(await self._post("/api/v1/rfq/update", {"rfq_id": rfq_id, "status": status}))
+
     # ---------- signed actions ----------
     def _check_limits(self, notional):
         if not self.signer:

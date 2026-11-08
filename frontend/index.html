@@ -40,7 +40,7 @@
 </script>
 <style>html.i18n-pending body { visibility: hidden; }</style>
 <link rel="icon" href="favicon.svg?v=1" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=179">
+<link rel="stylesheet" href="style.css?v=181">
 <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
 </head>
 <body>
@@ -206,6 +206,7 @@
               <button data-adv="chase" type="button"><span>Chase Limit<small>Insegue il miglior prezzo, solo maker</small></span></button>
               <button data-adv="iceberg" type="button"><span>Iceberg<small>Mostra una fetta dell'ordine alla volta</small></span></button>
               <button data-adv="basket" type="button"><span>Basket<small>Più mercati in un solo invio</small></span></button>
+              <button data-adv="rfq" type="button"><span>RFQ<small>Chiede liquidità ai market maker</small></span></button>
             </div>
           </div>
         </div>
@@ -228,6 +229,14 @@
           <div class="field sm"><label>Ordini</label><input id="tkScaleN" autocomplete="off" type="number" min="2" max="20" step="1" value="5"></div>
           <div class="seg adv-seg" id="tkScaleDist"><button type="button" data-dist="even" class="active">Uguale</button><button type="button" data-dist="low">Più in basso</button><button type="button" data-dist="high">Più in alto</button></div>
           <p class="trail-hint" id="tkScaleHint"></p>
+        </div>
+        <div class="adv-box adv-rfq solo-only">
+          <p class="trail-hint" id="tkRfqIdle">Avvisa i market maker, che possono aggiungere liquidità al book. Nessun prezzo è bloccato: poi esegui a market, se ti conviene. Sul piano Standard costa 0,01%.</p>
+          <div class="rfq-live hidden" id="tkRfqLive">
+            <div class="rfq-head"><b id="tkRfqState"></b><button class="link" id="tkRfqCancel" type="button">Annulla</button></div>
+            <p class="trail-hint" id="tkRfqAnswers"></p>
+            <p class="trail-hint" id="tkRfqBetter"></p>
+          </div>
         </div>
         <div class="adv-box adv-basket solo-only" id="tkBasket">
           <div id="tkBasketLegs"></div>
@@ -294,6 +303,7 @@
           <div><dt>Alla liquidazione</dt><dd class="hidden" id="tkRoom">—</dd></div>
         </dl>
         <div class="risk-note hidden" id="tkRisk"></div>
+        <button class="link rfq-nudge hidden" id="tkRfqNudge" type="button"></button>
         <button class="execute" id="tkExec" data-ck="order">Esegui</button>
         <div class="ticket-msg hidden" id="tkMsg"></div>
       </section>
@@ -698,13 +708,13 @@
 </div>
 
 <div class="toast hidden" id="toast"></div>
-<script src="i18n.js?v=179"></script>
-<script src="i18n-zh.js?v=179"></script>
-<script src="i18n-ko.js?v=179"></script>
-<script src="formulas.js?v=179"></script>
-<script src="paper.js?v=179"></script>
-<script src="live.js?v=179"></script>
-<script src="app.js?v=179"></script>
-<script src="picker.js?v=179"></script>
+<script src="i18n.js?v=181"></script>
+<script src="i18n-zh.js?v=181"></script>
+<script src="i18n-ko.js?v=181"></script>
+<script src="formulas.js?v=181"></script>
+<script src="paper.js?v=181"></script>
+<script src="live.js?v=181"></script>
+<script src="app.js?v=181"></script>
+<script src="picker.js?v=181"></script>
 </body>
 </html>

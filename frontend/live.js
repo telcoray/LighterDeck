@@ -50,6 +50,17 @@ const Live = (() => {
     return body;
   }
 
+  async function post(path, params) {
+    const r = await fetch(`${URL_}/api/v1/${path}`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded", authorization: await token() }, body: new URLSearchParams(params) });
+    const body = await r.json().catch(() => ({}));
+    if (body.code === 64013) err(t("Hai già 3 RFQ aperte su questo mercato: aspetta che si chiudano"));
+    if (!r.ok || (body.code && body.code !== 200)) err(body.message || `${path}: ${r.status}`);
+    return body;
+  }
+
+  // RFQ: it only tells the market makers; the trade afterwards is an ordinary market order
+  const rfqView = (d) => ({ id: d.id, market_id: d.market_index, side: d.direction === 1 ? "buy" : "sell", status: d.status, responses: (d.responses || []).map((x) => ({ status: x.status })), created_at: d.created_at });
+
   async function token() {
     if (auth.token && Date.now() < auth.until - 60000) return auth.token;
     const until = Date.now() + 10 * 60000;
@@ -446,6 +457,16 @@ const Live = (() => {
     if (p === "/preview" && method === "POST") return run(() => { try { return { ok: true, ...plan(body(), qs.get("live") !== "true") }; } catch (e) { return { ok: false, error: e.message }; } });
     if (p === "/order" && method === "POST") return run(() => placeOrder(body()));
     if (p === "/basket" && method === "POST") return run(() => basketOrder(body()));
+    if (p === "/rfq" && method === "POST") return run(async () => {
+      const b = body(), pl = plan({ ...b, kind: "market" }, true), m = mkt(b.market_id);
+      const view = rfqView(await post("rfq/create", { market_index: m.id, direction: pl.side > 0 ? 1 : 0, base_amount: String(sizeInt(m, pl.size)) }));
+      note(`RFQ ${view.id}: ${b.side} ${pl.size} ${m.symbol}`, "warning");
+      return { ...view, size: pl.size };
+    });
+    const rfqStatus = p.match(/^\/rfq\/(\d+)\/status$/);
+    if (rfqStatus && method === "POST") return run(async () => rfqView(await post("rfq/update", { rfq_id: rfqStatus[1], status: qs.get("status") })));
+    const rfqOne = p.match(/^\/rfq\/(\d+)$/);
+    if (rfqOne) return run(async () => rfqView(await get("rfq/get", { rfq_id: rfqOne[1] }, true)));
     if (p === "/close" && method === "POST") return run(() => closePosition(+qs.get("market_id"), +qs.get("fraction") || 1));
     if (p === "/reverse" && method === "POST") return run(() => reversePosition(+qs.get("market_id")));
     if (p === "/cancel_order" && method === "POST") return run(async () => { await cancelOrder(mkt(qs.get("market_id")), +qs.get("order_index")); delete orders[+qs.get("market_id")]; return { ok: true }; });

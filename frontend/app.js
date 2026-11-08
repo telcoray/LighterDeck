@@ -1545,7 +1545,7 @@ function renderTicket() {
     risk_usd: [5, 10, 25, 50].map((v) => [v, "$" + v]),
   }[unit];
   $("#tkChips").innerHTML = chips.map(([v, label]) => `<button data-v="${v}" title="${t("Aggiunge {v} alla size: clicca più volte per sommare", { v: label })}">${label}</button>`).join("");
-  const showsLimit = hasLimitField(), showsMarket = ticket.kind === "market" || (ticket.kind === "conditional" && ticketAdv.exec === "market");
+  const showsLimit = hasLimitField(), showsMarket = ticket.kind === "market" || ticket.kind === "rfq" || (ticket.kind === "conditional" && ticketAdv.exec === "market");
   $$(".limit-only").forEach((e) => e.classList.toggle("hidden", !showsLimit));
   $$(".market-only").forEach((e) => e.classList.toggle("hidden", !showsMarket));
   $("#tkPost").closest("label").classList.toggle("hidden", !["limit", "scale", "iceberg"].includes(ticket.kind));
@@ -1553,7 +1553,7 @@ function renderTicket() {
   $$("#sideSel button").forEach((b) => b.classList.toggle("active", b.dataset.side === ticket.side));
   $$("#kindSel [data-kind]").forEach((b) => b.classList.toggle("active", b.dataset.kind === ticket.kind));
   $("#advBtn").classList.toggle("active", !isBasicKind());
-  $("#advName").textContent = { conditional: t("Condizionale"), twap: "TWAP", scale: "Scale", chase: "Chase Limit", iceberg: "Iceberg", basket: "Basket" }[ticket.kind] || t("Avanzati");
+  $("#advName").textContent = { conditional: t("Condizionale"), twap: "TWAP", scale: "Scale", chase: "Chase Limit", iceberg: "Iceberg", basket: "Basket", rfq: "RFQ" }[ticket.kind] || t("Avanzati");
   $$("#tkCondExec [data-exec]").forEach((b) => b.classList.toggle("active", b.dataset.exec === ticketAdv.exec));
   $$("#tkScaleDist [data-dist]").forEach((b) => b.classList.toggle("active", b.dataset.dist === ticketAdv.dist));
   const ex = $("#tkExec");
@@ -1566,6 +1566,7 @@ function renderTicket() {
     ex.className = "execute" + (!info.trading ? " connect" : "");
   }
   ex.disabled = false;
+  renderRfq(m, ex);
   ex.dataset.ckText = ex.textContent;
   markConfirm();
   updateTicketSummary();
@@ -1578,6 +1579,7 @@ function ticketBody() {
     reduce_only: $("#tkReduce").checked,
   };
   // the advanced kinds carry their own fields; SL, TP and trailing go on the position afterwards
+  if (ticket.kind === "rfq") return { ...body, kind: "market", slippage_bps: +$("#tkSlip").value || 50 };
   if (ticket.kind === "conditional") {
     body.trigger_price = +$("#tkTrig").value;
     body.cond_exec = ticketAdv.exec;
@@ -1731,6 +1733,117 @@ function pairLegFailed(r) {
   $("#tkMsg").appendChild(fix);
 }
 
+// ---------- RFQ: asks the market makers for liquidity. No price is locked: what it gives is a better book,
+// so the ticket shows whether the book really got better since asking, and the trade stays a market order ----------
+function renderRfq(m, ex) {
+  const q = ticketAdv.rfq, on = ticket.kind === "rfq";
+  if (q && !on) closeRfq(); // left the RFQ for another kind of order
+  const live = q && on;
+  $(".ticket").classList.toggle("rfq-on", !!live);
+  $("#tkRfqIdle").classList.toggle("hidden", !!live);
+  $("#tkRfqLive").classList.toggle("hidden", !live);
+  if (!on || !info.trading) return;
+  if (!live) { ex.textContent = `${t("Chiedi liquidità")} · ${ticket.side === "buy" ? "Buy" : "Sell"} ${m.symbol}${Paper.on ? " · Paper" : ""}`; return; }
+  ticket.side = q.side;
+  if (m.id !== q.market_id) { ex.textContent = t("Torna su {sym} per eseguire", { sym: byId[q.market_id].symbol }); ex.disabled = true; return; }
+  ex.textContent = `${q.side === "buy" ? "Buy" : "Sell"} ${m.symbol} · Market${Paper.on ? " · Paper" : ""}`;
+  ex.className = "execute" + (q.side === "sell" ? " sell" : "");
+}
+
+function renderRfqLive() {
+  const q = ticketAdv.rfq;
+  if (!q || ticket.kind !== "rfq") return;
+  const secs = Math.floor((Date.now() - q.at) / 1000);
+  $("#tkRfqState").textContent = t("In attesa da {t}", { t: `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}` });
+  const answered = q.responses.filter((x) => x.status !== "not_interested").length, gave = q.responses.filter((x) => x.status === "liquidity_provided").length;
+  $("#tkRfqAnswers").textContent = !q.responses.length ? t("Nessuna risposta per ora. Di solito arrivano in pochi secondi; si chiude da sola in 1 o 2 minuti.")
+    : t("Market maker al lavoro: {a}. Con liquidità aggiunta: {g}.", { a: answered, g: gave });
+  const now = estBook.last, pct = (x) => (x.deep ? "> " : "") + `${x.est.toFixed(2)}%`;
+  $("#tkRfqBetter").textContent = now && q.base && pct(now) !== pct(q.base) ? t("Slippage stimato: {x}", { x: fromTo(q.base, now, pct) }) : ""; // the row below has it when nothing changed
+}
+
+async function startRfq() {
+  const m = activeMarket(), body = ticketBody();
+  if (!m || !(body.size > 0)) return ticketMsg(t("Inserisci una size valida."), "err");
+  const btn = $("#tkExec");
+  btn.disabled = true;
+  try {
+    const r = await api("/rfq", { method: "POST", body: JSON.stringify({ market_id: m.id, side: ticket.side, size: body.size, unit: body.unit, reduce_only: body.reduce_only }) });
+    // the request is for this quantity: it stays fixed until it's traded or closed
+    $("#tkUnit").value = "base";
+    $("#tkSize").value = r.size;
+    $("#tkUnit").disabled = $("#tkSize").disabled = true;
+    ticketAdv.rfq = { id: r.id, market_id: m.id, side: ticket.side, size: r.size, reduce: !!body.reduce_only, responses: r.responses || [], at: Date.now(), base: estBook.last };
+    $("#tkMsg").className = "ticket-msg hidden";
+    clearInterval(ticketAdv.rfqTimer);
+    ticketAdv.rfqTimer = setInterval(pollRfq, 2000);
+    renderTicket();
+  } catch (e) {
+    ticketMsg(e.message, "err");
+  } finally {
+    btn.disabled = !info.trading;
+  }
+}
+
+async function pollRfq() {
+  const q = ticketAdv.rfq;
+  if (!q) return;
+  try {
+    const r = await api(`/rfq/${q.id}`);
+    if (ticketAdv.rfq !== q) return;
+    q.responses = r.responses || [];
+    if (r.status === "closed") { endRfq(); return ticketMsg(t("La RFQ si è chiusa. Puoi eseguire a market o chiederne un'altra."), "err"); }
+  } catch (e) { console.warn("rfq", e.message); }
+  updateTicketSummary();
+}
+
+function endRfq() {
+  clearInterval(ticketAdv.rfqTimer);
+  ticketAdv.rfq = null;
+  $("#tkUnit").disabled = $("#tkSize").disabled = false;
+  renderTicket();
+}
+
+function closeRfq() {
+  const q = ticketAdv.rfq;
+  if (!q) return;
+  api(`/rfq/${q.id}/status?status=closed`, { method: "POST" }).catch(() => {});
+  endRfq();
+}
+
+async function executeRfq(byMouse) {
+  const q = ticketAdv.rfq;
+  if (!q) return startRfq();
+  const m = byId[q.market_id];
+  if (!askConfirm("order", `${t("Conferma")} ${q.side === "buy" ? "LONG" : "SHORT"} ${m.symbol} · ${q.size} · market`)) return;
+  const btn = $("#tkExec");
+  btn.disabled = true;
+  try {
+    const r = await api("/order", { method: "POST", body: JSON.stringify({ market_id: q.market_id, side: q.side, kind: "market", size: q.size, unit: "base", reduce_only: q.reduce, slippage_bps: +$("#tkSlip").value || 50 }) });
+    // these two only tell Lighter how it went: the trade above is what counts, so their failure changes nothing
+    api(`/rfq/${q.id}/status?status=order_created`, { method: "POST" }).catch(() => {}).finally(() => api(`/rfq/${q.id}/status?status=closed`, { method: "POST" }).catch(() => {}));
+    endRfq();
+    $("#tkSize").value = "";
+    updateTicketSummary();
+    ticketMsg(t("Eseguito: {side} {size} {sym}. Controlla posizioni e ordini per i fill.", { side: q.side, size: r.size, sym: m.symbol }), "ok");
+    loadOrders(true);
+    if (byMouse) keyboardTip();
+  } catch (e) {
+    ticketMsg(e.message, "err"); // the RFQ stays open: it can be tried again
+  } finally {
+    btn.disabled = !info.trading;
+  }
+}
+
+// a market order the book can't take well: the ticket says so, where the choice is made
+function renderRfqNudge(notional) {
+  const b = $("#tkRfqNudge"), x = estBook.last;
+  const thin = x && ((x.est > 0.1 && notional >= 10000) || x.deep), big = notional >= 500000;
+  const show = ticket.kind === "market" && info.trading && (thin || big);
+  b.classList.toggle("hidden", !show);
+  if (show) b.textContent = t(thin ? "Book sottile per questa size: chiedi liquidità con RFQ →" : "Ordine grande: chiedi liquidità con RFQ →");
+}
+
 // ---------- basket: market orders on several markets, one send ----------
 const BASKET_MAX = 10;
 function renderBasketLegs() {
@@ -1835,7 +1948,7 @@ function basketResult(r) {
 
 // local estimate, refined by the server preview (which also runs every risk check)
 // ---------- advanced orders: conditional, TWAP, scale ----------
-const ticketAdv = { exec: "market", dist: "even", twapFees: null, legs: [] };
+const ticketAdv = { exec: "market", dist: "even", twapFees: null, legs: [], rfq: null, rfqTimer: null };
 const isBasicKind = () => ticket.kind === "market" || ticket.kind === "limit";
 const hasLimitField = () => ticket.kind === "limit" || ticket.kind === "iceberg" || (ticket.kind === "conditional" && ticketAdv.exec === "limit");
 
@@ -1954,6 +2067,8 @@ function wireAdvOrders() {
     renderBasketLegs();
     renderTicket();
   };
+  $("#tkRfqCancel").onclick = closeRfq;
+  $("#tkRfqNudge").onclick = () => { ticket.kind = "rfq"; $("#tkRfqNudge").classList.add("hidden"); renderTicket(); };
   $("#tkIceChips").onclick = (e) => { const b = e.target.closest("[data-pct]"); if (b) { $("#tkIceSlice").value = b.dataset.pct; updateTicketSummary(); } };
   $("#tkChaseEnd").onchange = updateTicketSummary;
   $("#tkTwapChips").onclick = (e) => { const b = e.target.closest("[data-min]"); if (b) { $("#tkTwapMin").value = b.dataset.min; updateTicketSummary(); } };
@@ -2055,6 +2170,7 @@ function renderEstFill(m, qty, entry) {
   const slip = $("#tkEstSlip");
   const levels = estBook.market === m.id ? (buy ? estBook.asks : estBook.bids) : [];
   const maxText = t("max {m}%", { m: +maxSlip.toFixed(2) });
+  estBook.last = null;
   if (!qty || !levels.length) {
     slip.textContent = maxText;
     slip.classList.remove("down");
@@ -2071,13 +2187,14 @@ function renderEstFill(m, qty, entry) {
   const best = levels[0][0], other = (buy ? estBook.bids : estBook.asks)[0];
   const mid = other ? (best + other[0]) / 2 : best;
   const est = Math.abs(avg - mid) / mid * 100, deep = left > 1e-12; // past the levels we can see
+  estBook.last = { est, deep };
   slip.textContent = `${t("stimato {e}%", { e: (deep ? "> " : "") + est.toFixed(2) })} · ${maxText}`;
   slip.classList.toggle("down", est >= maxSlip || deep);
   return avg;
 }
 
 function refreshEstBook(m, qty, entry) {
-  if (!qty || ticket.kind === "limit" || estBook.busy) return;
+  if (!qty || !["market", "rfq"].includes(ticket.kind) || estBook.busy) return;
   if (estBook.market === m.id && Date.now() - estBook.at < 3000) return;
   estBook.busy = true;
   api(`/orderbook?market_id=${m.id}`).then((b) => {
@@ -2106,7 +2223,9 @@ function renderTicketEstimates(m, p, qty, entry) {
     $("#tkFee").classList.toggle("hidden", !rate);
   }
   renderAdvHints(m, p, qty);
-  const fillPx = ticket.kind === "market" ? renderEstFill(m, qty, entry) || entry : (renderEstFill(m, null, entry), entry);
+  const fillPx = ticket.kind === "market" || ticket.kind === "rfq" ? renderEstFill(m, qty, entry) || entry : (renderEstFill(m, null, entry), entry);
+  renderRfqNudge(notional);
+  renderRfqLive();
   refreshEstBook(m, qty, entry);
   // SL/TP fill within the same slippage as the order
   const hasStops = isBasicKind() && !reduce && (+$("#tkSl").value > 0 || +$("#tkTp").value > 0 || !!readTpLevels());
@@ -2242,6 +2361,7 @@ function ticketMsg(text, kind) {
 async function executeTicket(byMouse = false) {
   if (activePair()) return executePair(byMouse);
   if (ticket.kind === "basket") return executeBasket(byMouse);
+  if (ticket.kind === "rfq") return executeRfq(byMouse);
   if (!(await levFlush())) return; // the leverage on screen didn't go through: no order on the wrong one
   const m = activeMarket();
   const size = +$("#tkSize").value;
