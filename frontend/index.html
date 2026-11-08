@@ -40,7 +40,7 @@
 </script>
 <style>html.i18n-pending body { visibility: hidden; }</style>
 <link rel="icon" href="favicon.svg?v=1" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=181">
+<link rel="stylesheet" href="style.css?v=183">
 <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
 </head>
 <body>
@@ -185,11 +185,16 @@
     <!-- ============ right rail ============ -->
     <aside class="rail">
       <section class="card ticket">
-        <div class="ticket-head"><b id="tkSym">BTC</b><button class="lev solo-only" id="tkLev" title="Leva: rotella o trascina · clic per cross / isolated">Cross</button><span class="muted pair-only">Spread</span></div>
-        <div class="lev-drum hidden" id="levDrum">
-          <div class="lev-cyl" id="levCyl"></div>
-          <div class="seg levmode"><button data-cross="1" class="active">Cross</button><button data-cross="0">Isolated</button></div>
-        </div>
+        <div class="ticket-head"><b id="tkSym">BTC</b>
+          <div class="tk-controls solo-only">
+            <div class="tk-mode" id="tkMode">
+              <button type="button" data-cross="1" class="active" title="Cross: usa tutto il margine dell'account, e la liquidazione guarda tutto l'account">Cross</button>
+              <button type="button" data-cross="0" title="Isolated: rischia solo il margine di questa posizione">Isolated</button>
+            </div>
+            <button type="button" class="tk-lev" id="tkLev" title="Leva: rotella o trascina, clic per tenerla aperta">—</button>
+          </div>
+          <span class="muted pair-only">Spread</span></div>
+        <div class="lev-drum hidden" id="levDrum"><div class="lev-cyl" id="levCyl"></div></div>
         <div class="sidesel" id="sideSel">
           <button data-side="buy" class="active">Buy / Long</button>
           <button data-side="sell">Sell / Short</button>
@@ -215,21 +220,6 @@
           <div class="seg adv-seg" id="tkCondExec"><button type="button" data-exec="market" class="active">Market</button><button type="button" data-exec="limit">Limit</button></div>
           <p class="trail-hint" id="tkCondHint"></p>
         </div>
-        <div class="adv-box adv-twap solo-only">
-          <div class="field"><label>Durata · minuti</label><input id="tkTwapMin" autocomplete="off" type="number" min="5" max="1440" step="1" value="60"></div>
-          <div class="chips" id="tkTwapChips"><button type="button" data-min="15">15m</button><button type="button" data-min="60">1h</button><button type="button" data-min="240">4h</button><button type="button" data-min="1440">24h</button></div>
-          <div class="field sm"><label>Prezzo limite · opzionale</label><input id="tkTwapPx" autocomplete="off" type="number" step="any"></div>
-          <p class="trail-hint" id="tkTwapHint"></p>
-        </div>
-        <div class="adv-box adv-scale solo-only">
-          <div class="two">
-            <div class="field sm"><label>Da · prezzo</label><input id="tkScaleFrom" autocomplete="off" type="number" step="any"></div>
-            <div class="field sm"><label>A · prezzo</label><input id="tkScaleTo" autocomplete="off" type="number" step="any"></div>
-          </div>
-          <div class="field sm"><label>Ordini</label><input id="tkScaleN" autocomplete="off" type="number" min="2" max="20" step="1" value="5"></div>
-          <div class="seg adv-seg" id="tkScaleDist"><button type="button" data-dist="even" class="active">Uguale</button><button type="button" data-dist="low">Più in basso</button><button type="button" data-dist="high">Più in alto</button></div>
-          <p class="trail-hint" id="tkScaleHint"></p>
-        </div>
         <div class="adv-box adv-rfq solo-only">
           <p class="trail-hint" id="tkRfqIdle">Avvisa i market maker, che possono aggiungere liquidità al book. Nessun prezzo è bloccato: poi esegui a market, se ti conviene. Sul piano Standard costa 0,01%.</p>
           <div class="rfq-live hidden" id="tkRfqLive">
@@ -242,19 +232,6 @@
           <div id="tkBasketLegs"></div>
           <button class="link bk-add" id="tkBasketAdd" type="button">+ Aggiungi mercato</button>
           <p class="trail-hint">Partono insieme in un solo invio. Se un mercato non viene eseguito lo vedi subito e puoi chiudere gli altri.</p>
-        </div>
-        <div class="adv-box adv-chase solo-only">
-          <div class="two">
-            <div class="field sm"><label id="tkChaseCapLabel">Prezzo massimo</label><input id="tkChaseCap" autocomplete="off" type="number" step="any" placeholder="Opzionale"></div>
-            <div class="field sm"><label>Minuti</label><input id="tkChaseMin" autocomplete="off" type="number" min="1" max="1440" step="1" placeholder="Opzionale"></div>
-          </div>
-          <div class="checks hidden" id="tkChaseEndRow"><label><input type="checkbox" id="tkChaseEnd"> Allo scadere, il resto a market</label></div>
-          <p class="trail-hint" id="tkChaseHint"></p>
-        </div>
-        <div class="adv-box adv-iceberg solo-only">
-          <div class="field sm"><label>Fetta · % dell'ordine</label><input id="tkIceSlice" autocomplete="off" type="number" min="1" max="50" step="1" value="10"></div>
-          <div class="chips" id="tkIceChips"><button type="button" data-pct="5">5%</button><button type="button" data-pct="10">10%</button><button type="button" data-pct="20">20%</button><button type="button" data-pct="25">25%</button></div>
-          <p class="trail-hint" id="tkIceHint"></p>
         </div>
         <dl class="kv">
           <dt>Disponibile</dt><dd id="tkAvail">—</dd>
@@ -270,13 +247,41 @@
           <label class="pct-box"><input id="tkPctIn" type="number" min="0" max="100" step="1" autocomplete="off" placeholder="0"><span>%</span></label>
         </div>
         <div class="field limit-only hidden"><label>Prezzo limite</label><input id="tkPrice" autocomplete="off" type="number" step="any"><button class="unit link" id="tkMid">Mid</button></div>
+        <div class="adv-box adv-twap solo-only">
+          <div class="field"><label>Durata · minuti</label><input id="tkTwapMin" autocomplete="off" type="number" min="5" max="1440" step="1" value="60"></div>
+          <div class="chips" id="tkTwapChips"><button type="button" data-min="15">15m</button><button type="button" data-min="60">1h</button><button type="button" data-min="240">4h</button><button type="button" data-min="1440">24h</button></div>
+          <div class="field sm"><label>Prezzo limite · opzionale</label><input id="tkTwapPx" autocomplete="off" type="number" step="any"></div>
+          <p class="trail-hint" id="tkTwapHint"></p>
+        </div>
+        <div class="adv-box adv-scale solo-only">
+          <div class="two">
+            <div class="field sm"><label>Da · prezzo</label><input id="tkScaleFrom" autocomplete="off" type="number" step="any"></div>
+            <div class="field sm"><label>A · prezzo</label><input id="tkScaleTo" autocomplete="off" type="number" step="any"></div>
+          </div>
+          <div class="field sm"><label>Ordini</label><input id="tkScaleN" autocomplete="off" type="number" min="2" max="20" step="1" value="5"></div>
+          <div class="seg adv-seg" id="tkScaleDist"><button type="button" data-dist="even" class="active">Uguale</button><button type="button" data-dist="low">Più in basso</button><button type="button" data-dist="high">Più in alto</button></div>
+          <p class="trail-hint" id="tkScaleHint"></p>
+        </div>
+        <div class="adv-box adv-chase solo-only">
+          <div class="two">
+            <div class="field sm"><label id="tkChaseCapLabel">Prezzo massimo</label><input id="tkChaseCap" autocomplete="off" type="number" step="any" placeholder="Opzionale"></div>
+            <div class="field sm"><label>Minuti</label><input id="tkChaseMin" autocomplete="off" type="number" min="1" max="1440" step="1" placeholder="Opzionale"></div>
+          </div>
+          <div class="checks hidden" id="tkChaseEndRow"><label><input type="checkbox" id="tkChaseEnd"> Allo scadere, il resto a market</label></div>
+          <p class="trail-hint" id="tkChaseHint"></p>
+        </div>
+        <div class="adv-box adv-iceberg solo-only">
+          <div class="field sm"><label>Fetta · % dell'ordine</label><input id="tkIceSlice" autocomplete="off" type="number" min="1" max="50" step="1" value="10"></div>
+          <div class="chips" id="tkIceChips"><button type="button" data-pct="5">5%</button><button type="button" data-pct="10">10%</button><button type="button" data-pct="20">20%</button><button type="button" data-pct="25">25%</button></div>
+          <p class="trail-hint" id="tkIceHint"></p>
+        </div>
         <div class="checks solo-only">
           <label><input type="checkbox" id="tkReduce" autocomplete="off"> Reduce only</label>
           <label class="limit-only hidden"><input type="checkbox" id="tkPost" autocomplete="off"> Post only</label>
         </div>
         <div class="two solo-only basic-only">
-          <div class="field sm"><label>Stop-loss · prezzo</label><input id="tkSl" autocomplete="off" type="number" step="any" placeholder="Opzionale"><span class="sltp-out" id="tkSlOut"></span></div>
-          <div class="field sm" id="tkTpField"><label>Take-profit · prezzo</label><input id="tkTp" autocomplete="off" type="number" step="any" placeholder="Opzionale"><span class="sltp-out" id="tkTpOut"></span><button class="tp-add" id="tkTpAdd" type="button" title="Uscite scalari: chiudi la posizione a pezzi, su più livelli">+ TP</button></div>
+          <div class="field sm"><label>Stop-loss</label><input id="tkSl" autocomplete="off" type="number" step="any" placeholder="Opzionale"><span class="sltp-out" id="tkSlOut"></span></div>
+          <div class="field sm" id="tkTpField"><label>Take-profit</label><input id="tkTp" autocomplete="off" type="number" step="any" placeholder="Opzionale"><span class="sltp-out" id="tkTpOut"></span><button class="tp-add" id="tkTpAdd" type="button" title="Uscite scalari: chiudi la posizione a pezzi, su più livelli">+ TP</button></div>
         </div>
         <div class="tp-levels hidden solo-only basic-only" id="tkTpBox"></div>
         <div class="checks trail-check solo-only basic-only">
@@ -708,13 +713,13 @@
 </div>
 
 <div class="toast hidden" id="toast"></div>
-<script src="i18n.js?v=181"></script>
-<script src="i18n-zh.js?v=181"></script>
-<script src="i18n-ko.js?v=181"></script>
-<script src="formulas.js?v=181"></script>
-<script src="paper.js?v=181"></script>
-<script src="live.js?v=181"></script>
-<script src="app.js?v=181"></script>
-<script src="picker.js?v=181"></script>
+<script src="i18n.js?v=183"></script>
+<script src="i18n-zh.js?v=183"></script>
+<script src="i18n-ko.js?v=183"></script>
+<script src="formulas.js?v=183"></script>
+<script src="paper.js?v=183"></script>
+<script src="live.js?v=183"></script>
+<script src="app.js?v=183"></script>
+<script src="picker.js?v=183"></script>
 </body>
 </html>

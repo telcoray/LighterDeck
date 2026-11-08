@@ -1071,7 +1071,7 @@ async def delete_credentials():
 
 
 @app.post("/api/leverage")
-async def set_leverage(market_id: int, leverage: int, cross: bool = True):
+async def set_leverage(market_id: int, leverage: float, cross: bool = True):
     m = api.markets.get(market_id)
     if not m or leverage < 1 or (m.max_leverage and leverage > m.max_leverage):
         raise HTTPException(400, L("Leva fuori dai limiti del mercato", "Leverage outside the market's range"))

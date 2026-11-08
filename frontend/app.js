@@ -1532,8 +1532,9 @@ function renderTicket() {
   const pos = account && account.positions.find((p) => p.market_id === m.id);
   const set = levSet(m);
   const levNow = set ? set.leverage : m.default_leverage;
-  $("#tkLev").textContent = `${levNow ? levNow + "x " : ""}${set && !set.cross ? "Isolated" : "Cross"}`;
-  $("#tkLev").classList.toggle("iso", !!(set && !set.cross));
+  $("#tkLev").textContent = levNow ? `${levNow}x` : "—";
+  const isolated = !!(set && !set.cross);
+  $$("#tkMode [data-cross]").forEach((b) => b.classList.toggle("active", (b.dataset.cross === "0") === isolated));
   $("#tkAvail").textContent = account ? fusd(account.available) : "—";
   $("#tkPos").innerHTML = pos ? `<span class="${pos.size > 0 ? "up" : "down"}">${pos.size > 0 ? "Long" : "Short"} ${fsize(pos.size, m)}</span>` : "—";
   const unit = $("#tkUnit").value;
@@ -3767,12 +3768,13 @@ function renderLimitValues() {
 }
 
 // ---------- leverage: a wheel on the ticket's button ----------
-// Mouse wheel or finger on the button turn a drum of 1x…max right there, no window to open: down towards the
-// maximum, up towards 1x, and it stops dead at both ends. A change is sent once the drum has rested for a moment,
-// because on Lighter each one is a transaction; an order about to go out sends a waiting one first.
+// Mouse wheel or finger on the button turn a drum right there, no window to open: whole numbers and, beside them,
+// tenths, like a date picker. Down towards the maximum, up towards 1x, and it stops dead at both ends. A change is
+// sent once the drum has rested for a moment, because on Lighter each one is a transaction; an order about to go
+// out sends a waiting one first. Cross or isolated is a separate choice, always on the ticket's first row.
 const LEV_ROW = 26, LEV_STEP_DEG = 20, LEV_SEND_MS = 800, LEV_IDLE_CLOSE_MS = 1400;
 const LEV_RADIUS = LEV_ROW / (2 * Math.tan((LEV_STEP_DEG / 2) * Math.PI / 180));
-const lev = { open: false, pinned: false, market: null, max: 1, pos: 0, target: 0, cross: true, raf: 0, last: 0,
+const lev = { open: false, pinned: false, market: null, max: 1, cols: [{ pos: 0, target: 0, n: 1 }, { pos: 0, target: 0, n: 10 }], cross: true, raf: 0, last: 0,
   drag: null, sendTimer: 0, closeTimer: 0, snapTimer: 0, pending: null, sending: null };
 
 // the market's settings, with a change that is on its way counted as made
@@ -3780,7 +3782,9 @@ function levSet(m) {
   const set = account && account.settings && account.settings[m.id];
   const p = lev.pending;
   if (!p || p.id !== m.id) return set;
-  if ((set && set.leverage === p.leverage && set.cross === p.cross) || Date.now() - p.at > 15000) { lev.pending = null; return set; }
+  // the account showing it ends the wait, but not while an earlier change of ours may still be on its way over it
+  const settled = !lev.lastSent || lev.lastSent.id !== p.id || (lev.lastSent.leverage === p.leverage && lev.lastSent.cross === p.cross);
+  if ((settled && !lev.sendTimer && set && set.leverage === p.leverage && set.cross === p.cross) || Date.now() - p.at > 15000) { lev.pending = null; return set; }
   return { leverage: p.leverage, cross: p.cross };
 }
 
@@ -3792,9 +3796,20 @@ function levMax(m) {
 function levPlace() {
   const r = $("#tkLev").getBoundingClientRect(), box = $("#levDrum");
   // the drum's centre row sits on the button, as if the button had become the wheel
-  const top = r.top + r.height / 2 - $("#levCyl").offsetHeight / 2;
+  const top = r.top + r.height / 2 - box.offsetHeight / 2;
   box.style.top = Math.max(4, Math.min(innerHeight - box.offsetHeight - 4, top)) + "px";
   box.style.left = Math.max(4, Math.min(innerWidth - box.offsetWidth - 4, r.right - box.offsetWidth)) + "px";
+}
+
+// what the two columns read; at the maximum there are no tenths left
+const levAtMax = () => Math.round(lev.cols[0].pos) + 1 >= lev.max;
+const levValue = () => +(Math.round(lev.cols[0].pos) + 1 + (levAtMax() ? 0 : Math.round(lev.cols[1].pos) / 10)).toFixed(1);
+
+function levLoad(value) {
+  const tenths = Math.round(Math.max(1, Math.min(lev.max, value)) * 10);
+  lev.cols[0].pos = lev.cols[0].target = Math.floor(tenths / 10) - 1;
+  lev.cols[1].pos = lev.cols[1].target = tenths % 10;
+  lev.last = levValue();
 }
 
 function levOpen(pinned) {
@@ -3805,13 +3820,12 @@ function levOpen(pinned) {
   const set = levSet(m);
   lev.market = m;
   lev.max = levMax(m);
+  lev.cols[0].n = lev.max;
   lev.cross = set ? set.cross !== false : true;
-  lev.last = Math.max(1, Math.min(lev.max, Math.round(set ? set.leverage : Math.min(m.default_leverage || 5, lev.max))));
-  lev.pos = lev.target = lev.last - 1;
+  levLoad(set ? set.leverage : Math.min(m.default_leverage || 5, lev.max));
   lev.open = true;
   lev.pinned = pinned;
-  $("#levCyl").innerHTML = Array.from({ length: lev.max }, (_, i) => `<div class="lev-row" data-lev="${i + 1}">${i + 1}x</div>`).join("");
-  $$("#levDrum .levmode button").forEach((b) => b.classList.toggle("active", (b.dataset.cross === "1") === lev.cross));
+  $("#levCyl").innerHTML = lev.cols.map((c, k) => `<div class="lev-col" data-col="${k}">${Array.from({ length: c.n }, (_, i) => `<div class="lev-row" data-row="${i}">${k ? `.${i}x` : i + 1}</div>`).join("")}</div>`).join("");
   $("#levDrum").classList.remove("hidden");
   levPlace();
   levDraw();
@@ -3822,7 +3836,7 @@ function levOpen(pinned) {
 function levSettle() {
   if (!lev.open) return;
   lev.drag = null;
-  lev.target = lev.pos = Math.round(lev.target);
+  for (const c of lev.cols) c.target = c.pos = Math.round(c.target);
   levDraw();
 }
 
@@ -3839,16 +3853,20 @@ function levClose() {
 }
 
 function levDraw() {
-  $$("#levCyl .lev-row").forEach((el, i) => {
-    const angle = (lev.pos - i) * LEV_STEP_DEG;
-    const seen = Math.abs(angle) < 80;
-    el.style.visibility = seen ? "visible" : "hidden";
-    if (!seen) return;
-    el.style.transform = `translateZ(${-LEV_RADIUS}px) rotateX(${angle}deg) translateZ(${LEV_RADIUS}px)`;
-    el.style.opacity = Math.max(0.12, Math.cos(angle * Math.PI / 180) ** 2);
-    el.classList.toggle("on", Math.abs(lev.pos - i) < 0.5);
+  // at the maximum the tenths go back to .0 by themselves
+  if (levAtMax() && lev.cols[1].target !== 0) { lev.cols[1].target = 0; levAnimate(); }
+  lev.cols.forEach((c, k) => {
+    $$(`#levCyl .lev-col[data-col="${k}"] .lev-row`).forEach((el, i) => {
+      const angle = (c.pos - i) * LEV_STEP_DEG;
+      const seen = Math.abs(angle) < 80;
+      el.style.visibility = seen ? "visible" : "hidden";
+      if (!seen) return;
+      el.style.transform = `translateZ(${-LEV_RADIUS}px) rotateX(${angle}deg) translateZ(${LEV_RADIUS}px)`;
+      el.style.opacity = Math.max(0.12, Math.cos(angle * Math.PI / 180) ** 2);
+      el.classList.toggle("on", Math.abs(c.pos - i) < 0.5);
+    });
   });
-  const value = Math.round(lev.pos) + 1;
+  const value = levValue();
   if (value !== lev.last) {
     lev.last = value;
     levChanged();
@@ -3865,21 +3883,41 @@ function levChanged() {
   lev.sendTimer = setTimeout(levSend, LEV_SEND_MS);
 }
 
+// cross or isolated: one click, one transaction, so it goes out at once at the leverage already set
+function levMode(cross) {
+  const m = activeMarket();
+  if (!m || activePair()) return;
+  if (!info.trading) return toast(t("Sola lettura: nessuna API key"), true);
+  const set = levSet(m);
+  if ((set ? set.cross !== false : true) === cross) return;
+  lev.cross = cross;
+  lev.market = m;
+  const value = lev.open ? lev.last : set ? set.leverage : Math.min(m.default_leverage || 5, levMax(m));
+  lev.pending = { id: m.id, leverage: value, cross, at: Date.now() };
+  renderTicket();
+  updateTicketSummary();
+  levSend();
+}
+
+const levMoving = () => lev.cols.some((c) => c.pos !== c.target);
+
 function levAnimate() {
   if (lev.raf || !lev.open) return;
   const step = () => {
     lev.raf = 0;
     if (!lev.open) return;
-    lev.pos += (lev.target - lev.pos) * 0.3;
-    if (Math.abs(lev.target - lev.pos) < 0.004) lev.pos = lev.target;
+    for (const c of lev.cols) {
+      c.pos += (c.target - c.pos) * 0.3;
+      if (Math.abs(c.target - c.pos) < 0.004) c.pos = c.target;
+    }
     levDraw();
-    if (lev.pos !== lev.target) lev.raf = requestAnimationFrame(step);
+    if (levMoving()) lev.raf = requestAnimationFrame(step);
   };
   lev.raf = requestAnimationFrame(step);
 }
 
 // a hard stop at both ends: nothing goes past them and nothing springs back
-const levClamp = (v) => Math.max(0, Math.min(lev.max - 1, v));
+const levClamp = (k, v) => Math.max(0, Math.min(k && levAtMax() ? 0 : lev.cols[k].n - 1, v));
 
 function levRest() {
   clearTimeout(lev.closeTimer);
@@ -3889,24 +3927,26 @@ function levRest() {
 async function levSend() {
   clearTimeout(lev.sendTimer);
   // still turning, or held by a finger: only the value it comes to rest on goes out
-  if (lev.open && (lev.drag || lev.pos !== lev.target)) { lev.sendTimer = setTimeout(levSend, 200); return; }
+  if (lev.open && (lev.drag || levMoving())) { lev.sendTimer = setTimeout(levSend, 200); return; }
   lev.sendTimer = 0;
   const p = lev.pending;
   if (!p) return;
   const m = byId[p.id], set = account && account.settings && account.settings[p.id];
-  if (set && set.leverage === p.leverage && set.cross === p.cross) { lev.pending = null; return; }
+  // compared with what was sent last, if it's so recent the account may not show it yet: going straight back still counts
+  const sent = lev.lastSent && lev.lastSent.id === p.id && Date.now() - lev.lastSent.at < 15000 ? lev.lastSent : set;
+  if (sent && sent.leverage === p.leverage && sent.cross === p.cross) { lev.pending = null; return; }
+  lev.lastSent = { id: p.id, leverage: p.leverage, cross: p.cross, at: Date.now() };
   const run = api(`/leverage?market_id=${p.id}&leverage=${p.leverage}&cross=${p.cross}`, { method: "POST" }).then(() => {
     toast(t("{sym}: leva {lev}x {mode} inviata", { sym: m.symbol, lev: p.leverage, mode: p.cross ? "cross" : "isolated" }));
     return true;
   }).catch((e) => {
     toast(e.message, true);
     if (lev.pending === p) lev.pending = null;
+    lev.lastSent = null;
+    const now = levSet(m);
+    lev.cross = now ? now.cross !== false : true;
     if (lev.open && lev.market.id === p.id) { // back to what the account really has
-      const now = levSet(m);
-      lev.cross = now ? now.cross !== false : true;
-      lev.last = Math.max(1, Math.min(lev.max, Math.round(now ? now.leverage : Math.min(m.default_leverage || 5, lev.max))));
-      lev.pos = lev.target = lev.last - 1;
-      $$("#levDrum .levmode button").forEach((b) => b.classList.toggle("active", (b.dataset.cross === "1") === lev.cross));
+      levLoad(now ? now.leverage : Math.min(m.default_leverage || 5, lev.max));
       levDraw();
     }
     renderTicket();
@@ -3929,14 +3969,16 @@ async function levFlush() {
 
 function wireLevWheel() {
   const btn = $("#tkLev"), box = $("#levDrum");
+  const colOf = (el) => { const c = el && el.closest && el.closest(".lev-col"); return c ? +c.dataset.col : 0; }; // on the button: whole numbers
   const onWheel = (e) => {
     if (!levOpen(lev.pinned)) return;
     e.preventDefault();
+    const k = colOf(e.target), c = lev.cols[k];
     const px = e.deltaMode === 1 ? e.deltaY * 33 : e.deltaMode === 2 ? e.deltaY * 300 : e.deltaY;
-    lev.target = levClamp(lev.target + px / 100); // one notch of a mouse wheel is one step
+    c.target = levClamp(k, c.target + px / 100); // one notch of a mouse wheel is one step
     levAnimate();
     clearTimeout(lev.snapTimer);
-    lev.snapTimer = setTimeout(() => { lev.target = Math.round(lev.target); levAnimate(); }, 120); // a trackpad rests on a value
+    lev.snapTimer = setTimeout(() => { for (const x of lev.cols) x.target = Math.round(x.target); levAnimate(); }, 120); // a trackpad rests on a value
     levRest();
   };
   btn.addEventListener("wheel", onWheel, { passive: false });
@@ -3944,8 +3986,9 @@ function wireLevWheel() {
 
   // a finger, or the mouse held down: the drum follows it; a short flick carries on and stops at the ends
   const down = (e) => {
-    if (e.button || e.target.closest(".levmode")) return;
-    lev.drag = { y: e.clientY, from: lev.open ? lev.target : null, moved: false, lastY: e.clientY, lastT: e.timeStamp, v: 0, target: e.target, onBtn: e.currentTarget === btn };
+    if (e.button) return;
+    const k = colOf(e.target);
+    lev.drag = { k, y: e.clientY, from: lev.open ? lev.cols[k].target : null, moved: false, lastY: e.clientY, lastT: e.timeStamp, v: 0, target: e.target, onBtn: e.currentTarget === btn };
     e.currentTarget.setPointerCapture(e.pointerId);
   };
   const move = (e) => {
@@ -3955,11 +3998,12 @@ function wireLevWheel() {
       if (Math.abs(e.clientY - d.y) < 4) return;
       if (!levOpen(lev.pinned)) { lev.drag = null; return; }
       d.moved = true;
-      if (d.from === null) d.from = lev.target;
+      if (d.from === null) d.from = lev.cols[d.k].target;
       clearTimeout(lev.closeTimer);
     }
     e.preventDefault();
-    lev.target = lev.pos = levClamp(d.from + (d.y - e.clientY) / LEV_ROW); // finger up: the rows go up, towards the maximum
+    const c = lev.cols[d.k];
+    c.target = c.pos = levClamp(d.k, d.from + (d.y - e.clientY) / LEV_ROW); // finger up: the rows go up, towards the maximum
     const dt = e.timeStamp - d.lastT;
     if (dt > 0) d.v = (d.lastY - e.clientY) / LEV_ROW / dt;
     d.lastY = e.clientY;
@@ -3972,12 +4016,12 @@ function wireLevWheel() {
     lev.drag = null;
     if (!d.moved) { // a tap: on the button it opens or closes the drum, on a row it picks that row
       if (d.onBtn) { if (lev.open) levClose(); else levOpen(true); return; }
-      const row = d.target.closest && d.target.closest("[data-lev]");
-      if (row) { lev.target = levClamp(+row.dataset.lev - 1); levAnimate(); }
+      const row = d.target.closest && d.target.closest("[data-row]");
+      if (row) { lev.cols[d.k].target = levClamp(d.k, +row.dataset.row); levAnimate(); }
       return;
     }
-    const flick = e.timeStamp - d.lastT < 80 ? d.v * 220 : 0;
-    lev.target = Math.round(levClamp(lev.target + flick));
+    const flick = e.timeStamp - d.lastT < 80 ? d.v * 220 : 0, c = lev.cols[d.k];
+    c.target = Math.round(levClamp(d.k, c.target + flick));
     levAnimate();
     levRest();
   };
@@ -3987,11 +4031,7 @@ function wireLevWheel() {
     el.addEventListener("pointerup", up);
     el.addEventListener("pointercancel", () => { lev.drag = null; });
   }
-  $$("#levDrum .levmode button").forEach((b) => (b.onclick = () => {
-    lev.cross = b.dataset.cross === "1";
-    $$("#levDrum .levmode button").forEach((x) => x.classList.toggle("active", x === b));
-    levChanged();
-  }));
+  $("#tkMode").onclick = (e) => { const b = e.target.closest("[data-cross]"); if (b) levMode(b.dataset.cross === "1"); };
   btn.addEventListener("click", (e) => { if (e.detail === 0) { if (lev.open) levClose(); else levOpen(true); } }); // from the keyboard
   document.addEventListener("pointerdown", (e) => { if (lev.open && !e.target.closest("#levDrum, #tkLev")) levClose(); });
   document.addEventListener("keydown", (e) => {
@@ -4000,7 +4040,7 @@ function wireLevWheel() {
     else if (e.key === "ArrowUp" || e.key === "ArrowDown") {
       e.preventDefault();
       e.stopPropagation();
-      lev.target = levClamp(Math.round(lev.target) + (e.key === "ArrowDown" ? 1 : -1));
+      lev.cols[0].target = levClamp(0, Math.round(lev.cols[0].target) + (e.key === "ArrowDown" ? 1 : -1));
       levAnimate();
       levRest();
     }

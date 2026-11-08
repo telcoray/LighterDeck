@@ -737,11 +737,6 @@ kbd { font-family: var(--mono); font-size: 9.5px; border: 1px solid var(--line-2
 
 /* ---------- risk / leverage ---------- */
 /* leverage and margin mode: a control, not a label (same size as before) */
-.lev { display: inline-flex; align-items: center; gap: 5px; font-size: 10.5px; font-weight: 600; border: 1px solid var(--line-3); padding: 2px 7px; border-radius: 4px; color: var(--text); background: var(--raised); }
-.lev::after { content: ""; width: 0; height: 0; border-left: 3.5px solid transparent; border-right: 3.5px solid transparent; border-top: 4px solid currentColor; opacity: .7; }
-.lev:hover { border-color: var(--text-2); }
-.lev.iso { color: var(--amber); border-color: color-mix(in srgb, var(--amber) 55%, transparent); }
-.levmode button { flex: 1; }
 .hint { color: var(--muted); font-size: 10.5px; line-height: 1.45; margin: 0 0 8px; }
 .risk-note { margin-bottom: 8px; padding: 8px 10px; border-radius: var(--r); font-size: 11px; line-height: 1.45; color: var(--amber); background: rgba(232,177,74,.07); border: 1px solid rgba(232,177,74,.25); }
 .src { font-size: 9px; letter-spacing: .06em; text-transform: uppercase; color: var(--blue); border: 1px solid rgba(106,168,255,.3); border-radius: 3px; padding: 0 4px; margin-left: 6px; vertical-align: 1px; }
@@ -1097,15 +1092,12 @@ body.browser-key :is(.pair-add, #mktSpread) { display: none !important; }
 }
 
 /* ================= leverage: a wheel on the ticket's button ================= */
-.lev { touch-action: none; cursor: ns-resize; user-select: none; }
-.lev-drum { position: fixed; z-index: 40; width: 112px; padding: 0 6px 6px; background: var(--surface); border: 1px solid var(--float-border); border-radius: var(--float-radius); box-shadow: var(--float-shadow); touch-action: none; user-select: none; }
-.lev-cyl { position: relative; height: 138px; overflow: hidden; perspective: 420px; cursor: ns-resize; }
+.lev-drum { position: fixed; z-index: 40; width: 86px; padding: 0 6px; background: var(--surface); border: 1px solid var(--float-border); border-radius: var(--float-radius); box-shadow: var(--float-shadow); touch-action: none; user-select: none; }
+.lev-cyl { position: relative; display: flex; height: 138px; overflow: hidden; cursor: ns-resize; }
 /* the band of the chosen value, across the cylinder's front */
 .lev-cyl::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 26px; margin-top: -13px; border-block: 1px solid var(--line-3); background: var(--raised); border-radius: 4px; pointer-events: none; }
 .lev-row { position: absolute; left: 0; right: 0; top: 50%; height: 26px; margin-top: -13px; display: flex; align-items: center; justify-content: center; font-family: var(--mono); font-size: 13px; color: var(--muted); backface-visibility: hidden; transform-style: preserve-3d; }
 .lev-row.on { color: var(--text); font-weight: 600; }
-.lev-drum .levmode { margin-top: 6px; }
-.lev-drum .levmode button { flex: 1; min-width: 0; padding: 0 2px; font-size: 10px; }
 
 /* ================= ticket: size slider ================= */
 .size-pct { display: flex; align-items: center; gap: 10px; margin: -4px 0 12px; }
@@ -1177,7 +1169,7 @@ body.simple #accLevDt, body.simple #accLev { display: none; }
 /* ticket: basket, one row per market instead of the single order's fields */
 .bk-sum { display: none; }
 .ticket[data-kind="basket"] .bk-sum { display: grid; }
-.ticket[data-kind="basket"] #sideSel, .ticket[data-kind="basket"] #tkLev, .ticket[data-kind="basket"] .fl:has(#tkUnit), .ticket[data-kind="basket"] .field:has(#tkSize),
+.ticket[data-kind="basket"] #sideSel, .ticket[data-kind="basket"] .tk-controls, .ticket[data-kind="basket"] .fl:has(#tkUnit), .ticket[data-kind="basket"] .field:has(#tkSize),
 .ticket[data-kind="basket"] #tkChips, .ticket[data-kind="basket"] #tkPctRow, .ticket[data-kind="basket"] .checks:has(#tkReduce),
 .ticket[data-kind="basket"] dt:has(+ #tkPos), .ticket[data-kind="basket"] #tkPos,
 .ticket[data-kind="basket"] .summary.rows > div:not(:has(#tkAcct, #tkRoom)) { display: none; }
@@ -1196,3 +1188,21 @@ body.simple #accLevDt, body.simple #accLev { display: none; }
 .rfq-nudge { display: block; width: 100%; margin-bottom: 8px; text-align: left; font-size: 11px; }
 body.simple .rfq-nudge { display: none; }
 .ticket.rfq-on #sideSel, .ticket.rfq-on #tkChips, .ticket.rfq-on #tkPctRow, .ticket.rfq-on .checks:has(#tkReduce) { display: none; }
+
+/* ================= ticket: first row ================= */
+.ticket-head { gap: 8px; min-height: 24px; }
+.ticket-head #tkSym { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tk-controls { display: flex; flex: none; align-items: center; gap: 4px; }
+.tk-mode { display: flex; height: 24px; padding: 1px; gap: 1px; border: 1px solid var(--line-2); border-radius: 4px; }
+.tk-mode button { padding: 0 7px; border-radius: 3px; color: var(--muted); font-size: 10.5px; }
+.tk-mode button:hover { color: var(--text); }
+.tk-mode button.active { background: var(--raised); color: var(--text); }
+.tk-mode button.active[data-cross="0"] { color: var(--amber); }
+.tk-lev { display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 5px 0 7px; border: 1px solid var(--line-2); border-radius: 4px; color: var(--text); font-family: var(--mono); font-size: 11px; cursor: ns-resize; touch-action: none; user-select: none; }
+.tk-lev:hover { border-color: var(--line-3); }
+/* up and down: it turns */
+.tk-lev::after { content: ""; width: 7px; height: 11px; background: currentColor; opacity: .6; -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 7 11'%3E%3Cpath d='M3.5 0 7 4H0zM3.5 11 0 7h7z'/%3E%3C/svg%3E") center/contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 7 11'%3E%3Cpath d='M3.5 0 7 4H0zM3.5 11 0 7h7z'/%3E%3C/svg%3E") center/contain no-repeat; }
+/* whole numbers and tenths read as one value across the band */
+.lev-col { position: relative; flex: 1; min-width: 0; height: 100%; perspective: 420px; }
+.lev-col[data-col="0"] .lev-row { justify-content: flex-end; }
+.lev-col[data-col="1"] .lev-row { justify-content: flex-start; }
