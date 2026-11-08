@@ -191,7 +191,10 @@ const Live = (() => {
       });
     }
     const next = { index: cred.account_index, collateral: +(a.collateral || 0), available: +(a.available_balance || 0),
-      total_value: +(a.total_asset_value || 0), positions, settings, fees };
+      total_value: +(a.total_asset_value || 0), positions, settings, fees,
+      cross_value: a.cross_asset_value != null ? +a.cross_asset_value : null,
+      initial: a.cross_initial_margin_requirement != null ? +a.cross_initial_margin_requirement : null,
+      maintenance: a.cross_maintenance_margin_requirement != null ? +a.cross_maintenance_margin_requirement : null };
     refreshFees();
     if (acc && JSON.stringify(acc.positions) !== JSON.stringify(positions)) changed = true;
     acc = next;

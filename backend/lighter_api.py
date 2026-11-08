@@ -317,6 +317,10 @@ class LighterAPI:
             "collateral": float(acc.get("collateral") or 0),
             "available": float(acc.get("available_balance") or 0),
             "total_value": float(acc.get("total_asset_value") or 0),
+            # Lighter's own margin figures for the cross side of the account (isolated positions stand apart)
+            "cross_value": float(acc["cross_asset_value"]) if acc.get("cross_asset_value") is not None else None,
+            "initial": float(acc["cross_initial_margin_requirement"]) if acc.get("cross_initial_margin_requirement") is not None else None,
+            "maintenance": float(acc["cross_maintenance_margin_requirement"]) if acc.get("cross_maintenance_margin_requirement") is not None else None,
             "positions": positions,
             "settings": settings,
             "fees": await self.fee_rates(),

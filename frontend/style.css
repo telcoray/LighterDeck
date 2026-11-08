@@ -1149,3 +1149,27 @@ body.simple .ticket-extra { display: none !important; }
 .adv-box .trail-hint:empty { display: none; }
 .ticket:not([data-kind="market"]):not([data-kind="limit"]) .basic-only { display: none !important; }
 body.simple .adv-pick { display: none; }
+
+/* account card: one margin bar, per market, that answers to the ticket and the close buttons */
+.mgauge { position: relative; height: 8px; margin: -4px 0 8px; border-radius: 2px; background: var(--line-2); }
+.mg-bar { display: flex; height: 100%; overflow: hidden; border-radius: 2px; }
+.mg-seg { flex: none; height: 100%; transition: width .15s; box-shadow: inset -1px 0 0 var(--surface); }
+.mg-seg.long { background: var(--green); opacity: .8; } .mg-seg.short { background: var(--red); opacity: .8; }
+.mg-seg.orders { background: var(--line-3); }
+.mg-seg.adds { background: repeating-linear-gradient(135deg, var(--text-2) 0 2px, transparent 2px 4px); }
+.mg-seg.adds.over { background: repeating-linear-gradient(135deg, var(--red) 0 2px, transparent 2px 4px); }
+.mg-seg.freed { background: repeating-linear-gradient(135deg, var(--muted) 0 2px, transparent 2px 4px); }
+.mg-tick { position: absolute; top: -3px; bottom: -3px; width: 2px; margin-left: -1px; background: var(--text); border-radius: 1px; transition: left .15s; }
+.mg-tick.warn { background: var(--amber); } .mg-tick.danger { background: var(--red); }
+.mg-legend { display: flex; flex-wrap: wrap; gap: 3px 10px; margin-bottom: 10px; font-size: 11px; color: var(--muted); }
+.mg-legend:empty { display: none; }
+.mg-key { display: inline-flex; align-items: center; gap: 4px; padding: 0; color: inherit; font-size: inherit; }
+.mg-key::before { content: ""; width: 6px; height: 6px; border-radius: 1px; background: var(--line-3); }
+.mg-key.long::before { background: var(--green); } .mg-key.short::before { background: var(--red); }
+button.mg-key:hover { color: var(--text); }
+.mg-key b { font-family: var(--mono); font-weight: 500; color: var(--text-2); }
+dd.warn { color: var(--amber); }
+.acc-funds { display: block; margin-top: 10px; font-size: 11px; }
+#accountPill[data-margin="warn"] .dot { background: var(--amber); }
+#accountPill[data-margin="danger"] .dot { background: var(--red); }
+body.simple #accLevDt, body.simple #accLev { display: none; }

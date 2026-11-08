@@ -1915,7 +1915,7 @@ function refreshEstBook(m, qty, entry) {
   estBook.busy = true;
   api(`/orderbook?market_id=${m.id}`).then((b) => {
     Object.assign(estBook, { market: m.id, at: Date.now(), asks: b.asks || [], bids: b.bids || [] });
-    if (activeMarket() === m) renderTicketEstimates(m, prices[m.id], qty, entry);
+    if (activeMarket() === m) renderTicket(); // not this request's qty: the ticket may have changed while it was out
   }).catch(() => {}).finally(() => { estBook.busy = false; });
 }
 
@@ -1976,6 +1976,7 @@ function renderTicketEstimates(m, p, qty, entry) {
     const changes = qty && (closes || fp(nextEntry, m) !== fp(curPos.entry, m));
     $("#tkEntry").textContent = changes ? `${fp(curPos.entry, m)} → ${closes ? "—" : fp(nextEntry, m)}` : fp(curPos.entry, m);
   }
+  setTicketMargin(qty && account ? { market_id: m.id, delta: side * qty, price: entry, leverage, cross: !set || set.cross !== false, reduce } : null);
   const draft = { market: m.id, side, entry, liq: qty && !reduce ? liq : null, lines: [] };
   const sideWord = side > 0 ? "BUY" : "SELL", sizeWord = qty ? " " + fsize(qty, m) : "";
   if (hasLimitField() && +$("#tkPrice").value) draft.lines.push({ kind: "limit", price: +$("#tkPrice").value, title: `LIMIT ${sideWord}${ticket.kind === "limit" ? sizeWord : ""}` });
@@ -2353,6 +2354,144 @@ function renderAlerts() {
     + (alertsFired.length ? `<div class="alerts-foot"><button class="link" data-alert-clear>${t("Svuota gli alert scattati")}</button></div>` : "");
 }
 
+// ================= the account's margin: now, and after what you're about to do =================
+// One place for these figures, used by the account card, the ticket and the close buttons. `change` is a position
+// moving: { market_id, delta (signed size), price, leverage, cross, reduce }. A resting order counts as if it filled.
+function marginState(a, change) {
+  const levOf = (p) => p.leverage || (byId[p.market_id] && byId[p.market_id].default_leverage) || 1;
+  const marginOf = (p) => (p.cross === false ? p.margin : Math.abs(p.value) / levOf(p));
+  const mmfOf = (id) => (byId[id] && byId[id].mmf) || 0;
+  const iso = a.positions.filter((p) => p.cross === false), cross = a.positions.filter((p) => p.cross !== false);
+  const isoMargin = iso.reduce((s, p) => s + p.margin, 0), isoEquity = iso.reduce((s, p) => s + p.margin + p.upnl, 0);
+  const eq = a.total_value, parts = a.positions.map((p) => ({ market_id: p.market_id, symbol: p.symbol, long: p.size > 0, margin: marginOf(p) }));
+  const known = parts.reduce((s, p) => s + p.margin, 0);
+  // what's taken also covers resting orders, which only show in the available balance
+  let used = Math.max(a.initial != null ? a.initial + isoMargin : known, eq - a.available, known);
+  const orders = Math.max(0, used - known);
+  const crossValue = a.cross_value != null ? a.cross_value : eq - isoEquity;
+  let maintenance = a.maintenance != null ? a.maintenance : cross.reduce((s, p) => s + Math.abs(p.value) * mmfOf(p.market_id), 0);
+  let notional = a.positions.reduce((s, p) => s + Math.abs(p.value), 0);
+  let crossNotional = cross.reduce((s, p) => s + Math.abs(p.value), 0);
+  let free = a.available, delta = 0;
+  if (change) {
+    const pos = a.positions.find((p) => p.market_id === change.market_id);
+    const was = pos ? pos.size : 0;
+    let move = change.delta;
+    // a reduce-only order can only shrink what's there
+    if (change.reduce) move = !was || Math.sign(move) === Math.sign(was) ? 0 : Math.sign(move) * Math.min(Math.abs(move), Math.abs(was));
+    const next = was + move, wasValue = pos ? Math.abs(pos.value) : 0, wasMargin = pos ? marginOf(pos) : 0;
+    const adds = !was || Math.sign(move) === Math.sign(was), shrinks = !adds && Math.sign(next) === Math.sign(was);
+    // what's held stays at its value; only the part this order adds, or a flip's new side, is at the order's price
+    const nextValue = adds ? wasValue + Math.abs(move) * change.price : shrinks ? wasValue * Math.abs(next) / Math.abs(was) : Math.abs(next) * change.price;
+    const nextMargin = shrinks ? wasMargin * Math.abs(next) / Math.abs(was) : nextValue / (change.leverage || 1);
+    delta = nextMargin - wasMargin;
+    used += delta;
+    notional += nextValue - wasValue;
+    if (change.cross !== false) {
+      maintenance += (nextValue - wasValue) * mmfOf(change.market_id);
+      crossNotional += nextValue - wasValue;
+    }
+    free = eq - used;
+  }
+  const ratio = crossValue > 0 ? maintenance / crossValue : maintenance > 0 ? 1 : 0;
+  return {
+    eq, used, usedPct: eq > 0 ? (used / eq) * 100 : 0, free, parts, orders, delta, ratio,
+    lev: eq > 0 ? notional / eq : 0,
+    // how far every cross position together can go against you before the equity meets the maintenance requirement
+    room: crossNotional > 1e-9 ? Math.max(0, crossValue - maintenance) / crossNotional : null,
+    level: ratio >= 0.8 ? "danger" : ratio >= 0.5 ? "warn" : "",
+  };
+}
+
+const marginView = { ticket: null, hover: null, hoverEl: null };
+const fromTo = (a, b, f) => (f(a) === f(b) ? f(a) : `${f(a)} → ${f(b)}`);
+const fpctUsed = (v) => `${v.toFixed(v > 0 && v < 10 ? 1 : 0)}%`;
+const froom = (v) => (v == null ? "—" : v >= 1 ? "> 100%" : `${(v * 100).toFixed(v < 0.1 ? 1 : 0)}%`); // past 100% nothing more to say
+
+function renderMargin() {
+  const gauge = $("#accGauge"), pill = $("#accountPill");
+  const show = (id, on) => { $(id).classList.toggle("hidden", !on); $(id + "Dt").classList.toggle("hidden", !on); };
+  gauge.classList.toggle("hidden", !account);
+  $("#accFunds").classList.toggle("hidden", !account || Paper.on);
+  if (!account) {
+    $("#accMgLegend").innerHTML = "";
+    $("#accMgLegend").dataset.html = "";
+    $("#accAvail").textContent = "—";
+    for (const id of ["#accUsed", "#accLev", "#accRoom", "#accUpnl"]) show(id, false);
+    delete pill.dataset.margin;
+    return;
+  }
+  // a button that was redrawn under the mouse never says the mouse left
+  if (marginView.hoverEl && !marginView.hoverEl.isConnected) marginView.hover = marginView.hoverEl = null;
+  const change = marginView.hover || marginView.ticket;
+  const now = marginState(account), next = change ? marginState(account, change) : now;
+  const moved = change && Math.abs(next.delta) > 1e-9;
+  const active = account.positions.length > 0 || now.used > 1e-9;
+  // the bar: one piece per market, then the orders, then what the change adds or frees
+  const scale = Math.max(now.eq, now.used, next.used, 1e-9);
+  const width = (v) => `${(Math.max(0, v) / scale) * 100}%`;
+  const pieces = [...now.parts].sort((x, y) => (change && x.market_id === change.market_id ? 1 : 0) - (change && y.market_id === change.market_id ? 1 : 0)).map((p) => {
+    const shrink = moved && next.delta < 0 && p.market_id === change.market_id ? -next.delta : 0;
+    return `<i class="mg-seg ${p.long ? "long" : "short"}" style="width:${width(p.margin - shrink)}"></i>${shrink ? `<i class="mg-seg freed" style="width:${width(shrink)}"></i>` : ""}`;
+  });
+  if (now.orders > 1e-9) pieces.push(`<i class="mg-seg orders" style="width:${width(now.orders)}"></i>`);
+  if (moved && next.delta > 0) pieces.push(`<i class="mg-seg adds${next.used > next.eq ? " over" : ""}" style="width:${width(next.delta)}"></i>`);
+  const html = pieces.join("");
+  const bar = $("#accMgBar");
+  if (bar.dataset.html !== html) { bar.innerHTML = html; bar.dataset.html = html; }
+  const tick = $("#accMgTick");
+  tick.style.left = `${Math.min(100, next.ratio * 100)}%`;
+  tick.className = `mg-tick ${next.level}${next.ratio > 0 ? "" : " hidden"}`;
+  tick.title = t("Margine di mantenimento: quando questa linea arriva in fondo, scatta la liquidazione");
+  // the legend says which market holds what, and takes you there
+  const legend = now.parts.slice().sort((x, y) => y.margin - x.margin).map((p) => `<button class="mg-key ${p.long ? "long" : "short"}" data-sym="${esc(p.symbol)}">${esc(p.symbol)} <b>${fpctUsed(now.eq > 0 ? (p.margin / now.eq) * 100 : 0)}</b></button>`);
+  if (now.orders > 1e-9) legend.push(`<span class="mg-key orders">${t("Ordini")} <b>${fpctUsed(now.eq > 0 ? (now.orders / now.eq) * 100 : 0)}</b></span>`);
+  const legendHtml = legend.join("");
+  const legendEl = $("#accMgLegend");
+  if (legendEl.dataset.html !== legendHtml) { legendEl.innerHTML = legendHtml; legendEl.dataset.html = legendHtml; }
+  // the rows, before -> after only when something is about to change
+  const short = moved && next.free < 0 && next.delta > 0;
+  $("#accAvail").textContent = short ? t("Mancano {x}", { x: fusd(-next.free) }) : moved ? fromTo(account.available, Math.max(0, next.free), fusd) : fusd(account.available);
+  $("#accAvail").className = short ? "down" : "";
+  show("#accUsed", active || moved);
+  $("#accUsed").textContent = moved ? fromTo(now.usedPct, next.usedPct, fpctUsed) : fpctUsed(now.usedPct);
+  $("#accUsed").classList.toggle("down", (moved ? next : now).usedPct > 100);
+  show("#accLev", active || moved);
+  $("#accLev").textContent = moved ? fromTo(now.lev, next.lev, (v) => `${v.toFixed(1)}x`) : `${now.lev.toFixed(1)}x`;
+  show("#accRoom", now.room != null || (moved && next.room != null));
+  $("#accRoom").textContent = moved ? fromTo(now.room, next.room, froom) : froom(now.room);
+  const level = (moved ? next : now).level;
+  $("#accRoom").classList.toggle("down", level === "danger");
+  $("#accRoom").classList.toggle("warn", level === "warn");
+  $("#accRoomDt").title = t("Quanto possono muoversi tutte le posizioni cross contro di te prima della liquidazione");
+  $("#accLevDt").title = t("Valore delle posizioni diviso il capitale");
+  show("#accUpnl", account.positions.length > 0);
+  if (now.level) pill.dataset.margin = now.level; else delete pill.dataset.margin;
+  renderTicketMargin(now, marginView.ticket ? marginState(account, marginView.ticket) : now);
+}
+
+// the same answer inside the ticket, which is where the decision is taken (and on a phone the card is far below)
+function renderTicketMargin(now, next) {
+  const row = $("#tkAcct"), room = $("#tkRoom");
+  const moved = marginView.ticket && Math.abs(next.delta) > 1e-9;
+  row.classList.toggle("hidden", !moved);
+  room.classList.add("hidden");
+  if (!moved) return;
+  const short = next.free < 0 && next.delta > 0;
+  row.textContent = short ? t("Mancano {x}", { x: fusd(-next.free) }) : fromTo(now.usedPct, next.usedPct, fpctUsed);
+  row.className = short || next.usedPct > 100 ? "down" : "";
+  // only when it's worth a thought
+  if (next.room == null || (next.delta > 0 && !next.level && next.room >= 0.1) || (next.delta <= 0 && !now.level)) return;
+  room.classList.remove("hidden");
+  room.textContent = fromTo(now.room, next.room, froom);
+  room.className = next.level === "danger" ? "down" : next.level === "warn" ? "warn" : "";
+}
+
+function setTicketMargin(change) {
+  marginView.ticket = change;
+  renderMargin();
+}
+
 // ================= account / bottom tables =================
 function renderAccount() {
   renderAccountHead();
@@ -2360,7 +2499,6 @@ function renderAccount() {
   $("#accIdx").textContent = has ? (Paper.on ? "Paper" : "#" + account.index) : "";
   const liveInfo = Live.on && Live.info();
   $("#accEq").textContent = has ? account.total_value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—";
-  $("#accAvail").textContent = has ? fusd(account.available) : "—";
   const upnl = has ? account.positions.reduce((s, p) => s + p.upnl, 0) : null;
   const u = $("#accUpnl");
   u.textContent = has ? fusd(upnl) : "—";
@@ -2379,6 +2517,7 @@ function renderAccount() {
   pill.title = Paper.on ? t("Paper trading") : info.trading ? t("API key collegata") : t("Collega un'API key");
   renderPositions();
   renderTicket();
+  renderMargin();
   panels.forEach((p) => p.drawLines());
 }
 
@@ -2925,7 +3064,7 @@ function renderAccountHead() {
   const eq = account.total_value, avail = account.available;
   const upnl = account.positions.reduce((s, p) => s + p.upnl, 0);
   const notional = account.positions.reduce((s, p) => s + Math.abs(p.value), 0);
-  const used = eq > 0 ? Math.max(0, Math.min(100, ((eq - avail) / eq) * 100)) : 0;
+  const used = marginState(account).usedPct;
   $("#acIdx").textContent = "#" + account.index;
   $("#acEq").textContent = fusd(eq);
   const today = acc.data && acc.data.days.find((x) => x.day === utcDay(new Date()));
@@ -2938,7 +3077,7 @@ function renderAccountHead() {
   $("#acLev").textContent = eq > 0 ? `${(notional / eq).toFixed(1)}x` : "—";
   $("#acUsed").textContent = `${used.toFixed(1)}%`;
   const bar = $("#acUsedBar");
-  bar.style.width = used + "%";
+  bar.style.width = Math.min(100, used) + "%";
   bar.className = used >= 85 ? "danger" : used >= 65 ? "warn" : "";
 }
 
@@ -3805,6 +3944,22 @@ function wire() {
 
   // bottom tables
   $$("#bottomTabs button").forEach((b) => (b.onclick = () => switchBottom(b.dataset.btab)));
+  // resting on a close button shows what it would give back (on phones there's no hover, and it takes two taps anyway)
+  $("#btab-positions").addEventListener("mouseover", (e) => {
+    const b = e.target.closest("[data-close]");
+    const pos = b && account && account.positions.find((p) => p.market_id === +b.dataset.close);
+    if (!pos) return;
+    const mark = prices[pos.market_id] && prices[pos.market_id].mark;
+    marginView.hover = { market_id: pos.market_id, delta: (-pos.size * +b.dataset.f) / 100, price: mark || Math.abs(pos.value / pos.size), leverage: pos.leverage, cross: pos.cross };
+    marginView.hoverEl = b;
+    renderMargin();
+  });
+  $("#btab-positions").addEventListener("mouseout", (e) => {
+    if (!marginView.hoverEl || !e.target.closest("[data-close]")) return;
+    marginView.hover = marginView.hoverEl = null;
+    renderMargin();
+  });
+  $("#accMgLegend").onclick = (e) => { const b = e.target.closest("[data-sym]"); if (b) setSymbol(b.dataset.sym); };
   $("#btab-positions").onclick = async (e) => {
     const ps = e.target.closest("[data-pstop]");
     if (ps && info.trading) return editPairStop(ps);

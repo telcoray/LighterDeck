@@ -760,3 +760,4 @@ Object.assign(DICTS.ko, {
   "Paper: TWAP on {sym} stopped: not enough margin": "모의: {sym} TWAP 중지: 증거금 부족",
   "Paper: scale {side} {size} {sym}, {n} orders": "모의: Scale {side} {size} {sym}, 주문 {n}개",
 });
+Object.assign(DICTS.ko, {"In use": "사용 중", "Exposure": "익스포저", "To liquidation": "청산까지 여유", "Margin in use": "사용 중인 증거금", "{x} short": "{x} 부족", "Maintenance margin: when this line reaches the end, liquidation starts": "유지 증거금: 이 선이 끝에 닿으면 청산이 시작됩니다", "How far all your cross positions can move against you before liquidation": "청산 전까지 모든 교차 포지션이 불리하게 움직일 수 있는 폭", "Value of your positions divided by your equity": "포지션 가치를 자산으로 나눈 값"});

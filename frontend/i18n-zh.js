@@ -760,3 +760,4 @@ Object.assign(DICTS.zh, {
   "Paper: TWAP on {sym} stopped: not enough margin": "模拟：{sym} 的 TWAP 已停止：保证金不足",
   "Paper: scale {side} {size} {sym}, {n} orders": "模拟：Scale {side} {size} {sym}，{n} 个委托",
 });
+Object.assign(DICTS.zh, {"In use": "已用", "Exposure": "敞口", "To liquidation": "距强平空间", "Margin in use": "已用保证金", "{x} short": "还差 {x}", "Maintenance margin: when this line reaches the end, liquidation starts": "维持保证金：这条线到达末端时开始强平", "How far all your cross positions can move against you before liquidation": "所有全仓持仓在强平前可向不利方向变动的幅度", "Value of your positions divided by your equity": "持仓价值除以账户权益"});

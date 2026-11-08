@@ -40,7 +40,7 @@
 </script>
 <style>html.i18n-pending body { visibility: hidden; }</style>
 <link rel="icon" href="favicon.svg?v=1" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=172">
+<link rel="stylesheet" href="style.css?v=173">
 <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
 </head>
 <body>
@@ -268,6 +268,8 @@
           <div><dt class="hidden ticket-extra" id="tkTpslSlipDt">Slippage TP/SL</dt><dd class="hidden ticket-extra" id="tkTpslSlip">—</dd></div>
           <div><dt>Commissioni stimate</dt><dd id="tkFee">—</dd></div>
           <div><dt>Liquidazione stimata</dt><dd id="tkLiq">—</dd></div>
+          <div><dt>Margine in uso</dt><dd class="hidden" id="tkAcct">—</dd></div>
+          <div><dt>Alla liquidazione</dt><dd class="hidden" id="tkRoom">—</dd></div>
         </dl>
         <div class="risk-note hidden" id="tkRisk"></div>
         <button class="execute" id="tkExec" data-ck="order">Esegui</button>
@@ -277,11 +279,17 @@
       <section class="card">
         <div class="card-head"><button class="card-link" id="accOpen" title="Apri la pagina Account"><b>Account</b><span class="arr">→</span></button><span class="muted" id="accIdx"></span></div>
         <div class="equity"><span id="accEq">—</span><small>USDC</small></div>
+        <div class="mgauge hidden" id="accGauge"><div class="mg-bar" id="accMgBar"></div><i class="mg-tick" id="accMgTick"></i></div>
+        <div class="mg-legend" id="accMgLegend"></div>
         <dl class="kv">
-          <dt>Margine disponibile</dt><dd id="accAvail">—</dd>
-          <dt>PnL non realizzato</dt><dd id="accUpnl">—</dd>
+          <dt>Disponibile</dt><dd id="accAvail">—</dd>
+          <dt class="hidden" id="accUsedDt">In uso</dt><dd class="hidden" id="accUsed">—</dd>
+          <dt class="hidden" id="accLevDt">Esposizione</dt><dd class="hidden" id="accLev">—</dd>
+          <dt class="hidden" id="accRoomDt">Alla liquidazione</dt><dd class="hidden" id="accRoom">—</dd>
+          <dt class="hidden" id="accUpnlDt">PnL non realizzato</dt><dd class="hidden" id="accUpnl">—</dd>
           <dt class="hidden" id="accLimitDt">Limite per ordine</dt><dd class="hidden" id="accLimit">—</dd>
         </dl>
+        <a class="link acc-funds hidden" id="accFunds" href="https://app.lighter.xyz/portfolio" target="_blank" rel="noopener">Depositi e prelievi su Lighter ↗</a>
       </section>
 
       <section class="card cal">
@@ -668,13 +676,13 @@
 </div>
 
 <div class="toast hidden" id="toast"></div>
-<script src="i18n.js?v=172"></script>
-<script src="i18n-zh.js?v=172"></script>
-<script src="i18n-ko.js?v=172"></script>
-<script src="formulas.js?v=172"></script>
-<script src="paper.js?v=172"></script>
-<script src="live.js?v=172"></script>
-<script src="app.js?v=172"></script>
-<script src="picker.js?v=172"></script>
+<script src="i18n.js?v=173"></script>
+<script src="i18n-zh.js?v=173"></script>
+<script src="i18n-ko.js?v=173"></script>
+<script src="formulas.js?v=173"></script>
+<script src="paper.js?v=173"></script>
+<script src="live.js?v=173"></script>
+<script src="app.js?v=173"></script>
+<script src="picker.js?v=173"></script>
 </body>
 </html>
