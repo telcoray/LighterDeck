@@ -1141,7 +1141,7 @@ body.simple .ticket-extra { display: none !important; }
 #advBtn.active { color: var(--text); border-bottom-color: var(--text); }
 .adv-menu { width: 230px; }
 .adv-box { display: none; margin-bottom: 12px; }
-.ticket[data-kind="conditional"] .adv-conditional, .ticket[data-kind="twap"] .adv-twap, .ticket[data-kind="scale"] .adv-scale, .ticket[data-kind="chase"] .adv-chase, .ticket[data-kind="iceberg"] .adv-iceberg { display: block; }
+.ticket[data-kind="conditional"] .adv-conditional, .ticket[data-kind="twap"] .adv-twap, .ticket[data-kind="scale"] .adv-scale, .ticket[data-kind="chase"] .adv-chase, .ticket[data-kind="iceberg"] .adv-iceberg, .ticket[data-kind="basket"] .adv-basket { display: block; }
 .ticket.pair .adv-box { display: none; }
 .adv-box .chips { margin-bottom: 10px; }
 .adv-seg { margin-bottom: 8px; }
@@ -1173,3 +1173,19 @@ dd.warn { color: var(--amber); }
 #accountPill[data-margin="warn"] .dot { background: var(--amber); }
 #accountPill[data-margin="danger"] .dot { background: var(--red); }
 body.simple #accLevDt, body.simple #accLev { display: none; }
+
+/* ticket: basket, one row per market instead of the single order's fields */
+.bk-sum { display: none; }
+.ticket[data-kind="basket"] .bk-sum { display: grid; }
+.ticket[data-kind="basket"] #sideSel, .ticket[data-kind="basket"] #tkLev, .ticket[data-kind="basket"] .fl:has(#tkUnit), .ticket[data-kind="basket"] .field:has(#tkSize),
+.ticket[data-kind="basket"] #tkChips, .ticket[data-kind="basket"] #tkPctRow, .ticket[data-kind="basket"] .checks:has(#tkReduce),
+.ticket[data-kind="basket"] dt:has(+ #tkPos), .ticket[data-kind="basket"] #tkPos,
+.ticket[data-kind="basket"] .summary.rows > div:not(:has(#tkAcct, #tkRoom)) { display: none; }
+.bk-leg { display: grid; grid-template-columns: minmax(0, 1fr) 54px 72px 18px; gap: 4px; align-items: center; margin-bottom: 6px; }
+.bk-leg select, .bk-leg input { width: 100%; min-width: 0; height: 28px; padding: 0 6px; background: var(--surface); border: 1px solid var(--line-2); border-radius: var(--r); color: var(--text); font-size: 12px; }
+.bk-leg input { font-family: var(--mono); text-align: right; }
+.bk-side { height: 28px; border-radius: var(--r); border: 1px solid currentColor; background: none; font-size: 11px; }
+.bk-side.long { color: var(--green); } .bk-side.short { color: var(--red); }
+.bk-del { height: 28px; background: none; border: 0; color: var(--muted); font-size: 14px; cursor: pointer; }
+.bk-del:hover { color: var(--text); }
+.bk-add { display: block; margin-bottom: 8px; font-size: 11px; }

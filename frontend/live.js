@@ -128,6 +128,28 @@ const Live = (() => {
     return run;
   }
 
+  // several transactions in one call, with consecutive nonces (lighter_api.basket_orders)
+  function sendBatch(builds) {
+    const run = queue.then(async () => {
+      if (nonce === null) nonce = (await get("nextNonce", { account_index: cred.account_index, api_key_index: cred.api_key_index })).nonce;
+      try {
+        const txs = builds.map((build, i) => build(nonce + i));
+        const r = await fetch(`${URL_}/api/v1/sendTxBatch`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({ tx_types: JSON.stringify(txs.map((x) => x.txType)), tx_infos: JSON.stringify(txs.map((x) => x.txInfo)) }) });
+        const body = await r.json().catch(() => ({}));
+        if (!r.ok || body.code !== 200) err(body.message || `sendTxBatch: ${r.status}`);
+        nonce += txs.length;
+        changed = true;
+        return body;
+      } catch (e) {
+        nonce = null;
+        throw e;
+      }
+    });
+    queue = run.catch(() => {});
+    return run;
+  }
+
   // ---------- orders, as the server's lighter_api.py builds them ----------
   const createOrder = (m, o) => send((n) => sign("SignCreateOrder", m.id, o.coi, o.base, o.price, o.isAsk ? 1 : 0, o.type, o.tif,
     o.reduce ? 1 : 0, o.trigger || 0, o.expiry, 0, 0, 0, 0, 0, 0, n));
@@ -275,8 +297,8 @@ const Live = (() => {
 
   async function placeOrder(o) {
     const worked = o.kind === "chase" || o.kind === "iceberg";
-    if (o.trail || o.tp_levels || worked) needAuto();
-    if (worked && !auto.armed) err(t("Chase e Iceberg lavorano con Auto: attivalo prima di inviarli"));
+    if (o.trail || o.tp_levels) needAuto();
+    if (worked && !(auto.on && auto.armed)) err(t("Chase e Iceberg lavorano con Auto: attivalo prima di inviarli"));
     const pl = plan(o, true), m = mkt(o.market_id), signed = pl.size * pl.side;
     if (worked) { // it needs someone watching the book: the engine, with the dedicated key, also with this page closed
       await server("/working", { method: "POST", body: JSON.stringify({ kind: o.kind, market_id: m.id, side: pl.side, qty: pl.size, reduce_only: !!o.reduce_only,
@@ -321,6 +343,35 @@ const Live = (() => {
     try { await Promise.all(after); } catch (e) { err(t("Ordine inviato, ma le automazioni non sono partite: {err}", { err: e.message })); }
     if (after.length) pollAuto().catch(() => {});
     return { ok: true, size: pl.size, armed: auto.armed };
+  }
+
+  // several markets in one send; Lighter's docs don't say all-or-nothing, so what each one filled is read back
+  async function basketOrder(r) {
+    const legs = r.legs || [];
+    if (legs.length < 2 || legs.length > 10 || new Set(legs.map((x) => x.market_id)).size !== legs.length) err(t("Il basket vuole da 2 a {n} mercati diversi", { n: 10 }));
+    const plans = legs.map((x) => {
+      try { return plan({ market_id: x.market_id, side: x.side, kind: "market", size: x.size_usd, unit: "usd", slippage_bps: r.slippage_bps }, true); }
+      catch (e) { err(`${mkt(x.market_id).symbol}: ${e.message}`); }
+    });
+    const lev = (id) => (acc && acc.settings && acc.settings[id] && acc.settings[id].leverage) || mkt(id).default_leverage || 1;
+    const need = plans.reduce((s, p, i) => s + p.notional / lev(legs[i].market_id), 0);
+    if (acc && need > acc.available) err(t("Margine insufficiente per il basket: servono {need}, disponibili {have}", { need: need.toFixed(2), have: acc.available.toFixed(2) }));
+    const before = legs.map((x) => (position(x.market_id) || {}).size || 0), base = coi();
+    await sendBatch(legs.map((x, i) => {
+      const m = mkt(x.market_id), pl = plans[i], signed = pl.size * pl.side;
+      return (n) => sign("SignCreateOrder", m.id, base + i, sizeInt(m, signed), priceInt(m, roundPrice(m, pl.worst)), signed < 0 ? 1 : 0, MARKET, IOC, 0, 0, 0, 0, 0, 0, 0, 0, 0, n);
+    }));
+    let read = false;
+    for (let i = 0; i < 6; i++) {
+      await new Promise((ok) => setTimeout(ok, 500));
+      try { await refresh(); read = true; } catch { continue; }
+      if (legs.every((x, k) => Math.abs(((position(x.market_id) || {}).size || 0) - before[k]) >= plans[k].size * 0.99)) break;
+    }
+    note(`basket: ${legs.map((x, i) => `${x.side} ${plans[i].size} ${mkt(x.market_id).symbol}`).join(", ")}`, "warning");
+    return { ok: true, legs: legs.map((x, i) => {
+      const m = mkt(x.market_id);
+      return { market_id: m.id, symbol: m.symbol, side: x.side, size: plans[i].size, filled: read ? +Math.max(0, (((position(m.id) || {}).size || 0) - before[i]) * plans[i].side).toFixed(m.size_decimals) : null };
+    }) };
   }
 
   async function closePosition(id, fraction) {
@@ -394,6 +445,7 @@ const Live = (() => {
     const run = (fn) => { try { return Promise.resolve(fn()).then((r) => { if (method !== "GET") refresh().catch(() => {}); return r; }); } catch (e) { return Promise.reject(e); } };
     if (p === "/preview" && method === "POST") return run(() => { try { return { ok: true, ...plan(body(), qs.get("live") !== "true") }; } catch (e) { return { ok: false, error: e.message }; } });
     if (p === "/order" && method === "POST") return run(() => placeOrder(body()));
+    if (p === "/basket" && method === "POST") return run(() => basketOrder(body()));
     if (p === "/close" && method === "POST") return run(() => closePosition(+qs.get("market_id"), +qs.get("fraction") || 1));
     if (p === "/reverse" && method === "POST") return run(() => reversePosition(+qs.get("market_id")));
     if (p === "/cancel_order" && method === "POST") return run(async () => { await cancelOrder(mkt(qs.get("market_id")), +qs.get("order_index")); delete orders[+qs.get("market_id")]; return { ok: true }; });

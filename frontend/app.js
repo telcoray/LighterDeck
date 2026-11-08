@@ -1553,13 +1553,18 @@ function renderTicket() {
   $$("#sideSel button").forEach((b) => b.classList.toggle("active", b.dataset.side === ticket.side));
   $$("#kindSel [data-kind]").forEach((b) => b.classList.toggle("active", b.dataset.kind === ticket.kind));
   $("#advBtn").classList.toggle("active", !isBasicKind());
-  $("#advName").textContent = { conditional: t("Condizionale"), twap: "TWAP", scale: "Scale", chase: "Chase Limit", iceberg: "Iceberg" }[ticket.kind] || t("Avanzati");
+  $("#advName").textContent = { conditional: t("Condizionale"), twap: "TWAP", scale: "Scale", chase: "Chase Limit", iceberg: "Iceberg", basket: "Basket" }[ticket.kind] || t("Avanzati");
   $$("#tkCondExec [data-exec]").forEach((b) => b.classList.toggle("active", b.dataset.exec === ticketAdv.exec));
   $$("#tkScaleDist [data-dist]").forEach((b) => b.classList.toggle("active", b.dataset.dist === ticketAdv.dist));
   const ex = $("#tkExec");
   ex.className = "execute" + (!info.trading ? " connect" : ticket.side === "sell" ? " sell" : "");
   ex.textContent = info.trading ? `${ticket.side === "buy" ? "Buy / Long" : "Sell / Short"} ${m.symbol}${Paper.on ? " · Paper" : ""}`
     : t("Sola lettura · collega un'API key");
+  if (ticket.kind === "basket") {
+    $("#tkSym").textContent = "Basket";
+    if (info.trading) ex.textContent = `Basket · ${t("{n} mercati", { n: ticketAdv.legs.length })}${Paper.on ? " · Paper" : ""}`;
+    ex.className = "execute" + (!info.trading ? " connect" : "");
+  }
   ex.disabled = false;
   ex.dataset.ckText = ex.textContent;
   markConfirm();
@@ -1726,9 +1731,111 @@ function pairLegFailed(r) {
   $("#tkMsg").appendChild(fix);
 }
 
+// ---------- basket: market orders on several markets, one send ----------
+const BASKET_MAX = 10;
+function renderBasketLegs() {
+  const markets = Object.values(byId).sort((a, b) => a.symbol.localeCompare(b.symbol));
+  $("#tkBasketLegs").innerHTML = ticketAdv.legs.map((x, i) => `<div class="bk-leg" data-i="${i}">
+    <select data-leg="market" autocomplete="off"><option value="">${t("Mercato")}</option>${markets.map((m) => `<option value="${m.id}"${m.id === x.market_id ? " selected" : ""}>${esc(m.symbol)}</option>`).join("")}</select>
+    <button type="button" class="bk-side ${x.side === "buy" ? "long" : "short"}" data-leg="side">${x.side === "buy" ? "Long" : "Short"}</button>
+    <input data-leg="usd" type="number" min="0" step="any" autocomplete="off" placeholder="USD" value="${x.usd || ""}">
+    <button type="button" class="bk-del" data-leg="del" title="${t("Togli")}"${ticketAdv.legs.length <= 2 ? " disabled" : ""}>×</button></div>`).join("");
+  $("#tkBasketAdd").classList.toggle("hidden", ticketAdv.legs.length >= BASKET_MAX);
+}
+
+function startBasket() {
+  if (ticketAdv.legs.length) return renderBasketLegs();
+  const m = activeMarket();
+  ticketAdv.legs = [{ market_id: m ? m.id : null, side: "buy", usd: 0 }, { market_id: null, side: "sell", usd: 0 }];
+  renderBasketLegs();
+}
+
+const basketReady = () => ticketAdv.legs.filter((x) => x.market_id != null && x.usd > 0); // market ids start at 0
+
+function basketLegRows() {
+  return basketReady().map((x) => {
+    const m = byId[x.market_id], p = prices[m.id] || {}, ref = (x.side === "buy" ? p.ask : p.bid) || p.mark;
+    const set = levSet(m), lev = (set && set.leverage) || m.default_leverage || 1;
+    return { ...x, m, ref, lev, cross: !set || set.cross !== false, qty: ref ? x.usd / ref : 0 };
+  });
+}
+
+function updateBasketSummary() {
+  const rows = basketLegRows();
+  const money = (k) => rows.reduce((s, x) => s + k(x), 0);
+  const fees = money((x) => x.usd * feeRates(x.m).taker);
+  $("#tkBasketSum").innerHTML = rows.map((x) => `<dt><span class="${x.side === "buy" ? "up" : "down"}">${x.side === "buy" ? "Long" : "Short"}</span> ${esc(x.m.symbol)}</dt><dd>${fsize(x.qty, x.m)}</dd>`).join("") +
+    (rows.length ? `<dt>${t("Valore ordine")}</dt><dd>${fusd(money((x) => x.usd))}</dd><dt>${t("Margine")}</dt><dd>${fusd(money((x) => x.usd / x.lev))}</dd>${fees ? `<dt>${t("Commissioni stimate")}</dt><dd>${fusd(fees)}</dd>` : ""}` : "");
+  setTicketMargin(rows.length && account ? rows.map((x) => ({ market_id: x.m.id, delta: (x.side === "buy" ? 1 : -1) * x.qty, price: x.ref, leverage: x.lev, cross: x.cross })) : null);
+  setTicketDraft({ market: null, lines: [] });
+  clearTimeout(updateTicketSummary.t);
+  updateTicketSummary.t = setTimeout(previewBasket, 350);
+}
+
+// each market's own checks, while it's being filled in
+async function previewBasket() {
+  const note = $("#tkRisk"), rows = basketReady();
+  if (!info.trading || !rows.length) { note.classList.add("hidden"); return; }
+  const slip = +$("#tkSlip").value || 50, key = JSON.stringify([rows, slip]);
+  previewBasket.key = key;
+  const rs = await Promise.all(rows.map((x) => api("/preview?live=true", { method: "POST", body: JSON.stringify({ market_id: x.market_id, side: x.side, kind: "market", size: x.usd, unit: "usd", slippage_bps: slip }) }).catch((e) => ({ ok: false, error: e.message }))));
+  if (key !== previewBasket.key) return;
+  const bad = rs.map((r, i) => (r.ok ? null : `${byId[rows[i].market_id].symbol}: ${r.error}`)).filter(Boolean);
+  note.classList.toggle("hidden", !bad.length);
+  note.textContent = bad.join(" · ");
+}
+
+async function executeBasket(byMouse) {
+  const legs = ticketAdv.legs;
+  if (legs.length < 2 || legs.some((x) => x.market_id == null || !(x.usd > 0))) return ticketMsg(t("Ogni riga del basket vuole un mercato e un valore."), "err");
+  if (new Set(legs.map((x) => x.market_id)).size !== legs.length) return ticketMsg(t("Il basket vuole da 2 a {n} mercati diversi", { n: BASKET_MAX }), "err");
+  const total = legs.reduce((s, x) => s + x.usd, 0);
+  if (!askConfirm("order", `${t("Conferma")} ${t("{n} mercati", { n: legs.length })} · ${fusd(total)}`)) return;
+  const btn = $("#tkExec");
+  btn.disabled = true;
+  try {
+    const r = await api("/basket", { method: "POST", body: JSON.stringify({ legs: legs.map((x) => ({ market_id: x.market_id, side: x.side, size_usd: x.usd })), slippage_bps: +$("#tkSlip").value || 50 }) });
+    basketResult(r);
+    switchBottom("positions");
+    if (byMouse) keyboardTip();
+    loadOrders(true);
+  } catch (e) {
+    ticketMsg(e.message, "err");
+  } finally {
+    btn.disabled = !info.trading;
+  }
+}
+
+// what each market really did; a basket that only partly went through offers to undo what did
+function basketResult(r) {
+  const short = r.legs.filter((x) => x.filled !== null && x.filled < x.size * 0.99);
+  if (r.legs.some((x) => x.filled === null)) return ticketMsg(t("Basket inviato: controlla le posizioni, non sono riuscito a leggerle."), "err");
+  if (!short.length) {
+    ticketAdv.legs.forEach((x) => { x.usd = 0; });
+    renderBasketLegs();
+    updateTicketSummary();
+    return ticketMsg(t("Eseguito: {list}.", { list: r.legs.map((x) => `${x.side} ${x.filled} ${x.symbol}`).join(", ") }), "ok");
+  }
+  ticketMsg(t("Basket eseguito solo in parte. Non completi: {list}.", { list: short.map((x) => `${x.symbol} ${x.filled}/${x.size}`).join(", ") }), "err");
+  const done = r.legs.filter((x) => x.filled > 0);
+  if (!done.length) return;
+  const fix = document.createElement("button");
+  fix.className = "pair-fix";
+  fix.textContent = t("Chiudi quanto eseguito a mercato");
+  fix.onclick = async () => {
+    fix.disabled = true;
+    try {
+      for (const x of done) await api("/order", { method: "POST", body: JSON.stringify({ market_id: x.market_id, side: x.side === "buy" ? "sell" : "buy", kind: "market", size: x.filled, unit: "base", reduce_only: true }) });
+      ticketMsg(t("Chiuso quanto eseguito."), "ok");
+      loadOrders(true);
+    } catch (e) { fix.disabled = false; toast(e.message, true); }
+  };
+  $("#tkMsg").appendChild(fix);
+}
+
 // local estimate, refined by the server preview (which also runs every risk check)
 // ---------- advanced orders: conditional, TWAP, scale ----------
-const ticketAdv = { exec: "market", dist: "even", twapFees: null };
+const ticketAdv = { exec: "market", dist: "even", twapFees: null, legs: [] };
 const isBasicKind = () => ticket.kind === "market" || ticket.kind === "limit";
 const hasLimitField = () => ticket.kind === "limit" || ticket.kind === "iceberg" || (ticket.kind === "conditional" && ticketAdv.exec === "limit");
 
@@ -1812,6 +1919,7 @@ function wireAdvOrders() {
     menu.classList.add("hidden");
     if (ticket.kind === "twap") loadTwapFees();
     if (ticket.kind === "iceberg" && !$("#tkPrice").value) fillMid();
+    if (ticket.kind === "basket") startBasket();
     renderTicket();
   };
   document.addEventListener("click", () => menu.classList.add("hidden"));
@@ -1823,6 +1931,29 @@ function wireAdvOrders() {
     renderTicket();
   };
   $("#tkScaleDist").onclick = (e) => { const b = e.target.closest("[data-dist]"); if (b) { ticketAdv.dist = b.dataset.dist; renderTicket(); } };
+  const legBox = $("#tkBasketLegs");
+  legBox.onclick = (e) => {
+    const b = e.target.closest('button[data-leg]'), row = e.target.closest(".bk-leg");
+    if (!b || !row) return;
+    const i = +row.dataset.i, x = ticketAdv.legs[i];
+    if (b.dataset.leg === "side") x.side = x.side === "buy" ? "sell" : "buy";
+    else if (ticketAdv.legs.length > 2) ticketAdv.legs.splice(i, 1);
+    renderBasketLegs();
+    renderTicket();
+  };
+  legBox.onchange = (e) => {
+    const row = e.target.closest(".bk-leg");
+    if (row && e.target.dataset.leg === "market") { ticketAdv.legs[+row.dataset.i].market_id = e.target.value === "" ? null : +e.target.value; updateTicketSummary(); }
+  };
+  legBox.oninput = (e) => {
+    const row = e.target.closest(".bk-leg");
+    if (row && e.target.dataset.leg === "usd") { ticketAdv.legs[+row.dataset.i].usd = +e.target.value || 0; updateTicketSummary(); }
+  };
+  $("#tkBasketAdd").onclick = () => {
+    ticketAdv.legs.push({ market_id: null, side: "buy", usd: 0 });
+    renderBasketLegs();
+    renderTicket();
+  };
   $("#tkIceChips").onclick = (e) => { const b = e.target.closest("[data-pct]"); if (b) { $("#tkIceSlice").value = b.dataset.pct; updateTicketSummary(); } };
   $("#tkChaseEnd").onchange = updateTicketSummary;
   $("#tkTwapChips").onclick = (e) => { const b = e.target.closest("[data-min]"); if (b) { $("#tkTwapMin").value = b.dataset.min; updateTicketSummary(); } };
@@ -1834,6 +1965,7 @@ function wireAdvOrders() {
 
 function updateTicketSummary() {
   if (activePair()) return updatePairSummary();
+  if (ticket.kind === "basket") return updateBasketSummary();
   const m = activeMarket();
   const p = m && prices[m.id];
   const size = +$("#tkSize").value;
@@ -2109,6 +2241,7 @@ function ticketMsg(text, kind) {
 
 async function executeTicket(byMouse = false) {
   if (activePair()) return executePair(byMouse);
+  if (ticket.kind === "basket") return executeBasket(byMouse);
   if (!(await levFlush())) return; // the leverage on screen didn't go through: no order on the wrong one
   const m = activeMarket();
   const size = +$("#tkSize").value;
@@ -2409,22 +2542,22 @@ function marginState(a, change) {
   let notional = a.positions.reduce((s, p) => s + Math.abs(p.value), 0);
   let crossNotional = cross.reduce((s, p) => s + Math.abs(p.value), 0);
   let free = a.available, delta = 0;
-  if (change) {
-    const pos = a.positions.find((p) => p.market_id === change.market_id);
+  for (const c of change ? [].concat(change) : []) { // a basket is several at once
+    const pos = a.positions.find((p) => p.market_id === c.market_id);
     const was = pos ? pos.size : 0;
-    let move = change.delta;
+    let move = c.delta;
     // a reduce-only order can only shrink what's there
-    if (change.reduce) move = !was || Math.sign(move) === Math.sign(was) ? 0 : Math.sign(move) * Math.min(Math.abs(move), Math.abs(was));
+    if (c.reduce) move = !was || Math.sign(move) === Math.sign(was) ? 0 : Math.sign(move) * Math.min(Math.abs(move), Math.abs(was));
     const next = was + move, wasValue = pos ? Math.abs(pos.value) : 0, wasMargin = pos ? marginOf(pos) : 0;
     const adds = !was || Math.sign(move) === Math.sign(was), shrinks = !adds && Math.sign(next) === Math.sign(was);
     // what's held stays at its value; only the part this order adds, or a flip's new side, is at the order's price
-    const nextValue = adds ? wasValue + Math.abs(move) * change.price : shrinks ? wasValue * Math.abs(next) / Math.abs(was) : Math.abs(next) * change.price;
-    const nextMargin = shrinks ? wasMargin * Math.abs(next) / Math.abs(was) : nextValue / (change.leverage || 1);
-    delta = nextMargin - wasMargin;
-    used += delta;
+    const nextValue = adds ? wasValue + Math.abs(move) * c.price : shrinks ? wasValue * Math.abs(next) / Math.abs(was) : Math.abs(next) * c.price;
+    const nextMargin = shrinks ? wasMargin * Math.abs(next) / Math.abs(was) : nextValue / (c.leverage || 1);
+    delta += nextMargin - wasMargin;
+    used += nextMargin - wasMargin;
     notional += nextValue - wasValue;
-    if (change.cross !== false) {
-      maintenance += (nextValue - wasValue) * mmfOf(change.market_id);
+    if (c.cross !== false) {
+      maintenance += (nextValue - wasValue) * mmfOf(c.market_id);
       crossNotional += nextValue - wasValue;
     }
     free = eq - used;

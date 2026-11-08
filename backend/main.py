@@ -452,6 +452,8 @@ def exit_levels(o: OrderReq, m, size, side, ref, mark, check_sides):
 TWAP_MINUTES = (5, 1440)  # Lighter's docs: from 5 minutes to 24 hours
 TWAP_DEFAULT_BOUND = 0.03  # no price given: Lighter's 3% maximum slippage for a TWAP
 ICE_SLICE = (1, 50)  # % of the order shown at a time
+BASKET_LEGS = 10
+BASKET_CHECKS = 6  # looks at the account after a basket, half a second apart
 
 
 def scale_prices(o: OrderReq, m):
@@ -674,6 +676,70 @@ async def pair_order(r: PairReq):
     engine.note(f"manual pair: long {done[0]['size']} {done[0]['symbol']} / short {done[1]['size']} {done[1]['symbol']}", "warning")
     _add_pair(r.long_id, r.short_id, done[0]["size"], done[1]["size"], done[0]["price"], done[1]["price"])
     return {"ok": True, "legs": done}
+
+
+# ---------- basket: several markets in one send ----------
+class BasketLeg(BaseModel):
+    market_id: int
+    side: str
+    size_usd: float
+
+
+class BasketReq(BaseModel):
+    legs: list[BasketLeg]
+    slippage_bps: float | None = None
+
+
+@app.post("/api/basket")
+async def basket_order(r: BasketReq):
+    """Market orders on 2 to 10 markets, all checked first and sent in one batch. Lighter's API docs don't say a batch is
+    all-or-nothing, so the answer reports what each market really filled and the UI offers to close the rest."""
+    if not 2 <= len(r.legs) <= BASKET_LEGS or len({x.market_id for x in r.legs}) != len(r.legs):
+        raise HTTPException(400, L(f"Il basket vuole da 2 a {BASKET_LEGS} mercati diversi", f"A basket takes 2 to {BASKET_LEGS} different markets"))
+    orders = [OrderReq(market_id=x.market_id, side=x.side, kind="market", size=x.size_usd, unit="usd", slippage_bps=r.slippage_bps) for x in r.legs]
+    plans = []
+    for o in orders:
+        try:
+            plans.append(await plan_order(o))
+        except (Blocked, ValueError) as e:
+            sym = api.markets[o.market_id].symbol if o.market_id in api.markets else o.market_id
+            raise HTTPException(400, f"{sym}: {e}")
+    acc = engine.account
+    if acc:
+        lev = lambda mid: (acc.get("settings", {}).get(mid, {}).get("leverage") or api.markets[mid].default_leverage or 1)
+        need = sum(p["notional"] / lev(o.market_id) for o, p in zip(orders, plans))
+        if need > acc["available"]:
+            raise HTTPException(400, L(f"Margine insufficiente per il basket: servono {need:,.2f} USD, disponibili {acc['available']:,.2f}",
+                                       f"Not enough margin for the basket: {need:,.2f} USD needed, {acc['available']:,.2f} available"))
+    held = lambda a, mid: next((p["size"] for p in (a or {}).get("positions", []) if p["market_id"] == mid), 0.0)
+    try:  # read now: what filled is worked out from this, and the engine's copy can be seconds old
+        acc = await api.account() or acc
+    except Exception as e:
+        log.info("basket: account not read: %s", e)
+    before = {o.market_id: held(acc, o.market_id) for o in orders}
+    try:
+        await api.basket_orders([(o.market_id, p["size"] * p["side"], p["worst"]) for o, p in zip(orders, plans)])
+    except Exception as e:
+        engine.note(f"basket failed: {e}", "error")
+        raise HTTPException(400, str(e))
+    legs, now = [], None
+    for _ in range(BASKET_CHECKS):  # market orders settle within moments: read what each one did
+        await asyncio.sleep(0.5)
+        try:
+            now = await api.account()
+        except Exception as e:
+            log.info("basket: account not read: %s", e)
+            continue
+        if all(abs(held(now, o.market_id) - before[o.market_id]) >= p["size"] * 0.99 for o, p in zip(orders, plans)):
+            break
+    if now:
+        engine.account = now
+    for o, p in zip(orders, plans):
+        m = api.markets[o.market_id]
+        filled = max(0.0, (held(now, o.market_id) - before[o.market_id]) * p["side"]) if now else None
+        legs.append({"market_id": o.market_id, "symbol": m.symbol, "side": o.side, "size": p["size"], "filled": round(filled, m.size_decimals) if filled is not None else None})
+    engine.note("manual basket: " + ", ".join(f"{x['side']} {x['size']} {x['symbol']}" for x in legs), "warning")
+    return {"ok": True, "legs": legs}
 
 
 # Pairs: Lighter keeps one position per market, so a pair's leg can be part of a bigger position (a WTI

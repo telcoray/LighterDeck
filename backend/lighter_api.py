@@ -647,6 +647,34 @@ class LighterAPI:
         ), f"twap {'sell' if size < 0 else 'buy'} {abs(size)} {m.symbol} over {minutes}m")
         return coi
 
+    async def basket_orders(self, orders):
+        """Market orders on several markets, signed one after the other and sent in one sendTxBatch call.
+        orders: [(market_id, signed size, worst price)]. Lighter's docs don't say a batch is all-or-nothing, and it
+        skips Lighter's own price protection, so every order carries its worst price and the caller checks the fills."""
+        import lighter
+
+        S = lighter.SignerClient
+        for market_id, size, worst in orders:
+            self._check_limits(abs(size) * worst)
+        async with self._send_lock:
+            nonce = (await self._get("/api/v1/nextNonce", {"account_index": self.account_index, "api_key_index": self.api_key_index}))["nonce"]
+            types, infos, base = [], [], self._coi()
+            for i, (market_id, size, worst) in enumerate(orders):
+                m = self.markets[market_id]
+                tx_type, tx_info, _, err = self.signer.sign_create_order(
+                    market_index=market_id, client_order_index=base + i, base_amount=m.size_int(size), price=m.price_int(m.round_price(worst)),
+                    is_ask=size < 0, order_type=S.ORDER_TYPE_MARKET, time_in_force=S.ORDER_TIME_IN_FORCE_IMMEDIATE_OR_CANCEL,
+                    order_expiry=S.DEFAULT_IOC_EXPIRY, nonce=nonce + i, api_key_index=self.api_key_index)
+                if err:
+                    raise RuntimeError(f"basket {m.symbol}: {err}")
+                types.append(tx_type)
+                infos.append(tx_info)
+            resp = await self.signer.send_tx_batch(types, infos)
+        if resp.code != 200:
+            raise RuntimeError(f"basket: {resp.message or resp.code}")
+        log.info("basket of %d orders ok: %s", len(orders), resp.tx_hash)
+        return resp.tx_hash
+
     async def set_leverage(self, market_id, leverage, cross=True):
         import lighter
 

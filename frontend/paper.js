@@ -395,6 +395,26 @@ const Paper = (() => {
     return { ok: true, size: -size };
   }
 
+  // several markets at once: in paper they all fill, as a batch that went through
+  function basketOrder(r) {
+    const legs = r.legs || [];
+    if (legs.length < 2 || legs.length > 10 || new Set(legs.map((x) => x.market_id)).size !== legs.length) err(t("Il basket vuole da 2 a {n} mercati diversi", { n: 10 }));
+    const plans = legs.map((x) => {
+      try { return plan({ market_id: x.market_id, side: x.side, kind: "market", size: x.size_usd, unit: "usd", slippage_bps: r.slippage_bps }); }
+      catch (e) { err(`${mkt(x.market_id).symbol}: ${e.message}`); }
+    });
+    const need = plans.reduce((s, p, i) => s + p.notional / lev(legs[i].market_id), 0), have = account().available;
+    if (need > have) err(t("Margine insufficiente per il basket: servono {need}, disponibili {have}", { need: fusd(need), have: fusd(have) }));
+    const out = legs.map((x, i) => {
+      fill(x.market_id, plans[i].side * plans[i].size, plans[i].ref, "taker");
+      return { market_id: x.market_id, symbol: mkt(x.market_id).symbol, side: x.side, size: plans[i].size, filled: plans[i].size };
+    });
+    note(t("Paper: basket di {n} mercati", { n: legs.length }));
+    changed = true;
+    save();
+    return { ok: true, legs: out };
+  }
+
   // both legs of a spread: the same dollar value bought on one market and sold on the other
   function pairOrder(r) {
     if (r.long_id === r.short_id) err(t("Scegli due mercati diversi"));
@@ -911,6 +931,7 @@ const Paper = (() => {
     if (p === "/preview" && method === "POST") return run(() => { try { return { ok: true, ...plan(body(), qs.get("live") !== "true") }; } catch (e) { return { ok: false, error: e.message }; } });
     if (p === "/order" && method === "POST") return run(() => placeOrder(body()));
     if (p === "/pair_order" && method === "POST") return run(() => pairOrder(body()));
+    if (p === "/basket" && method === "POST") return run(() => basketOrder(body()));
     if (p === "/rules" && method === "GET") return run(() => S.rules.map((r) => ({ ...r, description: describe(r) })));
     if (p === "/rules" && method === "POST") return run(() => addRule(body()));
     const rule = p.match(/^\/rules\/(.+)$/);
