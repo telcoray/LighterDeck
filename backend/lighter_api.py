@@ -475,6 +475,17 @@ class LighterAPI:
             })
         return out
 
+    async def order_outcome(self, market_id, coi):
+        """How an order that left the book ended: its status and how much of it filled. None if not listed (yet)."""
+        data = await self._get("/api/v1/accountInactiveOrders",
+                               {"account_index": self.account_index, "market_id": market_id, "limit": 50},
+                               headers={"authorization": await self._auth_token()})
+        m = self.markets[market_id]
+        for o in data.get("orders", []):
+            if o["client_order_index"] == coi:
+                return {"status": o["status"], "filled": m.disp_size(o.get("filled_base_amount") or 0)}
+        return None
+
     # ---------- signed actions ----------
     def _check_limits(self, notional):
         if not self.signer:
@@ -520,8 +531,8 @@ class LighterAPI:
         ), f"market {'sell' if is_ask else 'buy'} {abs(size)} {m.symbol}")
         return coi
 
-    async def limit_order(self, market_id, size, price, reduce_only=False, post_only=False):
-        """Good-till-time limit order; size > 0 buys, size < 0 sells."""
+    async def limit_order(self, market_id, size, price, reduce_only=False, post_only=False, coi=None):
+        """Good-till-time limit order; size > 0 buys, size < 0 sells. coi: the caller's own client order index."""
         import lighter
 
         m = self.markets[market_id]
@@ -531,7 +542,7 @@ class LighterAPI:
             raise RuntimeError("trading disabled")
         tif = (lighter.SignerClient.ORDER_TIME_IN_FORCE_POST_ONLY if post_only
                else lighter.SignerClient.ORDER_TIME_IN_FORCE_GOOD_TILL_TIME)
-        coi = self._coi()
+        coi = coi or self._coi()
         await self._send(lambda: self.signer.create_order(
             market_index=market_id, client_order_index=coi, base_amount=m.size_int(size),
             price=m.price_int(m.round_price(price)), is_ask=size < 0,

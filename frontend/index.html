@@ -40,7 +40,7 @@
 </script>
 <style>html.i18n-pending body { visibility: hidden; }</style>
 <link rel="icon" href="favicon.svg?v=1" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=174">
+<link rel="stylesheet" href="style.css?v=176">
 <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
 </head>
 <body>
@@ -203,6 +203,8 @@
               <button data-adv="conditional" type="button"><span>Condizionale<small>Parte quando il prezzo tocca un livello</small></span></button>
               <button data-adv="twap" type="button"><span>TWAP<small>Divide l'ordine nel tempo</small></span></button>
               <button data-adv="scale" type="button"><span>Scale<small>Più limit su una fascia di prezzi</small></span></button>
+              <button data-adv="chase" type="button"><span>Chase Limit<small>Insegue il miglior prezzo, solo maker</small></span></button>
+              <button data-adv="iceberg" type="button"><span>Iceberg<small>Mostra una fetta dell'ordine alla volta</small></span></button>
             </div>
           </div>
         </div>
@@ -225,6 +227,19 @@
           <div class="field sm"><label>Ordini</label><input id="tkScaleN" autocomplete="off" type="number" min="2" max="20" step="1" value="5"></div>
           <div class="seg adv-seg" id="tkScaleDist"><button type="button" data-dist="even" class="active">Uguale</button><button type="button" data-dist="low">Più in basso</button><button type="button" data-dist="high">Più in alto</button></div>
           <p class="trail-hint" id="tkScaleHint"></p>
+        </div>
+        <div class="adv-box adv-chase solo-only">
+          <div class="two">
+            <div class="field sm"><label id="tkChaseCapLabel">Prezzo massimo</label><input id="tkChaseCap" autocomplete="off" type="number" step="any" placeholder="Opzionale"></div>
+            <div class="field sm"><label>Minuti</label><input id="tkChaseMin" autocomplete="off" type="number" min="1" max="1440" step="1" placeholder="Opzionale"></div>
+          </div>
+          <div class="checks hidden" id="tkChaseEndRow"><label><input type="checkbox" id="tkChaseEnd"> Allo scadere, il resto a market</label></div>
+          <p class="trail-hint" id="tkChaseHint"></p>
+        </div>
+        <div class="adv-box adv-iceberg solo-only">
+          <div class="field sm"><label>Fetta · % dell'ordine</label><input id="tkIceSlice" autocomplete="off" type="number" min="1" max="50" step="1" value="10"></div>
+          <div class="chips" id="tkIceChips"><button type="button" data-pct="5">5%</button><button type="button" data-pct="10">10%</button><button type="button" data-pct="20">20%</button><button type="button" data-pct="25">25%</button></div>
+          <p class="trail-hint" id="tkIceHint"></p>
         </div>
         <dl class="kv">
           <dt>Disponibile</dt><dd id="tkAvail">—</dd>
@@ -676,13 +691,13 @@
 </div>
 
 <div class="toast hidden" id="toast"></div>
-<script src="i18n.js?v=174"></script>
-<script src="i18n-zh.js?v=174"></script>
-<script src="i18n-ko.js?v=174"></script>
-<script src="formulas.js?v=174"></script>
-<script src="paper.js?v=174"></script>
-<script src="live.js?v=174"></script>
-<script src="app.js?v=174"></script>
-<script src="picker.js?v=174"></script>
+<script src="i18n.js?v=176"></script>
+<script src="i18n-zh.js?v=176"></script>
+<script src="i18n-ko.js?v=176"></script>
+<script src="formulas.js?v=176"></script>
+<script src="paper.js?v=176"></script>
+<script src="live.js?v=176"></script>
+<script src="app.js?v=176"></script>
+<script src="picker.js?v=176"></script>
 </body>
 </html>

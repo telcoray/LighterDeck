@@ -6,17 +6,22 @@ disarming is the kill switch for all automations (manual orders from the UI stil
 import asyncio
 import json
 import logging
+import random
 import time
 import uuid
 from collections import deque
 
 import config
+from i18n import L as tr
 
 log = logging.getLogger("engine")
 
 RULES_FILE = config.DATA_DIR / "rules.json"
 STATE_FILE = config.DATA_DIR / "state.json"
 TICK_SECONDS = 3
+WORKING_KINDS = ("chase", "iceberg")
+WORKING_CHECK = 3  # seconds between looks at a worked order
+MISSING_LIMIT = 10  # looks without finding it, then it stops rather than send more
 MIN_STOP_STEP_PCT = 0.05   # don't send a modify for moves smaller than this
 VERIFY_EVERY = 60          # re-check that each stop order still exists
 ATR_TF, ATR_LEN, ATR_TTL = "15m", 14, 300  # trailing by volatility: ATR(14) on 15m candles, refreshed every 5 min
@@ -76,7 +81,7 @@ class Engine:
             rule["event_title"] = f"{ev['country']} {ev['title']}"
             rule["event_ts"] = ev["ts"]
             rule["status"] = "waiting"
-        elif rule["type"] not in ("managed_stop", "exit_plan"):
+        elif rule["type"] not in ("managed_stop", "exit_plan", *WORKING_KINDS):
             raise ValueError("unknown rule type")
         if int(rule["market_id"]) not in self.api.markets:
             raise ValueError("unknown market")
@@ -133,6 +138,12 @@ class Engine:
 
     def describe(self, r):
         sym = self.api.markets[r["market_id"]].symbol
+        if r["type"] in WORKING_KINDS:
+            side = "buy" if r["side"] > 0 else "sell"
+            done = f" ({r['state'].get('filled', 0):g} filled)" if r["state"].get("filled") else ""
+            if r["type"] == "iceberg":
+                return f"{sym} iceberg {side} {r['qty']:g} @ {r['price']:g}, {r['slice_pct']:g}% at a time{done}"
+            return f"{sym} chase {side} {r['qty']:g}" + (f" up to {r['cap']:g}" if r.get("cap") else "") + done
         if r["type"] == "managed_stop":
             parts = []
             if r.get("initial_stop_pct"):
@@ -158,7 +169,9 @@ class Engine:
                 await self.tick()
             except Exception as e:
                 self.note(f"engine tick error: {e}", "error")
-            await asyncio.sleep(TICK_SECONDS)
+            for _ in range(TICK_SECONDS):  # the orders being worked follow the market more closely than the rest
+                await asyncio.sleep(1)
+                await self.work()
 
     async def tick(self):
         if self.api.account_index is not None:
@@ -171,7 +184,7 @@ class Engine:
             return
         changed = False
         for r in list(self.rules.values()):
-            if not r.get("enabled"):
+            if not r.get("enabled") or r["type"] in WORKING_KINDS:
                 continue
             try:
                 if r["type"] == "managed_stop":
@@ -377,6 +390,156 @@ class Engine:
             self._breakeven_now(mid)
             changed = True
         return changed
+
+    # ---------- orders worked on the book: chase and iceberg ----------
+    # One limit order at a time. When it leaves the book Lighter says how it ended, and only that decides what
+    # comes next: never another order on a guess, so the total can't be sent twice. Cancelling the order by hand
+    # ends the rule. With Auto off they wait, and the order on the book stays where it is.
+    def start_working(self, kind, market_id, side, qty, **fields):
+        if not self.armed:
+            raise ValueError(tr("Chase e Iceberg lavorano con Auto: attivalo prima di inviarli", "Chase and Iceberg work through Auto: turn it on first"))
+        rule = self.add_rule({"type": kind, "market_id": market_id, "side": side, "qty": qty, **fields})
+        rule["state"]["filled"] = 0.0
+        self.save()
+        return rule
+
+    def working(self):
+        """For the UI: the order on the book of each worked rule, by its client order index."""
+        return {str(r["state"]["coi"]): {"kind": r["type"], "qty": r["qty"], "filled": r["state"].get("filled", 0.0), "rule": r["id"]}
+                for r in self.rules.values() if r["type"] in WORKING_KINDS and r["state"].get("coi")}
+
+    async def work(self):
+        if not self.armed or not self.api.signer:
+            return
+        changed = False
+        for r in list(self.rules.values()):
+            if r["type"] not in WORKING_KINDS or not r.get("enabled"):
+                continue
+            try:
+                changed |= await (self._chase(r) if r["type"] == "chase" else self._iceberg(r))
+                r["state"].pop("errors", None)
+            except Exception as e:
+                st = r["state"]
+                st["errors"] = st.get("errors", 0) + 1
+                changed = True
+                if st["errors"] == 1:
+                    self.note(f"{self.describe(r)}: {e}", "error", r)
+                if st["errors"] >= 5:
+                    self._end_working(r, f"stopped after repeated errors: {e}", "error")
+        if changed:
+            self.save()
+
+    def _end_working(self, r, why, level="warning"):
+        self.note(f"{self.describe(r)}: {why}", level)
+        self.rules.pop(r["id"], None)
+
+    def _left(self, r):
+        return round(r["qty"] - r["state"].get("filled", 0.0), self.api.markets[r["market_id"]].size_decimals)
+
+    async def _send_working(self, r, qty, price, post_only):
+        st, coi = r["state"], self.api._coi()
+        # kept before sending: if the answer is lost, the order is looked for instead of sent again
+        st.update(coi=coi, order_index=None, price=price, remaining=qty, checked=time.time(), missing=0)
+        self.save()
+        await self.api.limit_order(r["market_id"], r["side"] * qty, price, reduce_only=r.get("reduce_only", False), post_only=post_only, coi=coi)
+
+    async def _read_working(self, r):
+        """(order on the book, how it ended): one of them, or neither while Lighter hasn't listed it."""
+        st, mid = r["state"], r["market_id"]
+        st["checked"] = time.time()
+        act = next((o for o in await self.api.active_orders(mid) if o["client_order_index"] == st["coi"]), None)
+        if act:
+            st.update(order_index=act["order_index"], remaining=act["remaining"], price=act["price"], missing=0)
+            return act, None
+        out = await self.api.order_outcome(mid, st["coi"])
+        if out:
+            st["filled"] = round(st.get("filled", 0.0) + out["filled"], self.api.markets[mid].size_decimals)
+            st.update(coi=None, order_index=None, missing=0)
+            return None, out
+        st["missing"] = st.get("missing", 0) + 1
+        if st["missing"] >= MISSING_LIMIT:
+            self._end_working(r, "its order isn't on Lighter's lists, stopped: check the open orders", "error")
+        return None, None
+
+    async def _chase(self, r):
+        st, mid, side = r["state"], r["market_id"], r["side"]
+        m, now = self.api.markets[mid], time.time()
+        best = (self.feed.stats.get(mid) or {}).get("bid" if side > 0 else "ask")
+        if not best or now - self.feed.updated_at > 15:
+            return False
+        cap = r.get("cap")
+        target = m.round_price((min(best, cap) if side > 0 else max(best, cap)) if cap else best)
+        if not st.get("coi"):
+            left = self._left(r)
+            if left <= 0:
+                self._end_working(r, "filled")
+                return True
+            await self._send_working(r, left, target, True)
+            self.note(f"{self.describe(r)}: at {target:g}", rule=r)
+            return True
+        expired = r.get("until") and now >= r["until"]
+        if st.get("order_index") is None or expired or now - st.get("checked", 0) >= WORKING_CHECK:
+            act, out = await self._read_working(r)
+            if out:
+                left = self._left(r)
+                if left <= 0 or out["status"] == "filled":
+                    self._end_working(r, "filled")
+                elif st.get("expiring"):
+                    if r.get("then_market") and left > 0:
+                        ref = (self.feed.stats.get(mid) or {}).get("ask" if side > 0 else "bid") or best
+                        await self.api.market_order(mid, side * left, ref, reduce_only=r.get("reduce_only", False))
+                        self._end_working(r, f"time up: {left:g} sent at market")
+                    else:
+                        self._end_working(r, f"time up: {left:g} not filled")
+                elif out["status"] != "canceled-post-only":  # the price moved under it: it goes again, otherwise it's over
+                    self._end_working(r, f"order {out['status']}, {left:g} not filled")
+                return True
+            if not act:
+                return r["id"] not in self.rules
+        if expired and not st.get("expiring"):
+            st["expiring"] = True
+            st["checked"] = 0
+            await self.api.cancel_order(mid, st["order_index"])
+            return True
+        if not st.get("expiring") and target != st["price"] and now - st.get("moved", 0) >= 2:
+            st["moved"] = now
+            await self.api.modify_order(mid, st["order_index"], st["remaining"], target)
+            st["price"] = target
+            return True
+        return False
+
+    async def _iceberg(self, r):
+        st, mid = r["state"], r["market_id"]
+        m, now = self.api.markets[mid], time.time()
+        if not st.get("coi"):
+            left = self._left(r)
+            if left <= 0:
+                self._end_working(r, "filled")
+                return True
+            if now < st.get("retry", 0):
+                return False
+            least = max(m.min_base, m.min_quote / r["price"])
+            # each slice a little different, so the book doesn't show the same size over and over
+            qty = round(r["qty"] * r["slice_pct"] / 100 * random.uniform(0.8, 1.2), m.size_decimals)
+            qty = max(qty, round(least + 10 ** -m.size_decimals, m.size_decimals))
+            if left - qty < least:
+                qty = left
+            await self._send_working(r, qty, r["price"], bool(r.get("post_only")))
+            st["slices"] = st.get("slices", 0) + 1
+            self.note(f"{self.describe(r)}: slice {st['slices']}, {qty:g}", rule=r)
+            return True
+        if now - st.get("checked", 0) < WORKING_CHECK:
+            return False
+        act, out = await self._read_working(r)
+        if not out:
+            return bool(not act and r["id"] not in self.rules)
+        if out["status"] == "canceled-post-only":
+            st["retry"] = now + 5  # it would have crossed: it tries again when the price has moved
+        elif out["status"] != "filled":
+            self._end_working(r, f"order {out['status']}, {self._left(r):g} not sent")
+        elif self._left(r) <= 0:
+            self._end_working(r, "filled")
+        return True
 
     # ---------- event trade ----------
     async def _event_trade(self, r):

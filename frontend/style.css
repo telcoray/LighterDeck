@@ -1141,7 +1141,7 @@ body.simple .ticket-extra { display: none !important; }
 #advBtn.active { color: var(--text); border-bottom-color: var(--text); }
 .adv-menu { width: 230px; }
 .adv-box { display: none; margin-bottom: 12px; }
-.ticket[data-kind="conditional"] .adv-conditional, .ticket[data-kind="twap"] .adv-twap, .ticket[data-kind="scale"] .adv-scale { display: block; }
+.ticket[data-kind="conditional"] .adv-conditional, .ticket[data-kind="twap"] .adv-twap, .ticket[data-kind="scale"] .adv-scale, .ticket[data-kind="chase"] .adv-chase, .ticket[data-kind="iceberg"] .adv-iceberg { display: block; }
 .ticket.pair .adv-box { display: none; }
 .adv-box .chips { margin-bottom: 10px; }
 .adv-seg { margin-bottom: 8px; }

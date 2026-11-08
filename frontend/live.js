@@ -72,7 +72,7 @@ const Live = (() => {
     for (const l of st.logs || []) { autoSeq = Math.max(autoSeq, l.seq); logs.push({ seq: ++seq, ts: l.ts, msg: l.msg, level: l.level }); }
     if (logs.length > 200) logs.splice(0, logs.length - 200);
     const was = JSON.stringify(auto);
-    auto = { on: !!st.on, api_key_index: st.api_key_index, armed: !!st.armed, stops: st.stops || {}, exits: st.exits || {} };
+    auto = { on: !!st.on, api_key_index: st.api_key_index, armed: !!st.armed, stops: st.stops || {}, exits: st.exits || {}, working: st.working || {} };
     if (JSON.stringify(auto) !== was) changed = true;
   }
 
@@ -274,8 +274,17 @@ const Live = (() => {
   }
 
   async function placeOrder(o) {
-    if (o.trail || o.tp_levels) needAuto();
+    const worked = o.kind === "chase" || o.kind === "iceberg";
+    if (o.trail || o.tp_levels || worked) needAuto();
+    if (worked && !auto.armed) err(t("Chase e Iceberg lavorano con Auto: attivalo prima di inviarli"));
     const pl = plan(o, true), m = mkt(o.market_id), signed = pl.size * pl.side;
+    if (worked) { // it needs someone watching the book: the engine, with the dedicated key, also with this page closed
+      await server("/working", { method: "POST", body: JSON.stringify({ kind: o.kind, market_id: m.id, side: pl.side, qty: pl.size, reduce_only: !!o.reduce_only,
+        cap: o.chase_cap || null, minutes: o.chase_minutes || null, then_market: !!o.chase_market, price: o.price || null, slice_pct: o.ice_slice || null, post_only: !!o.post_only }) });
+      await pollAuto().catch(() => {});
+      changed = true;
+      return { ok: true, size: pl.size, armed: auto.armed };
+    }
     const before = (position(m.id) || {}).size || 0;
     if (o.kind === "conditional") { // waits for the mark, then a market order or a limit (lighter_api.conditional_order)
       const limit = o.cond_exec === "limit";

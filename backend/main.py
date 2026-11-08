@@ -50,7 +50,7 @@ async def broadcast_loop():
         sent = engine.log_seq
         msg = json.dumps({
             "type": "tick", "prices": feed.stats, "account": engine.account,
-            "armed": engine.armed, "logs": new_logs, "stops": engine.market_stops(), "exits": engine.exit_plans(),
+            "armed": engine.armed, "logs": new_logs, "stops": engine.market_stops(), "exits": engine.exit_plans(), "working": engine.working(),
         })
         for ws in list(clients):
             try:
@@ -412,6 +412,12 @@ class OrderReq(BaseModel):
     scale_to: float | None = None
     scale_count: int = 5
     scale_dist: str = "even"                 # "even" | "low" (more size at the lower prices) | "high"
+    # kind "chase": a maker limit that follows the best price, never past chase_cap, for chase_minutes at most
+    chase_cap: float | None = None
+    chase_minutes: float | None = None
+    chase_market: bool = False               # time up: what's left goes at market instead of being cancelled
+    # kind "iceberg": a limit at `price` shown one slice at a time, ice_slice % of the size each
+    ice_slice: float | None = None
 
 
 def exit_levels(o: OrderReq, m, size, side, ref, mark, check_sides):
@@ -445,6 +451,7 @@ def exit_levels(o: OrderReq, m, size, side, ref, mark, check_sides):
 
 TWAP_MINUTES = (5, 1440)  # Lighter's docs: from 5 minutes to 24 hours
 TWAP_DEFAULT_BOUND = 0.03  # no price given: Lighter's 3% maximum slippage for a TWAP
+ICE_SLICE = (1, 50)  # % of the order shown at a time
 
 
 def scale_prices(o: OrderReq, m):
@@ -469,12 +476,14 @@ async def plan_order(o: OrderReq, check_sides=True):
     if not m:
         raise Blocked(L("Mercato sconosciuto", "Unknown market"))
     side = 1 if o.side == "buy" else -1
-    advanced = o.kind in ("conditional", "twap", "scale")
+    advanced = o.kind in ("conditional", "twap", "scale", "chase", "iceberg")
     if advanced and (o.sl_price or o.tp_price or o.trail or o.tp_levels):
         raise Blocked(L("SL, TP e trailing si aggiungono alla posizione dopo l'ordine",
                         "SL, TP and trailing are added to the position after the order"))
     scale = scale_prices(o, m) if o.kind == "scale" else None
-    if o.kind == "limit":
+    if o.kind in ("chase", "iceberg") and not engine.armed:
+        raise Blocked(L("Chase e Iceberg lavorano con Auto: attivalo prima di inviarli", "Chase and Iceberg work through Auto: turn it on first"))
+    if o.kind in ("limit", "iceberg"):
         if not o.price:
             raise Blocked(L("Gli ordini limit richiedono un prezzo", "Limit orders need a price"))
         ref = o.price
@@ -507,8 +516,17 @@ async def plan_order(o: OrderReq, check_sides=True):
     if size <= 0:
         raise Blocked(L("Size sotto la precisione del mercato", "Size is below market precision"))
     slip_bps = o.slippage_bps if o.slippage_bps is not None else risk.limits["slippage_bps_cap"]
-    worst = ref if o.kind == "limit" or (o.kind == "conditional" and o.cond_exec == "limit") else ref * (1 + side * slip_bps / 10000)
+    worst = ref if o.kind in ("limit", "iceberg") or (o.kind == "conditional" and o.cond_exec == "limit") else ref * (1 + side * slip_bps / 10000)
     extra = {}
+    if o.kind == "chase" and o.chase_minutes is not None and not 0 < o.chase_minutes <= 1440:
+        raise Blocked(L("Il tempo del chase va fino a 24 ore", "A chase's time goes up to 24 hours"))
+    if o.kind == "iceberg":
+        if not o.ice_slice or not ICE_SLICE[0] <= o.ice_slice <= ICE_SLICE[1]:
+            raise Blocked(L("La fetta dell'iceberg va dall'1% al 50%", "An iceberg's slice goes from 1% to 50%"))
+        small = size * o.ice_slice / 100 * 0.8
+        if small < m.min_base or small * ref < m.min_quote:
+            raise Blocked(L(f"Iceberg: una fetta è sotto il minimo dell'exchange ({m.min_base:g} {m.symbol} o {m.min_quote:g} USD). Usa una fetta o una size più grande.",
+                            f"Iceberg: a slice is below the exchange minimum ({m.min_base:g} {m.symbol} or {m.min_quote:g} USD). Use a bigger slice or size."))
     if o.kind == "twap":
         if not o.twap_minutes or not TWAP_MINUTES[0] <= o.twap_minutes <= TWAP_MINUTES[1]:
             raise Blocked(L("La durata del TWAP va da 5 minuti a 24 ore", "A TWAP lasts from 5 minutes to 24 hours"))
@@ -571,6 +589,12 @@ async def place_order(o: OrderReq):
                                         o.cond_exec == "limit", o.reduce_only)
         elif o.kind == "twap":
             await api.twap_order(o.market_id, signed, plan["worst"], o.twap_minutes, o.reduce_only)
+        elif o.kind == "chase":
+            engine.start_working("chase", o.market_id, plan["side"], plan["size"], reduce_only=o.reduce_only, cap=o.chase_cap,
+                                 until=time.time() + o.chase_minutes * 60 if o.chase_minutes else None, then_market=o.chase_market)
+        elif o.kind == "iceberg":
+            engine.start_working("iceberg", o.market_id, plan["side"], plan["size"], reduce_only=o.reduce_only, price=m.round_price(o.price),
+                                 slice_pct=o.ice_slice, post_only=o.post_only)
         elif o.kind == "scale":
             for i, x in enumerate(plan["scale_levels"]):
                 try:
@@ -1182,7 +1206,7 @@ async def visitor_status(request: Request, after: int = 0):
     if not eng:
         return {"on": False}
     return {"on": True, "api_key_index": eng.api.api_key_index, "armed": eng.armed, "stops": eng.market_stops(),
-            "exits": eng.exit_plans(), "logs": [l for l in eng.logs if l["seq"] > after]}
+            "exits": eng.exit_plans(), "working": eng.working(), "logs": [l for l in eng.logs if l["seq"] > after]}
 
 
 class VisitorKeyReq(BaseModel):
@@ -1265,6 +1289,42 @@ async def visitor_exit_plan(request: Request, r: ExitPlanReq):
 
 EVENT_RULE_FIELDS = ("size_usd", "stop_pct", "tp_pct", "delay_s", "range_minutes", "buffer_pct", "window_minutes",
                      "trail_pct", "trail_activate_pct", "breakeven_at_pct")
+
+
+class WorkingReq(BaseModel):
+    kind: str
+    market_id: int
+    side: int
+    qty: float
+    reduce_only: bool = False
+    cap: float | None = None
+    minutes: float | None = None
+    then_market: bool = False
+    price: float | None = None
+    slice_pct: float | None = None
+    post_only: bool = False
+
+
+@app.post("/api/u/working")
+async def visitor_working(request: Request, r: WorkingReq):
+    """A chase or iceberg from the browser: the ticket has checked it, this engine works it with the dedicated key."""
+    eng = await visitor_engine(request)
+    m = eng.api.markets.get(r.market_id)
+    if not m or r.side not in (1, -1) or r.qty <= 0 or r.kind not in ("chase", "iceberg"):
+        raise HTTPException(400, L("Ordine non valido", "Invalid order"))
+    try:
+        if r.kind == "chase":
+            if r.minutes is not None and not 0 < r.minutes <= 1440:
+                raise ValueError(L("Il tempo del chase va fino a 24 ore", "A chase's time goes up to 24 hours"))
+            eng.start_working("chase", r.market_id, r.side, r.qty, reduce_only=r.reduce_only, cap=r.cap if r.cap and r.cap > 0 else None,
+                              until=time.time() + r.minutes * 60 if r.minutes else None, then_market=r.then_market)
+        else:
+            if not r.price or r.price <= 0 or not r.slice_pct or not ICE_SLICE[0] <= r.slice_pct <= ICE_SLICE[1]:
+                raise ValueError(L("Iceberg non valido", "Invalid iceberg"))
+            eng.start_working("iceberg", r.market_id, r.side, r.qty, reduce_only=r.reduce_only, price=m.round_price(r.price), slice_pct=r.slice_pct, post_only=r.post_only)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return {"ok": True, "working": eng.working()}
 
 
 @app.get("/api/u/rules")

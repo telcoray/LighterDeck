@@ -611,7 +611,7 @@ class Panel {
         const price = o.trigger_price || o.price;
         const line = add({ price, color: kind === "SL" ? C.red : kind === "TP" ? C.green : cssVar("--text-2"),
           lineStyle: kind === "LIMIT" ? 0 : 2, title: `${kind} ${fsize(o.remaining, m)}` });
-        this.dragOrders.push({ line, price, label: kind, order: o });
+        if (!workingOf(o)) this.dragOrders.push({ line, price, label: kind, order: o }); // those move by themselves
       }
     }
     if (pos && s && chartEls.stop) {
@@ -947,7 +947,10 @@ let chartEls = { orders: true, stop: true, position: true, liq: true, mark: fals
 let openOrders = {}; // market id -> open orders on Lighter, shared by the chart lines and the Orders tab
 const fade = (c) => (/^#[0-9a-f]{6}$/i.test(c) ? c + "b0" : c); // hex colour at ~70% for provisional lines
 // a trigger order that isn't reduce-only opens a position: it is no SL or TP
-const orderKind = (o) => (/twap/i.test(o.type) ? "TWAP" : !/stop|take/i.test(o.type) ? "LIMIT" : !o.reduce_only ? "COND" : /stop/i.test(o.type) ? "SL" : "TP");
+// orders worked by the engine (chase, iceberg): by client order index; in paper the order says so itself
+let working = {};
+const workingOf = (o) => o.working || working[o.client_order_index] || null;
+const orderKind = (o) => (workingOf(o) ? workingOf(o).kind.toUpperCase() : /twap/i.test(o.type) ? "TWAP" : !/stop|take/i.test(o.type) ? "LIMIT" : !o.reduce_only ? "COND" : /stop/i.test(o.type) ? "SL" : "TP");
 
 function renderChartEls() {
   $("#elMenu").innerHTML = `<div class="caps muted">${t("Elementi del grafico")}</div>` +
@@ -1545,12 +1548,12 @@ function renderTicket() {
   const showsLimit = hasLimitField(), showsMarket = ticket.kind === "market" || (ticket.kind === "conditional" && ticketAdv.exec === "market");
   $$(".limit-only").forEach((e) => e.classList.toggle("hidden", !showsLimit));
   $$(".market-only").forEach((e) => e.classList.toggle("hidden", !showsMarket));
-  $("#tkPost").closest("label").classList.toggle("hidden", !(ticket.kind === "limit" || ticket.kind === "scale"));
+  $("#tkPost").closest("label").classList.toggle("hidden", !["limit", "scale", "iceberg"].includes(ticket.kind));
   $(".ticket").dataset.kind = ticket.kind;
   $$("#sideSel button").forEach((b) => b.classList.toggle("active", b.dataset.side === ticket.side));
   $$("#kindSel [data-kind]").forEach((b) => b.classList.toggle("active", b.dataset.kind === ticket.kind));
   $("#advBtn").classList.toggle("active", !isBasicKind());
-  $("#advName").textContent = { conditional: t("Condizionale"), twap: "TWAP", scale: "Scale" }[ticket.kind] || t("Avanzati");
+  $("#advName").textContent = { conditional: t("Condizionale"), twap: "TWAP", scale: "Scale", chase: "Chase Limit", iceberg: "Iceberg" }[ticket.kind] || t("Avanzati");
   $$("#tkCondExec [data-exec]").forEach((b) => b.classList.toggle("active", b.dataset.exec === ticketAdv.exec));
   $$("#tkScaleDist [data-dist]").forEach((b) => b.classList.toggle("active", b.dataset.dist === ticketAdv.dist));
   const ex = $("#tkExec");
@@ -1580,6 +1583,15 @@ function ticketBody() {
   if (ticket.kind === "twap") {
     body.twap_minutes = Math.round(+$("#tkTwapMin").value);
     if (+$("#tkTwapPx").value) body.price = +$("#tkTwapPx").value;
+    return body;
+  }
+  if (ticket.kind === "chase") {
+    if (+$("#tkChaseCap").value) body.chase_cap = +$("#tkChaseCap").value;
+    if (+$("#tkChaseMin").value) { body.chase_minutes = +$("#tkChaseMin").value; body.chase_market = $("#tkChaseEnd").checked; }
+    return body;
+  }
+  if (ticket.kind === "iceberg") {
+    Object.assign(body, { price: +$("#tkPrice").value, ice_slice: +$("#tkIceSlice").value, post_only: $("#tkPost").checked });
     return body;
   }
   if (ticket.kind === "scale") {
@@ -1718,7 +1730,7 @@ function pairLegFailed(r) {
 // ---------- advanced orders: conditional, TWAP, scale ----------
 const ticketAdv = { exec: "market", dist: "even", twapFees: null };
 const isBasicKind = () => ticket.kind === "market" || ticket.kind === "limit";
-const hasLimitField = () => ticket.kind === "limit" || (ticket.kind === "conditional" && ticketAdv.exec === "limit");
+const hasLimitField = () => ticket.kind === "limit" || ticket.kind === "iceberg" || (ticket.kind === "conditional" && ticketAdv.exec === "limit");
 
 // a scale order's prices and sizes, as the order will have them (paper.js / main.py scale_prices)
 function scalePreview(m) {
@@ -1734,7 +1746,11 @@ function scalePreview(m) {
 // the price the ticket's numbers are worked out at
 function ticketRef(m, p) {
   const quote = p ? (ticket.side === "buy" ? p.ask : p.bid) || p.mark : 0;
-  if (ticket.kind === "limit") return +$("#tkPrice").value || quote;
+  if (ticket.kind === "limit" || ticket.kind === "iceberg") return +$("#tkPrice").value || quote;
+  if (ticket.kind === "chase") { // it rests at the best price on its own side, up to the cap
+    const best = p ? (ticket.side === "buy" ? p.bid : p.ask) || p.mark : 0, cap = +$("#tkChaseCap").value;
+    return cap ? (ticket.side === "buy" ? Math.min(best, cap) : Math.max(best, cap)) : best;
+  }
   if (ticket.kind === "conditional") return (ticketAdv.exec === "limit" && +$("#tkPrice").value) || +$("#tkTrig").value || quote;
   if (ticket.kind === "scale") { const s = scalePreview(m); return s ? s.avg : quote; }
   return quote;
@@ -1751,11 +1767,27 @@ function renderAdvHints(m, p, qty) {
     const px = +$("#tkTwapPx").value;
     $("#tkTwapHint").textContent = t("Finisce {end}.", { end }) + " " + (px ? t(buy ? "Non compra sopra {p}." : "Non vende sotto {p}.", { p: fp(px, m) }) : t("Senza limite, si ferma al 3% dal prezzo attuale."));
   }
+  if (ticket.kind === "chase") {
+    const cap = +$("#tkChaseCap").value, chaseMin = +$("#tkChaseMin").value;
+    $("#tkChaseCapLabel").textContent = t(buy ? "Prezzo massimo" : "Prezzo minimo");
+    $("#tkChaseEndRow").classList.toggle("hidden", !chaseMin);
+    $("#tkChaseHint").textContent = [t(buy ? "Sta sempre sul miglior bid, senza mai pagare da taker." : "Sta sempre sul miglior ask, senza mai pagare da taker."),
+      cap ? t(buy ? "Non compra sopra {p}." : "Non vende sotto {p}.", { p: fp(cap, m) }) : "",
+      chaseMin ? t($("#tkChaseEnd").checked ? "Dopo {n} minuti il resto va a market." : "Dopo {n} minuti si annulla.", { n: chaseMin }) : "",
+      workedHint()].filter(Boolean).join(" ");
+  }
+  if (ticket.kind === "iceberg") {
+    const pct = +$("#tkIceSlice").value;
+    $("#tkIceHint").textContent = qty && pct > 0 ? [t("Circa {n} fette da {q}, una alla volta, ognuna un po' diversa.", { n: Math.ceil(100 / pct), q: fsize(qty * pct / 100, m) }), workedHint()].filter(Boolean).join(" ") : "";
+  }
   if (ticket.kind === "scale") {
     const s = scalePreview(m);
     $("#tkScaleHint").textContent = s && qty ? t("{n} ordini da {a} a {b}, media {avg}.", { n: s.prices.length, a: fp(s.prices[0], m), b: fp(s.prices[s.prices.length - 1], m), avg: fp(s.avg, m) }) : "";
   }
 }
+
+// paper runs in the page; the real ones on the engine, so a closed page doesn't stop them
+const workedHint = () => (Paper.on ? "" : t("Continua anche a pagina chiusa."));
 
 async function loadTwapFees() {
   if (ticketAdv.twapFees) return;
@@ -1779,6 +1811,7 @@ function wireAdvOrders() {
     ticket.kind = b.dataset.adv;
     menu.classList.add("hidden");
     if (ticket.kind === "twap") loadTwapFees();
+    if (ticket.kind === "iceberg" && !$("#tkPrice").value) fillMid();
     renderTicket();
   };
   document.addEventListener("click", () => menu.classList.add("hidden"));
@@ -1790,6 +1823,8 @@ function wireAdvOrders() {
     renderTicket();
   };
   $("#tkScaleDist").onclick = (e) => { const b = e.target.closest("[data-dist]"); if (b) { ticketAdv.dist = b.dataset.dist; renderTicket(); } };
+  $("#tkIceChips").onclick = (e) => { const b = e.target.closest("[data-pct]"); if (b) { $("#tkIceSlice").value = b.dataset.pct; updateTicketSummary(); } };
+  $("#tkChaseEnd").onchange = updateTicketSummary;
   $("#tkTwapChips").onclick = (e) => { const b = e.target.closest("[data-min]"); if (b) { $("#tkTwapMin").value = b.dataset.min; updateTicketSummary(); } };
   $$(".adv-box input").forEach((el) => {
     el.oninput = updateTicketSummary;
@@ -1925,7 +1960,7 @@ function renderTicketEstimates(m, p, qty, entry) {
   const set = levSet(m);
   const leverage = (set && set.leverage) || m.default_leverage;
   const notional = qty ? qty * entry : 0;
-  const isMaker = ticket.kind === "limit" && $("#tkPost").checked;
+  const isMaker = ticket.kind === "chase" || ((ticket.kind === "limit" || ticket.kind === "iceberg") && $("#tkPost").checked);
   const rates = feeRates(m), feeRate = isMaker ? rates.maker : rates.taker;
   const feeUsd = Formulas.fee(notional, feeRate);
   const reduce = $("#tkReduce").checked;
@@ -1980,6 +2015,7 @@ function renderTicketEstimates(m, p, qty, entry) {
   const draft = { market: m.id, side, entry, liq: qty && !reduce ? liq : null, lines: [] };
   const sideWord = side > 0 ? "BUY" : "SELL", sizeWord = qty ? " " + fsize(qty, m) : "";
   if (hasLimitField() && +$("#tkPrice").value) draft.lines.push({ kind: "limit", price: +$("#tkPrice").value, title: `LIMIT ${sideWord}${ticket.kind === "limit" ? sizeWord : ""}` });
+  if (ticket.kind === "chase" && +$("#tkChaseCap").value > 0) draft.lines.push({ kind: "limit", label: "MAX", input: $("#tkChaseCap"), price: +$("#tkChaseCap").value, title: `CHASE ${sideWord} MAX` });
   if (ticket.kind === "conditional" && +$("#tkTrig").value > 0) draft.lines.push({ kind: "limit", label: "COND", input: $("#tkTrig"), price: +$("#tkTrig").value, title: `COND ${sideWord}${sizeWord}` });
   if (ticket.kind === "scale") { // one line per order; they move with the two prices in the ticket
     const s = scalePreview(m);
@@ -2769,7 +2805,7 @@ async function loadOrders(fresh = false) {
   box.innerHTML = `<table class="table"><thead><tr><th>${t("Mercato")}</th><th>${t("Tipo")}</th><th>${t("Lato")}</th><th class="r">${t("Prezzo")}</th><th class="r">Trigger</th><th class="r">${t("Size residua")}</th><th>Reduce only</th><th></th></tr></thead><tbody>${
     orders.map((o) => {
       const m = byId[o.market_id];
-      return `<tr><td class="mk">${gotoBtn(o.symbol)}</td><td>${esc(o.type)}</td><td class="${o.is_ask ? "down" : "up"}">${o.is_ask ? "Sell" : "Buy"}</td>
+      return `<tr><td class="mk">${gotoBtn(o.symbol)}</td><td>${workingOf(o) ? `${orderKind(o)} · ${+workingOf(o).filled}/${+workingOf(o).qty}` : esc(o.type)}</td><td class="${o.is_ask ? "down" : "up"}">${o.is_ask ? "Sell" : "Buy"}</td>
         <td class="r">${fp(o.price, m)}</td><td class="r">${o.trigger_price ? fp(o.trigger_price, m) : "—"}</td><td class="r">${fsize(o.remaining, m)}</td>
         <td>${o.reduce_only ? t("sì") : "—"}</td><td class="r"><button class="xbtn" data-cancel="${o.market_id}:${o.order_index}" data-ck="cancel:${o.market_id}:${o.order_index}">${t("Annulla")}</button></td></tr>`;
     }).join("")}</tbody></table>`;
@@ -3443,7 +3479,7 @@ async function loadRules() {
   const box = $("#rules");
   if (!rules.length) { box.innerHTML = `<div class="empty" style="padding:8px 0">${t("Nessuna regola. Crea uno stop gestito o un trade su evento.")}</div>`; return; }
   box.innerHTML = rules.map((r) => {
-    const status = r.type === "event_trade" ? r.status : r.state && r.state.stop ? "stop " + r.state.stop : t("in attesa");
+    const status = r.type === "event_trade" ? r.status : r.type === "chase" || r.type === "iceberg" ? `${+(r.state.filled || 0)}/${+r.qty}` : r.state && r.state.stop ? "stop " + r.state.stop : t("in attesa");
     const when = r.event_ts ? new Date(r.event_ts * 1000).toLocaleString(LOCALE, { weekday: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) + " · " : "";
     return `<div class="rule"><div class="top"><span>${esc(r.description)}</span><span class="badge ${esc(r.status || "")}">${esc(status)}</span></div>
       <div class="sub">${when}${r.enabled ? t("attiva") : t("in pausa")}${r.note ? " · " + esc(r.note) : ""}</div>
@@ -3767,6 +3803,7 @@ function connect() {
       msg.account = Live.account();
       msg.stops = a.stops || {};
       msg.exits = a.exits || {};
+      msg.working = a.working || {};
       msg.logs = Live.logs(logSeq);
       msg.armed = !!a.armed;
       document.body.classList.toggle("browser-auto", !!a.on);
@@ -3782,6 +3819,7 @@ function connect() {
     const stopsChanged = JSON.stringify(msg.stops || {}) !== JSON.stringify(stops) || JSON.stringify(msg.exits || {}) !== JSON.stringify(exits);
     stops = msg.stops || {};
     exits = msg.exits || {};
+    working = msg.working || {};
     const accChanged = stopsChanged || JSON.stringify(msg.account) !== JSON.stringify(account);
     account = msg.account;
     panels.forEach((p) => p.tick());

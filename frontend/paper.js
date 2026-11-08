@@ -201,10 +201,10 @@ const Paper = (() => {
     const side = o.side === "buy" ? 1 : -1;
     const p = ctx.px(m.id);
     const markOf = (id) => { const q = ctx.px(id); return q && q.mark ? q.mark : null; };
-    if (["conditional", "twap", "scale"].includes(o.kind) && (o.sl_price || o.tp_price || o.trail || o.tp_levels)) err(t("SL, TP e trailing si aggiungono alla posizione dopo l'ordine"));
+    if (["conditional", "twap", "scale", "chase", "iceberg"].includes(o.kind) && (o.sl_price || o.tp_price || o.trail || o.tp_levels)) err(t("SL, TP e trailing si aggiungono alla posizione dopo l'ordine"));
     const scale = o.kind === "scale" ? scalePrices(o, m) : null;
     let ref;
-    if (o.kind === "limit") {
+    if (o.kind === "limit" || o.kind === "iceberg") {
       if (!o.price) err(t("Gli ordini limit richiedono un prezzo"));
       ref = o.price;
     } else if (o.kind === "conditional") {
@@ -248,8 +248,14 @@ const Paper = (() => {
     }
     const levels = o.tp_levels ? exitLevels(o, m, size, side, ref, o.kind === "market" ? markOf(m.id) : null, checkSides) : null;
     const slip = o.slippage_bps ?? 50;
-    let worst = o.kind === "limit" || (o.kind === "conditional" && o.cond_exec === "limit") ? ref : ref * (1 + side * slip / 10000);
+    let worst = o.kind === "limit" || o.kind === "iceberg" || (o.kind === "conditional" && o.cond_exec === "limit") ? ref : ref * (1 + side * slip / 10000);
     const extra = {};
+    if (o.kind === "chase" && o.chase_minutes != null && !(o.chase_minutes > 0 && o.chase_minutes <= 1440)) err(t("Il tempo del chase va fino a 24 ore"));
+    if (o.kind === "iceberg") {
+      if (!(o.ice_slice >= 1 && o.ice_slice <= 50)) err(t("La fetta dell'iceberg va dall'1% al 50%"));
+      const small = size * o.ice_slice / 100 * 0.8;
+      if (small < m.min_base || small * ref < m.min_quote) err(t("Iceberg: una fetta è sotto il minimo dell'exchange ({base} {sym} o {quote} USD). Usa una fetta o una size più grande.", { base: m.min_base, sym: m.symbol, quote: m.min_quote }));
+    }
     if (o.kind === "twap") {
       if (!(o.twap_minutes >= 5 && o.twap_minutes <= 1440)) err(t("La durata del TWAP va da 5 minuti a 24 ore"));
       worst = o.price || ref * (1 + side * 0.03); // no price given: Lighter's 3% maximum slippage for a TWAP
@@ -271,6 +277,17 @@ const Paper = (() => {
     return { size, side, ref, worst: roundPrice(worst, m), notional: size * ref, slippage_bps: slip, ...(levels ? { tp_levels: levels } : {}), ...extra };
   }
 
+  const chaseTarget = (best, isAsk, cap) => (cap ? (isAsk ? Math.max(best, cap) : Math.min(best, cap)) : best);
+
+  // the next slice of an iceberg: each a little different, as on the server's engine
+  function nextSlice(o, m) {
+    const least = Math.max(m.min_base, m.min_quote / o.price), ice = o.ice;
+    let qty = Math.max(roundSize(ice.total * ice.pct / 100 * (0.8 + Math.random() * 0.4), m), roundSize(least + 10 ** -m.size_decimals, m));
+    if (ice.left - qty < least) qty = ice.left;
+    ice.left = roundSize(ice.left - qty, m);
+    return { ...o, order_index: S.next++, remaining: qty, ts: now() };
+  }
+
   function placeOrder(o) {
     const pl = plan(o);
     const m = mkt(o.market_id), id = m.id, qty = pl.side * pl.size, p = px(id);
@@ -287,6 +304,25 @@ const Paper = (() => {
       S.orders.push({ order_index: S.next++, client_order_index: 0, market_id: id, is_ask: pl.side < 0, type: "twap", price: pl.worst, trigger_price: 0, remaining: pl.size,
         total: pl.size, start: now(), end: now() + o.twap_minutes * 60000, reduce_only: !!o.reduce_only, status: "open", ts: now() });
       note(t("Paper: TWAP {side} {size} {sym} in {min} minuti", { side: o.side, size: pl.size, sym: m.symbol, min: o.twap_minutes }));
+      changed = true;
+      save();
+      return { ok: true, size: pl.size, armed: true };
+    }
+    if (o.kind === "chase" || o.kind === "iceberg") {
+      if (!o.reduce_only) checkMargin(id, qty, pl.ref);
+      const base = { client_order_index: 0, market_id: id, is_ask: pl.side < 0, type: "limit", trigger_price: 0, reduce_only: !!o.reduce_only, status: "open", ts: now() };
+      if (o.kind === "chase") {
+        const best = pl.side > 0 ? p && p.bid : p && p.ask;
+        const price = roundPrice(chaseTarget(best || pl.ref, pl.side < 0, o.chase_cap), m);
+        S.orders.push({ ...base, order_index: S.next++, price, remaining: pl.size, post_only: true,
+          chase: { cap: o.chase_cap || null, until: o.chase_minutes ? now() + o.chase_minutes * 60000 : null, then_market: !!o.chase_market },
+          working: { kind: "chase", qty: pl.size, filled: 0 } });
+        note(t("Paper: chase {side} {size} {sym} da {price}", { side: o.side, size: pl.size, sym: m.symbol, price: fp(price, m) }));
+      } else {
+        const ice = { pct: o.ice_slice, left: pl.size, total: pl.size };
+        S.orders.push(nextSlice({ ...base, price: roundPrice(o.price, m), post_only: !!o.post_only, ice, working: { kind: "iceberg", qty: pl.size, filled: 0 } }, m));
+        note(t("Paper: iceberg {side} {size} {sym} a {price}", { side: o.side, size: pl.size, sym: m.symbol, price: fp(o.price, m) }));
+      }
       changed = true;
       save();
       return { ok: true, size: pl.size, armed: true };
@@ -719,8 +755,25 @@ const Paper = (() => {
       if (!p || !m || !S.orders.includes(o)) continue;
       const pos = S.positions[o.market_id];
       if (o.type === "limit") {
+        if (o.chase) {
+          if (o.chase.until && now() >= o.chase.until) { // time up: cancelled, or what's left at market
+            S.orders.splice(S.orders.indexOf(o), 1);
+            changed = true;
+            const closes = o.reduce_only && (!pos || Math.sign(pos.size) === (o.is_ask ? -1 : 1));
+            if (o.chase.then_market && !closes) {
+              const size = o.reduce_only ? Math.min(o.remaining, Math.abs(pos.size)) : o.remaining, at = o.is_ask ? p.bid : p.ask;
+              fill(o.market_id, (o.is_ask ? -1 : 1) * size, at, "taker");
+              note(t("Paper: chase scaduto, {size} {sym} a market", { size, sym: m.symbol }));
+            } else note(t("Paper: chase scaduto, {size} {sym} non eseguiti", { size: o.remaining, sym: m.symbol }));
+            continue;
+          }
+          const best = o.is_ask ? p.ask : p.bid, target = best && roundPrice(chaseTarget(best, o.is_ask, o.chase.cap), m);
+          if (target && target !== o.price) { o.price = target; changed = true; save(); }
+        }
+        // a chase sits at the best price: it fills when a trade reaches it
         const hit = o.is_ask ? p.bid && p.bid >= o.price : p.ask && p.ask <= o.price;
-        if (!hit) continue;
+        const traded = o.chase && now() - o.ts > 1500 && p.last && (o.is_ask ? p.last >= o.price : p.last <= o.price);
+        if (!hit && !traded) continue;
         let qty = (o.is_ask ? -1 : 1) * o.remaining;
         S.orders.splice(S.orders.indexOf(o), 1);
         if (o.reduce_only) {
@@ -734,6 +787,12 @@ const Paper = (() => {
           if (o.trail) setStop(o.market_id, o.trail);
         }
         note(t("Paper: limit eseguito {side} {size} {sym} a {price}", { side: o.is_ask ? "sell" : "buy", size: Math.abs(qty), sym: m.symbol, price: fp(o.price, m) }));
+        if (o.ice && o.ice.left > 0) { // the next slice shows only now
+          o.working.filled = roundSize(o.ice.total - o.ice.left, m);
+          S.orders.push(nextSlice(o, m));
+          changed = true;
+          save();
+        }
         continue;
       }
       if (o.type === "twap") { stepTwap(o, p, m, pos); continue; }
