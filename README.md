@@ -82,6 +82,13 @@ and a residence check. Visitors from the United States, the United Kingdom and C
 isn't available, see a page that says so (country from Cloudflare's `CF-IPCountry` header). Your own
 calendar events stay in each visitor's browser. Run it as a separate instance from your personal deck.
 
+Add `BROWSER_TRADING=1` and live trading comes first: each visitor connects their own Lighter API key,
+which stays in their browser (orders are signed there with Lighter's official signer and go straight to
+Lighter; the server never receives the key). Paper trading becomes a choice, one click under the ticket,
+and is remembered per browser. `LD_VAULT_KEY` (a secret of your own, kept off the repository) also lets
+visitors hand a second API key to the server, encrypted, for the automations that must run with the page
+closed.
+
 ## Security
 
 - A Lighter API key can open and close positions and withdraw to **your own** wallet, but it

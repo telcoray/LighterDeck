@@ -40,14 +40,14 @@
 </script>
 <style>html.i18n-pending body { visibility: hidden; }</style>
 <link rel="icon" href="favicon.svg?v=1" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=190">
+<link rel="stylesheet" href="style.css?v=191">
 <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
 </head>
 <body>
 
 <!-- ============ public site: welcome bar ============ -->
 <div class="pubbar hidden" id="pubBar">
-  <span class="pub-text"><span class="pub-long"><b>LighterDeck</b> · <span>Terminale per i perpetual di Lighter: grafici, calendario per mercato, funding e paper trading con i prezzi veri. Il trading reale arriva presto.</span></span><span class="pub-short">Paper trading · trading reale in arrivo</span></span>
+  <span class="pub-text"><span class="pub-long"><b>LighterDeck</b> · <span id="pubLong">Terminale per i perpetual di Lighter: grafici, calendario per mercato, funding e paper trading con i prezzi veri. Il trading reale arriva presto.</span></span><span class="pub-short" id="pubShort">Paper trading · trading reale in arrivo</span></span>
   <a id="pubGithub" target="_blank" rel="noopener"><span class="pub-long">Codice su GitHub</span><span class="pub-short">GitHub</span></a>
   <a id="pubReferral" target="_blank" rel="noopener">Apri un account su Lighter</a>
   <button class="xbtn" id="pubClose" aria-label="Chiudi">✕</button>
@@ -306,6 +306,7 @@
         <div class="risk-note hidden" id="tkRisk"></div>
         <button class="link rfq-nudge hidden" id="tkRfqNudge" type="button"></button>
         <button class="execute" id="tkExec" data-ck="order">Esegui</button>
+        <button type="button" class="tk-switch hidden" id="tkSwitch"></button>
         <div class="ticket-msg hidden" id="tkMsg"></div>
       </section>
 
@@ -710,13 +711,13 @@
 </div>
 
 <div class="toast hidden" id="toast"></div>
-<script src="i18n.js?v=190"></script>
-<script src="i18n-zh.js?v=190"></script>
-<script src="i18n-ko.js?v=190"></script>
-<script src="formulas.js?v=190"></script>
-<script src="paper.js?v=190"></script>
-<script src="live.js?v=190"></script>
-<script src="app.js?v=190"></script>
-<script src="picker.js?v=190"></script>
+<script src="i18n.js?v=191"></script>
+<script src="i18n-zh.js?v=191"></script>
+<script src="i18n-ko.js?v=191"></script>
+<script src="formulas.js?v=191"></script>
+<script src="paper.js?v=191"></script>
+<script src="live.js?v=191"></script>
+<script src="app.js?v=191"></script>
+<script src="picker.js?v=191"></script>
 </body>
 </html>

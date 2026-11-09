@@ -82,6 +82,13 @@ dove Lighter non è disponibile, vede una pagina che lo spiega (paese dall'heade
 Cloudflare). Gli eventi personali del calendario restano nel browser di ogni visitatore. Va avviato
 come istanza separata dal tuo deck personale.
 
+Aggiungendo `BROWSER_TRADING=1` il trading reale passa al primo posto: ogni visitatore collega la propria
+API key di Lighter, che resta nel suo browser (gli ordini vengono firmati lì con il firmatario ufficiale
+di Lighter e vanno direttamente a Lighter; il server non riceve mai la chiave). Il paper trading diventa
+una scelta, a un clic sotto il ticket, ricordata in ogni browser. `LD_VAULT_KEY` (un segreto tuo, fuori
+dal repository) permette inoltre di affidare al server, cifrata, una seconda API key per le automazioni
+che devono funzionare a pagina chiusa.
+
 ## Sicurezza
 
 - La API key di Lighter può aprire e chiudere posizioni e prelevare verso il **tuo** wallet,

@@ -1607,7 +1607,8 @@ function renderTicket() {
   const ex = $("#tkExec");
   ex.className = "execute" + (!info.trading ? " connect" : ticket.side === "sell" ? " sell" : "");
   ex.textContent = info.trading ? `${ticket.side === "buy" ? "Buy / Long" : "Sell / Short"} ${m.symbol}${Paper.on ? " · Paper" : ""}`
-    : t("Sola lettura · collega un'API key");
+    : (liveFirst() ? t("Collega Lighter per fare trading") : t("Sola lettura · collega un'API key"));
+  renderTicketSwitch();
   if (ticket.kind === "basket") {
     $("#tkSym").textContent = "Basket";
     if (info.trading) ex.textContent = `Basket · ${t("{n} mercati", { n: ticketAdv.legs.length })}${Paper.on ? " · Paper" : ""}`;
@@ -1686,7 +1687,8 @@ function renderPairTicket([a, b]) {
   const ex = $("#tkExec");
   const [l, s] = pairLegs();
   ex.className = "execute" + (!info.trading ? " connect" : ticket.side === "sell" ? " sell" : "");
-  ex.textContent = info.trading ? `Long ${l.symbol} / Short ${s.symbol}${Paper.on ? " · Paper" : ""}` : t("Sola lettura · collega un'API key");
+  ex.textContent = info.trading ? `Long ${l.symbol} / Short ${s.symbol}${Paper.on ? " · Paper" : ""}` : (liveFirst() ? t("Collega Lighter per fare trading") : t("Sola lettura · collega un'API key"));
+  renderTicketSwitch();
   ex.disabled = false;
   ex.dataset.ckText = ex.textContent;
   markConfirm();
@@ -2846,7 +2848,8 @@ function renderAccount() {
   const pill = $("#accountPill");
   pill.innerHTML = Paper.on ? `<i class="dot paper"></i><span>Paper${has ? " · " + fusd(account.total_value, 0) : ""}</span>`
     : liveInfo ? `<i class="dot"></i><span>${t("Account #{n}", { n: liveInfo.account_index })}${has ? " · " + fusd(account.total_value, 0) : ""}</span>`
-    : info.trading ? `<i class="dot"></i><span>${t("Account #{n}", { n: info.account_index })}</span>` : `<i class="dot off"></i><span>${t("Sola lettura")}</span>`;
+    : info.trading ? `<i class="dot"></i><span>${t("Account #{n}", { n: info.account_index })}</span>`
+    : `<i class="dot off"></i><span>${liveFirst() ? t("Collega Lighter") : t("Sola lettura")}</span>`;
   pill.classList.toggle("muted", !info.trading);
   if (info.trading && !$("#keyModal").classList.contains("hidden")) renderKeyEquity();
   if (Paper.on && !$("#paperModal").classList.contains("hidden")) renderPaperModal();
@@ -3719,9 +3722,13 @@ function applyPublic() {
   $("#pubBar").classList.toggle("hidden", !!load("pubbarClosed", false));
   $("#pubClose").onclick = () => { store("pubbarClosed", true); $("#pubBar").classList.add("hidden"); };
   if (!load("residence", false)) { $("#resVeil").classList.remove("hidden"); $("#resModal").classList.remove("hidden"); }
-  $("#resYes").onclick = () => { store("residence", true); $("#resVeil").classList.add("hidden"); $("#resModal").classList.add("hidden"); };
+  $("#resYes").onclick = () => { store("residence", true); $("#resVeil").classList.add("hidden"); $("#resModal").classList.add("hidden"); liveIntro(); };
+  if (info.browser_trading) {
+    $("#pubLong").textContent = t("Terminale per i perpetual di Lighter: gli ordini si firmano in questo browser e vanno dritti a Lighter. Per provare senza rischi c'è il paper trading.");
+    $("#pubShort").textContent = t("Trading su Lighter · chiave nel tuo browser");
+  }
   $("#resNo").onclick = () => { $("#resVeil").classList.add("hidden"); $("#resModal").classList.add("hidden"); $("#geoPage").classList.remove("hidden"); };
-  $("#accountPill").title = t("Versione pubblica in sola lettura");
+  $("#accountPill").title = info.browser_trading ? t("Collega il tuo account Lighter") : t("Versione pubblica in sola lettura");
 }
 const myEvents = () => (info && info.public ? load("myEvents", []) : []);
 
@@ -4859,10 +4866,10 @@ function keyError(msg) {
   box.classList.toggle("hidden", !msg);
 }
 
-// the browser key connected or removed: live with it, paper without
+// the browser key connected or removed: live with it; without it, paper where the site has no live trading
 function browserKeyChanged() {
   document.body.classList.toggle("browser-key", Live.on);
-  setPaper(!Live.on);
+  setPaper(!Live.on && !liveFirst());
 }
 
 function credentialsChanged(newInfo) {
@@ -4876,13 +4883,24 @@ function credentialsChanged(newInfo) {
 }
 
 // ================= paper trading =================
-// live prices, simulated money (paper.js): the public site always runs it, the personal deck can switch
+// live prices, simulated money (paper.js). A public site without live trading always runs it; one with
+// live trading (BROWSER_TRADING) puts the visitor's own Lighter account first and keeps paper as a choice.
 let liveTrading = false;
 const autoOn = () => Paper.on || info.armed;
+const liveFirst = () => !!(info && info.public && info.browser_trading);
+const paperOnly = () => !!info.public && !info.browser_trading;
+
+// paper at start: the choice made last time; on a live site a visitor who already has a paper account keeps it
+function paperAtStart() {
+  if (paperOnly()) return true;
+  const chosen = load("paper", null);
+  if (chosen !== null) return chosen;
+  return liveFirst() && Paper.used();
+}
 
 function setPaper(on) {
-  Paper.on = !Live.on && (!!info.public || on);
-  if (!info.public) store("paper", Paper.on);
+  Paper.on = !Live.on && (paperOnly() || on);
+  if (!paperOnly()) store("paper", Paper.on);
   info.trading = Paper.on || liveTrading || Live.on;
   document.body.classList.toggle("paper", Paper.on);
   account = Paper.on ? Paper.account() : Live.on ? Live.account() : null;
@@ -4900,6 +4918,21 @@ function setPaper(on) {
   renderAccount();
   loadOrders(true);
   if (!$("#btab-trades").classList.contains("hidden")) loadTrades();
+}
+
+// under the ticket's button, on a live site: the way to paper when nothing is connected, and back to live from paper
+function renderTicketSwitch() {
+  const el = $("#tkSwitch");
+  const show = liveFirst() && !Live.on && (Paper.on || !info.trading);
+  el.classList.toggle("hidden", !show);
+  if (show) el.textContent = Paper.on ? t("Soldi finti · passa al tuo account Lighter") : t("Oppure prova in paper trading");
+}
+
+// a live site's first visit: how to connect, with paper one click away
+function liveIntro() {
+  if (!liveFirst() || Live.on || Paper.on || load("liveIntro", false) || !load("residence", false)) return;
+  store("liveIntro", true);
+  openKeyDialog();
 }
 
 function renderPaperModal() {
@@ -4946,6 +4979,11 @@ function wirePaper() {
     if (info.public) return openKeyDialog(); // live needs a key, kept in this browser
     setPaper(false);
     toast(liveTrading ? t("Trading live: ordini veri su Lighter") : t("Sola lettura"));
+  };
+  $("#tkSwitch").onclick = () => {
+    if (Paper.on) return openKeyDialog();
+    setPaper(true);
+    toast(t("Paper trading: prezzi veri, soldi finti"));
   };
   $("#keyPaper").onclick = $("#keyPaper2").onclick = () => {
     closeKeyDialog();
@@ -5092,7 +5130,7 @@ function wireHotkeys() {
 }
 
 function wireKeyDialog() {
-  $("#accountPill").onclick = () => (Paper.on ? openPaperModal() : (!info.public || Live.on) && openKeyDialog());
+  $("#accountPill").onclick = () => (Paper.on ? openPaperModal() : (!info.public || Live.on || liveFirst()) && openKeyDialog());
   $("#keyClose").onclick = closeKeyDialog;
   $("#keyShade").onmousedown = closeKeyDialog;
   document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("#keyModal").classList.contains("hidden")) closeKeyDialog(); });
@@ -5261,8 +5299,9 @@ async function init() {
     try { await Live.restore(); } catch {}
     document.body.classList.toggle("browser-key", Live.on);
   }
-  Paper.on = !Live.on && (!!info.public || load("paper", false));
+  Paper.on = !Live.on && paperAtStart();
   info.trading = Paper.on || liveTrading || Live.on;
+  document.body.classList.toggle("live-first", liveFirst());
   document.body.classList.toggle("paper", Paper.on);
   applyPublic();
   bySymbol = Object.fromEntries(markets.map((m) => [m.symbol, m]));
@@ -5281,6 +5320,7 @@ async function init() {
   wire();
   wireKeyDialog();
   wirePaper();
+  liveIntro();
   wireHotkeys();
   applyKeyHints();
   $("#bottom").addEventListener("click", (e) => {

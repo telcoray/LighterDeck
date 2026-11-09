@@ -14,7 +14,8 @@ const Paper = (() => {
     positions: {}, orders: [], trades: [], stops: {}, exits: {}, pairs: [], rules: [], settings: {}, logs: [], next: 1, logSeq: 0,
   });
   let S;
-  try { S = JSON.parse(localStorage.getItem(KEY)) || fresh(10000); } catch { S = fresh(10000); }
+  let had = false; // a paper account from an earlier visit
+  try { had = localStorage.getItem(KEY) !== null; S = JSON.parse(localStorage.getItem(KEY)) || fresh(10000); } catch { S = fresh(10000); }
   S.exits ||= {};
   S.pairs ||= [];
   S.rules ||= [];
@@ -1006,6 +1007,7 @@ const Paper = (() => {
   return {
     on: false,
     route, account, stops, exits, catchUp, plan,
+    used: () => had,
     tick() { // once a second with the live prices; true when orders or positions changed
       changed = false;
       step();
