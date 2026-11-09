@@ -51,7 +51,7 @@ def funding_row(f, m):
     """One funding payment as the tables show it: ms, side and size, the market's rate (% per hour, positive when
     longs pay, read from who paid so it doesn't hang on Lighter's sign convention) and the money (+ received)."""
     change, long = float(f["change"]), f.get("position_side") == "long"
-    rate = abs(float(f.get("rate") or 0))
+    rate = abs(float(f.get("rate") or 0)) * 100  # Lighter sends a fraction here (checked on its testnet against a payment)
     return {
         "ts": int(f["timestamp"]) * 1000, "market_id": f["market_id"], "symbol": m.symbol if m else str(f["market_id"]),
         "side": "long" if long else "short", "size": abs(float(f.get("position_size") or 0)),

@@ -13,8 +13,8 @@ from the environment:
     TESTNET_API_PRIVATE_KEY=...
     TESTNET_URL=https://testnet.zklighter.elliot.ai      (optional)
 
-Orders are the smallest each market accepts. Whatever a scenario leaves behind (orders, positions) is cancelled
-and closed before the next one and at the end. PASS/FAIL are checks; INFO is a fact about how Lighter behaves
+Orders are the smallest each market accepts. Everything on the account (orders, positions) is cancelled and
+closed at the start, after each scenario and at the end; 'history' run alone only reads and touches nothing. PASS/FAIL are checks; INFO is a fact about how Lighter behaves
 that the code can't decide for itself (how a leverage rounds, whether a batch is all-or-nothing).
 """
 import asyncio
@@ -185,7 +185,6 @@ class Run:
         if not self.mids:
             sys.exit("No testnet market has a usable order book right now.")
         print("Markets: " + ", ".join(self.api.markets[i].symbol for i in self.mids) + "\n", flush=True)
-        await self.flatten()
 
     # ---------- scenarios ----------
     async def account(self):
@@ -491,11 +490,15 @@ class Run:
 
 
 SCENARIOS = ["account", "leverage", "margin_mode", "limit", "entry", "conditional", "twap", "basket", "chase", "iceberg", "rfq", "history"]
+READS = {"history"}  # these only read: run alone, they leave the account's orders and positions as they are
 
 
 async def main(names):
     run = Run()
     await run.start()
+    trades = any(n not in READS for n in names)
+    if trades:
+        await run.flatten()
     try:
         for name in names:
             fn = getattr(run, name)
@@ -505,10 +508,12 @@ async def main(names):
                 await fn()
             except Exception as e:
                 say("FAIL", f"stopped by an error: {type(e).__name__}: {e}")
-            await run.flatten()
+            if trades:
+                await run.flatten()
             print(flush=True)
     finally:
-        await run.flatten()
+        if trades:
+            await run.flatten()
         await run.api.close()
     count = {s: sum(1 for r in results if r[0] == s) for s in ("PASS", "FAIL", "INFO", "SKIP")}
     print(f"{count['PASS']} passed, {count['FAIL']} failed, {count['INFO']} notes" + (f", {count['SKIP']} skipped" if count["SKIP"] else ""))
