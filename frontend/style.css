@@ -1190,9 +1190,7 @@ body.simple .rfq-nudge { display: none; }
 .ticket.rfq-on #sideSel, .ticket.rfq-on #tkChips, .ticket.rfq-on #tkPctRow, .ticket.rfq-on .checks:has(#tkReduce) { display: none; }
 
 /* ================= ticket: first row ================= */
-.ticket-head { gap: 8px; min-height: 24px; }
-.ticket-head #tkSym { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tk-controls { display: flex; flex: 1; min-width: 0; align-items: center; gap: 4px; }
+.tk-controls { display: flex; align-items: center; gap: 4px; margin-bottom: 12px; }
 .tk-mode { display: flex; flex: 1; height: 24px; padding: 1px; gap: 1px; border: 1px solid var(--line-2); border-radius: 4px; }
 .tk-mode button { flex: 1; padding: 0 7px; border-radius: 3px; color: var(--muted); font-size: 10.5px; }
 .tk-mode button:hover { color: var(--text); }
@@ -1206,8 +1204,8 @@ body.simple .rfq-nudge { display: none; }
 .lev-col { position: relative; flex: 1; min-width: 0; height: 100%; perspective: 420px; }
 .lev-col[data-col="0"] .lev-row { justify-content: flex-end; }
 .lev-col[data-col="1"] .lev-row { justify-content: flex-start; }
-/* the chart already says which market it is: the row is for the margin mode and the leverage */
-.ticket:not(.pair) #tkSym { display: none; }
-.ticket:not(.pair)[data-kind="basket"] .ticket-head { display: none; }
-.tk-mode button:disabled { color: var(--faint); opacity: .55; cursor: not-allowed; }
-.tk-mode button:disabled:hover { color: var(--faint); }
+/* the chart already says which market it is; a spread's ticket still names its pair */
+.ticket:not(.pair) .ticket-head { display: none; }
+/* locked by an open position: as readable as the rest, a padlock says why it doesn't press */
+.tk-mode button:disabled, .tk-mode button:disabled:hover { display: inline-flex; align-items: center; justify-content: center; gap: 4px; color: var(--text-2); cursor: not-allowed; }
+.tk-mode button:disabled::before { content: ""; flex: none; width: 8px; height: 10px; background: currentColor; opacity: .8; -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 10'%3E%3Cpath d='M1 4V3a3 3 0 0 1 6 0v1h.5a.5.5 0 0 1 .5.5v5a.5.5 0 0 1-.5.5h-7a.5.5 0 0 1-.5-.5v-5A.5.5 0 0 1 .5 4zm1.2 0h3.6V3a1.8 1.8 0 0 0-3.6 0z'/%3E%3C/svg%3E") center/contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 10'%3E%3Cpath d='M1 4V3a3 3 0 0 1 6 0v1h.5a.5.5 0 0 1 .5.5v5a.5.5 0 0 1-.5.5h-7a.5.5 0 0 1-.5-.5v-5A.5.5 0 0 1 .5 4zm1.2 0h3.6V3a1.8 1.8 0 0 0-3.6 0z'/%3E%3C/svg%3E") center/contain no-repeat; }
