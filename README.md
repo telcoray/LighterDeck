@@ -72,6 +72,27 @@ cp /opt/lighterdeck/deploy/lighterdeck.service /etc/systemd/system/
 systemctl daemon-reload && systemctl enable --now lighterdeck
 ```
 
+## Tests
+
+```
+python tests/run_offline.py     # fakes instead of Lighter: nothing leaves your computer
+python tests/testnet.py         # real orders on Lighter's testnet, no real money
+```
+
+`tests/testnet.py` sends the smallest orders each market accepts through the same code the deck trades
+with, and cleans up after itself: leverage with decimals, cross/isolated, limit orders moved and
+cancelled, a market entry with SL and TP, conditional orders, TWAP, a basket, Chase and Iceberg on the
+engine, RFQ, trades and funding history. It refuses to start on anything that isn't a testnet. Put a
+testnet account's API key in `data/testnet.env` (git-ignored):
+
+```
+TESTNET_ACCOUNT_INDEX=...
+TESTNET_API_KEY_INDEX=...
+TESTNET_API_PRIVATE_KEY=...
+```
+
+Name one or more scenarios to run only those (`python tests/testnet.py limit twap`, `--list` for the names).
+
 ## Public site
 
 With `PUBLIC_MODE=1` in the env file the deck runs as a public site (lighterdeck.xyz): it never loads
