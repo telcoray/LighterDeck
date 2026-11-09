@@ -1567,6 +1567,23 @@ function setAccPos(html) {
   $("#accPos").innerHTML = html;
 }
 
+// Cross / Isolated: Lighter changes a market's margin mode only with nothing on it, neither a position nor an
+// open order (checked on its testnet), so the other mode is locked until then
+function renderTicketMode() {
+  const m = activeMarket();
+  if (!m || activePair()) return;
+  const set = levSet(m), isolated = !!(set && !set.cross);
+  const pos = account && account.positions.some((p) => p.market_id === m.id);
+  const resting = (openOrders[m.id] || []).length > 0;
+  $$("#tkMode [data-cross]").forEach((b) => {
+    const on = (b.dataset.cross === "0") === isolated;
+    b.classList.toggle("active", on);
+    b.disabled = (pos || resting) && !on;
+    b.title = b.disabled ? t(pos ? "Chiudi la posizione per passare tra cross e isolated" : "Annulla gli ordini aperti su questo mercato per passare tra cross e isolated")
+      : t(b.dataset.cross === "1" ? "Cross: usa tutto il margine dell'account, e la liquidazione guarda tutto l'account" : "Isolated: rischia solo il margine di questa posizione");
+  });
+}
+
 function renderTicket() {
   const pr = activePair();
   $(".ticket").classList.toggle("pair", !!pr);
@@ -1580,14 +1597,7 @@ function renderTicket() {
   const set = levSet(m);
   const levNow = set ? set.leverage : m.default_leverage;
   $("#tkLev").textContent = levNow ? `${levNow}x` : "—";
-  const isolated = !!(set && !set.cross);
-  $$("#tkMode [data-cross]").forEach((b) => {
-    const on = (b.dataset.cross === "0") === isolated;
-    b.classList.toggle("active", on);
-    b.disabled = !!pos && !on; // an open position keeps its margin mode
-    b.title = b.disabled ? t("Chiudi la posizione per passare tra cross e isolated")
-      : t(b.dataset.cross === "1" ? "Cross: usa tutto il margine dell'account, e la liquidazione guarda tutto l'account" : "Isolated: rischia solo il margine di questa posizione");
-  });
+  renderTicketMode();
   setAccPos(pos ? `<span class="${pos.size > 0 ? "up" : "down"}">${pos.size > 0 ? "Long" : "Short"} ${fsize(pos.size, m)} ${esc(m.symbol)}</span>` : "");
   const unit = $("#tkUnit").value;
   $('#tkUnit option[value="base"]').textContent = m.symbol; // the menu is the size's unit
@@ -3092,6 +3102,7 @@ async function fetchOpenOrders(fresh = false) {
   const list = await api(`/open_orders?market_ids=${[...ids].join(",")}${fresh ? "&fresh=1" : ""}`);
   openOrders = {};
   for (const o of list) (openOrders[o.market_id] ||= []).push(o);
+  renderTicketMode();
   panels.forEach((p) => { p.drawLines(); p.loadFills(fresh); });
   await loadPairs();
   panels.forEach((p) => p.pair && p.drawLines());

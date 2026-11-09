@@ -154,6 +154,7 @@ const EN = {
   "Leva: rotella o trascina · clic per cross / isolated": "Leverage: scroll or drag \u00b7 click for cross / isolated",
   "Aggiunge {v} alla size: clicca più volte per sommare": "Adds {v} to the size: click several times to add up",
   "Chiudi la posizione per passare tra cross e isolated": "Close the position to switch between cross and isolated",
+  "Annulla gli ordini aperti su questo mercato per passare tra cross e isolated": "Cancel the open orders on this market to switch between cross and isolated",
   "Paper: {sym} isolated liquidato al prezzo mark": "Paper: {sym} isolated liquidated at the mark price",
   "Isolated: si liquida quando la perdita si mangia il margine di questa posizione.": "Isolated: it is liquidated when the loss eats up this position's margin.",
   "Cross: si liquida solo quando la perdita si mangia il collaterale di tutto l'account, non solo il margine di questa posizione. Per questo può essere molto lontana.": "Cross: it is liquidated only when the loss eats up the whole account's collateral, not just this position's margin. That's why it can be very far away.",

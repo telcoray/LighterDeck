@@ -681,6 +681,7 @@ const Paper = (() => {
     const prev = S.settings[id];
     // as on Lighter, an open position keeps its margin mode
     if (S.positions[id] && (prev ? prev.cross !== false : true) !== cross) err(t("Chiudi la posizione per passare tra cross e isolated"));
+    if (S.orders.some((o) => o.market_id === +id) && (prev ? prev.cross !== false : true) !== cross) err(t("Annulla gli ordini aperti su questo mercato per passare tra cross e isolated")); // nor with an order on it
     S.settings[id] = { leverage, cross };
     if (account().available <= 0 && Object.keys(S.positions).length) { if (prev) S.settings[id] = prev; else delete S.settings[id]; err(t("Margine insufficiente per questa leva")); }
     changed = true;
