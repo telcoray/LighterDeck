@@ -1192,9 +1192,9 @@ body.simple .rfq-nudge { display: none; }
 /* ================= ticket: first row ================= */
 .ticket-head { gap: 8px; min-height: 24px; }
 .ticket-head #tkSym { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tk-controls { display: flex; flex: none; align-items: center; gap: 4px; }
-.tk-mode { display: flex; height: 24px; padding: 1px; gap: 1px; border: 1px solid var(--line-2); border-radius: 4px; }
-.tk-mode button { padding: 0 7px; border-radius: 3px; color: var(--muted); font-size: 10.5px; }
+.tk-controls { display: flex; flex: 1; min-width: 0; align-items: center; gap: 4px; }
+.tk-mode { display: flex; flex: 1; height: 24px; padding: 1px; gap: 1px; border: 1px solid var(--line-2); border-radius: 4px; }
+.tk-mode button { flex: 1; padding: 0 7px; border-radius: 3px; color: var(--muted); font-size: 10.5px; }
 .tk-mode button:hover { color: var(--text); }
 .tk-mode button.active { background: var(--raised); color: var(--text); }
 .tk-mode button.active[data-cross="0"] { color: var(--amber); }
@@ -1206,3 +1206,8 @@ body.simple .rfq-nudge { display: none; }
 .lev-col { position: relative; flex: 1; min-width: 0; height: 100%; perspective: 420px; }
 .lev-col[data-col="0"] .lev-row { justify-content: flex-end; }
 .lev-col[data-col="1"] .lev-row { justify-content: flex-start; }
+/* the chart already says which market it is: the row is for the margin mode and the leverage */
+.ticket:not(.pair) #tkSym { display: none; }
+.ticket:not(.pair)[data-kind="basket"] .ticket-head { display: none; }
+.tk-mode button:disabled { color: var(--faint); opacity: .55; cursor: not-allowed; }
+.tk-mode button:disabled:hover { color: var(--faint); }

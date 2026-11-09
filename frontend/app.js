@@ -1534,7 +1534,13 @@ function renderTicket() {
   const levNow = set ? set.leverage : m.default_leverage;
   $("#tkLev").textContent = levNow ? `${levNow}x` : "—";
   const isolated = !!(set && !set.cross);
-  $$("#tkMode [data-cross]").forEach((b) => b.classList.toggle("active", (b.dataset.cross === "0") === isolated));
+  $$("#tkMode [data-cross]").forEach((b) => {
+    const on = (b.dataset.cross === "0") === isolated;
+    b.classList.toggle("active", on);
+    b.disabled = !!pos && !on; // an open position keeps its margin mode
+    b.title = b.disabled ? t("Chiudi la posizione per passare tra cross e isolated")
+      : t(b.dataset.cross === "1" ? "Cross: usa tutto il margine dell'account, e la liquidazione guarda tutto l'account" : "Isolated: rischia solo il margine di questa posizione");
+  });
   $("#tkAvail").textContent = account ? fusd(account.available) : "—";
   $("#tkPos").innerHTML = pos ? `<span class="${pos.size > 0 ? "up" : "down"}">${pos.size > 0 ? "Long" : "Short"} ${fsize(pos.size, m)}</span>` : "—";
   const unit = $("#tkUnit").value;
