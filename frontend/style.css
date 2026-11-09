@@ -789,20 +789,10 @@ kbd { font-family: var(--mono); font-size: 9.5px; border: 1px solid var(--line-2
 .sltp-out { padding: 0 10px 7px; margin-top: -3px; font-family: var(--mono); font-size: 10.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; }
 .sltp-out:empty { display: none; }
 .sltp-out.warn { color: var(--amber); }
-.tp-add { position: absolute; top: 5px; right: 8px; font-size: 10px; color: var(--green); }
-.tp-add:hover { text-decoration: underline; text-underline-offset: 3px; }
-.two.tp-solo { grid-template-columns: 1fr; }
 .tp-levels { margin: 0 0 12px; padding: 10px; border: 1px solid var(--line-2); border-radius: var(--r); background: var(--surface); }
 .tp-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 11px; color: var(--text-2); }
-.tp-presets { display: flex; gap: 4px; margin-left: auto; }
-.tp-presets button { height: 22px; padding: 0 7px; border-radius: 4px; border: 1px solid var(--line); color: var(--muted); font-size: 10px; font-family: var(--mono); }
-.tp-presets button:hover, .tp-presets button.active { color: var(--text); border-color: var(--line-3); }
-.tp-row { display: grid; grid-template-columns: 1fr 72px 18px; gap: 6px; align-items: center; }
-.tp-row .field { margin-bottom: 6px; }
 .tp-x { color: var(--muted); font-size: 14px; line-height: 1; }
 .tp-x:hover { color: var(--red); }
-.tp-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 2px; }
-.tp-foot label { display: flex; align-items: center; gap: 6px; color: var(--text-2); font-size: 11px; cursor: pointer; }
 .tp-levels .trail-hint:empty { display: none; }
 .table tr.pair-row td { background: color-mix(in srgb, var(--green) 4%, transparent); }
 .table tr.leg td:first-child { padding-left: 26px; }
@@ -981,12 +971,11 @@ button.pill:hover { border-color: var(--line-3); color: var(--text); }
 .chart-menu .cm-price, .pair-pop .caps, .el-menu .caps { padding: 4px 9px 7px; margin-bottom: 4px; border-bottom: 1px solid var(--line); font-size: 10.5px; }
 
 /* small pills that add or start something: + TP, + level, + Trailing, + Pair, ÷ Spread, ⚡ */
-.tp-add, .tp-foot .link, .pair-add, .ev-trade, .mkt-spread, .trail-btn {
+.pair-add, .ev-trade, .mkt-spread, .trail-btn {
   display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 9px; border: 1px solid var(--line-2); border-radius: 11px;
   background: none; color: var(--muted); font-family: var(--ui); font-size: 10.5px; line-height: 1; white-space: nowrap;
 }
-.tp-add:hover, .tp-foot .link:hover, .pair-add:hover, .mkt-spread:hover, .trail-btn:hover { color: var(--text); border-color: var(--line-3); text-decoration: none; }
-.tp-add { top: 4px; right: 6px; height: 18px; padding: 0 7px; }
+.pair-add:hover, .mkt-spread:hover, .trail-btn:hover { color: var(--text); border-color: var(--line-3); text-decoration: none; }
 .pair-add { height: 18px; padding: 0 7px; font-size: 10px; }
 .ev-trade { color: var(--amber); }
 .ev-trade:hover { border-color: var(--amber); }
@@ -1043,7 +1032,7 @@ body.simple #armedBtn:not(.on),
 body.simple #mktSpread, body.simple .stat:has(#stIdx), body.simple .stat:has(#stOi),
 body.simple .toolbar .layouts, body.simple .toolbar .sep, body.simple .tf-more:has(#elBtn),
 body.simple #bottomTabs [data-btab="log"],
-body.simple #tkUnit, body.simple .ticket .checks:has(#tkReduce), body.simple #tkTpAdd,
+body.simple #tkUnit, body.simple .ticket .checks:has(#tkReduce),
 body.simple .ticket .trail-check, body.simple #tkTrailBox, body.simple #tkTpBox, body.simple .ticket details.exec,
 body.simple .pair-add, body.simple .ev-trade,
 body.simple .rail .card.cal { display: none !important; }
@@ -1055,7 +1044,7 @@ body.simple .rail .card.cal { display: none !important; }
 .key-remember { margin: -2px 0 10px; font-size: 12px; color: var(--text-2); }
 .key-remember input { margin-right: 6px; vertical-align: -2px; }
 /* with a browser key, what runs on the server shows once automations are on; pairs aren't there yet */
-body.browser-key:not(.browser-auto) :is(#armedBtn, #tkTpAdd, .ticket .trail-check, #tkTrailBox, #tkTpBox, .ev-trade, .trail-btn),
+body.browser-key:not(.browser-auto) :is(#armedBtn, .ticket .trail-check, #tkTrailBox, #tkTpBox, .ev-trade, .trail-btn),
 body.browser-key :is(.pair-add, #mktSpread) { display: none !important; }
 .key-auto { margin: 14px 0 4px; padding: 12px; border: 1px solid var(--line-2); border-radius: var(--r); background: var(--surface); }
 .key-auto-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; font-size: 12.5px; }
@@ -1213,3 +1202,21 @@ body.simple .rfq-nudge { display: none; }
 .size-row select:disabled { opacity: .7; }
 .ticket:not(.pair) #tkSizeUnit { display: none; }
 body.simple .ticket #tkSizeUnit { display: block; }
+
+/* ================= ticket: scaled exits, a section like trailing's ================= */
+.ticket .field:has(#tkTp:disabled) { opacity: .55; }
+.tp-head { justify-content: space-between; color: var(--muted); }
+.tp-count { flex: none; }
+.tp-count button { min-width: 26px; font-family: var(--mono); }
+.tp-row { display: grid; grid-template-columns: 26px minmax(0, 1fr) 62px 14px; gap: 4px; align-items: center; margin-bottom: 4px; }
+.tp-row b { color: var(--muted); font-size: 10.5px; font-weight: 500; }
+.tp-row input { width: 100%; min-width: 0; height: 28px; padding: 0 6px; background: var(--bg); border: 1px solid var(--line-2); border-radius: 4px; color: var(--text); font-family: var(--mono); font-size: 12px; text-align: right; }
+.tp-row input:focus { border-color: var(--line-3); outline: 0; }
+.tp-row input::placeholder { color: var(--faint); font-family: var(--ui); font-size: 11px; }
+.tp-share { position: relative; display: block; }
+.tp-share input { padding-right: 16px; -moz-appearance: textfield; appearance: textfield; }
+.tp-share input::-webkit-outer-spin-button, .tp-share input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.tp-share span { position: absolute; top: 50%; right: 5px; transform: translateY(-50%); color: var(--muted); font-size: 10.5px; pointer-events: none; }
+.tp-x { padding: 0; }
+.checks.tp-foot { margin: 8px 0 0; }
+.tp-levels .trail-hint { margin-top: 6px; }

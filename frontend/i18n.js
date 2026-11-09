@@ -39,6 +39,8 @@ const EN = {
   "Cambia tema": "Change theme",
   "Tema": "Theme",
   "Semplice": "Simple",
+  "Chiude la posizione a pezzi, su più livelli": "Closes the position in pieces, on several levels",
+  "Livelli": "Levels",
   "Rischio $": "Risk $",
   "La size è in dollari, nella quantità del mercato, in % del capitale o come rischio in dollari allo stop": "The size in dollars, in the market's quantity, as % of equity or as dollars at risk to the stop",
   "Cross: usa tutto il margine dell'account, e la liquidazione guarda tutto l'account": "Cross: uses all the account's margin, and liquidation looks at the whole account",

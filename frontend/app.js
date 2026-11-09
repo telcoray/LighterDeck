@@ -4548,20 +4548,21 @@ function readTpLevels() {
 }
 
 function renderTpLevels(levels) {
-  const on = !!levels, box = $("#tkTpBox");
-  $("#tkTpField").classList.toggle("hidden", on);
-  $("#tkTpField").parentElement.classList.toggle("tp-solo", on);
+  const on = !!levels, box = $("#tkTpBox"), tp = $("#tkTp");
+  $("#tkScaled").checked = on;
+  // the single take-profit stays where it is, handing over to the levels below
+  tp.disabled = on;
+  tp.placeholder = t(on ? "Uscite scalari" : "Opzionale");
+  if (on) { tp.value = ""; $("#tkTpOut").textContent = ""; $("#tkTpOut").className = "sltp-out"; }
   box.classList.toggle("hidden", !on);
   if (!on) { box.innerHTML = ""; updateTicketSummary(); return; }
   const be = $("#tkTpBe") ? $("#tkTpBe").checked : load("tpBe", true);
-  box.innerHTML = `<div class="tp-head"><span>${t("Uscite scalari")}</span><span class="tp-presets">${[2, 3, 4].map((n) =>
-      `<button type="button" data-tp-split="${n}" class="${levels.length === n ? "active" : ""}">${n} × ${Math.floor(100 / n)}%</button>`).join("")}</span>
-      <button type="button" class="tp-x" data-tp-off title="${t("Torna a un solo take-profit")}">×</button></div>
-    ${levels.map((l, i) => `<div class="tp-row"><div class="field sm"><label>TP${i + 1} · ${t("prezzo")}</label><input data-tp-price type="number" step="any" autocomplete="off" value="${l.price || ""}"></div>
-      <div class="field sm"><label>${t("Quota %")}</label><input data-tp-pct type="number" min="0" max="100" step="any" autocomplete="off" value="${l.pct}"></div>
+  box.innerHTML = `<div class="tp-head"><span>${t("Livelli")}</span><div class="tk-mode tp-count">${[2, 3, 4, 5].map((n) =>
+      `<button type="button" data-tp-split="${n}" class="${levels.length === n ? "active" : ""}">${n}</button>`).join("")}</div></div>
+    ${levels.map((l, i) => `<div class="tp-row"><b>TP${i + 1}</b><input data-tp-price type="number" step="any" autocomplete="off" placeholder="${t("prezzo")}" value="${l.price || ""}">
+      <label class="tp-share"><input data-tp-pct type="number" min="0" max="100" step="any" autocomplete="off" title="${t("Quota %")}" value="${l.pct}"><span>%</span></label>
       ${levels.length > 2 ? `<button type="button" class="tp-x" data-tp-del="${i}" title="${t("Togli il livello")}">×</button>` : "<span></span>"}</div>`).join("")}
-    <div class="tp-foot">${levels.length < 5 ? `<button type="button" class="link" data-tp-more>+ ${t("livello")}</button>` : "<span></span>"}
-      <label><input type="checkbox" id="tkTpBe" ${be ? "checked" : ""}> ${t("Dopo TP1 stop a breakeven")}</label></div>
+    <div class="checks tp-foot"><label><input type="checkbox" id="tkTpBe" ${be ? "checked" : ""}> ${t("Dopo TP1 stop a breakeven")}</label></div>
     <p class="trail-hint" id="tkTpHint"></p>`;
   tpHint();
   updateTicketSummary();
@@ -4587,23 +4588,24 @@ function tpHint() {
 }
 
 function wireTpLevels() {
-  $("#tkTpAdd").onclick = () => splitTpLevels(2);
+  $("#tkScaled").onchange = (e) => {
+    if (e.target.checked) return splitTpLevels(2);
+    const first = (readTpLevels() || [])[0]; // back to one take-profit, at the first level's price
+    renderTpLevels(null);
+    $("#tkTp").value = first && first.price ? first.price : "";
+    updateTicketSummary();
+  };
   const box = $("#tkTpBox");
   box.addEventListener("click", (e) => {
     const b = e.target.closest("button");
     if (!b) return;
     if (b.dataset.tpSplit) splitTpLevels(+b.dataset.tpSplit);
-    else if (b.dataset.tpMore !== undefined) splitTpLevels(readTpLevels().length + 1);
     else if (b.dataset.tpDel !== undefined) {
       const lv = readTpLevels().filter((_, i) => i !== +b.dataset.tpDel);
       renderTpLevels(TP_SPLITS[lv.length].map((pct, i) => ({ price: lv[i].price, pct })));
-    } else if (b.dataset.tpOff !== undefined) {
-      const first = readTpLevels()[0];
-      $("#tkTp").value = first && first.price ? first.price : "";
-      renderTpLevels(null);
     }
   });
-  box.addEventListener("input", updateTicketSummary);
+  box.addEventListener("input", () => { tpHint(); updateTicketSummary(); });
   // Enter in a level's fields sends the order, like the other ticket fields
   box.addEventListener("keydown", (e) => { if (e.key === "Enter" && e.target.matches("input[type=number]")) { e.preventDefault(); $("#tkExec").click(); } });
   box.addEventListener("change", (e) => { if (e.target.id === "tkTpBe") { store("tpBe", e.target.checked); tpHint(); updateTicketSummary(); } });
@@ -5254,7 +5256,7 @@ function setMode(simple, save = true) {
     $("#tkPost").checked = false;
     if ($("#tkTrail").checked) { $("#tkTrail").checked = false; renderTicketTrail(); }
     const levels = readTpLevels();
-    if (levels) { $("#tkTp").value = levels[0] && levels[0].price ? levels[0].price : ""; renderTpLevels(null); }
+    if (levels) { renderTpLevels(null); $("#tkTp").value = levels[0] && levels[0].price ? levels[0].price : ""; }
     if (!isBasicKind()) ticket.kind = "market"; // the advanced orders are a Pro tool
     if (["auto", "activity"].includes(curView)) switchView("trade");
     if (!$("#btab-log").classList.contains("hidden")) switchBottom("positions");
