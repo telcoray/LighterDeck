@@ -480,6 +480,11 @@ const Live = (() => {
     });
     if (p === "/trades") return run(() => trades(qs.has("market_id") ? +qs.get("market_id") : null));
     if (p === "/fills") return run(() => []);
+    if (p === "/funding_history") return run(async () => ((await get("positionFunding", { account_index: cred.account_index, limit: 100 }, true)).position_fundings || []).map((f) => {
+      const change = +f.change, long = f.position_side === "long", rate = Math.abs(+f.rate || 0), m = byId[f.market_id];
+      return { ts: f.timestamp * 1000, market_id: f.market_id, symbol: m ? m.symbol : String(f.market_id), side: long ? "long" : "short",
+        size: Math.abs(+f.position_size || 0), rate: (change < 0) === long ? rate : -rate, change }; // same rows as the server's
+    }));
     if (p === "/logs") return run(() => logs.slice());
     const auto_ = (fn) => run(async () => { needAuto(); const r = await fn(); await pollAuto().catch(() => {}); return r; });
     const trail = p.match(/^\/trail\/(\d+)$/);

@@ -3124,6 +3124,29 @@ async function loadTrades() {
   renderTrades();
 }
 
+// what the positions paid (−) or received (+) at each hourly funding: a total per market on top, then the payments
+async function loadFundingPaid() {
+  const box = $("#btab-funding");
+  if (!info.trading) { box.innerHTML = `<div class="empty">${t("Sola lettura.")}</div>`; return; }
+  const rows = await api("/funding_history").catch((e) => { box.innerHTML = `<div class="empty">${esc(e.message)}</div>`; return null; });
+  if (!rows) return;
+  if (!rows.length) { box.innerHTML = `<div class="empty">${t("Nessun pagamento di funding: arriva ogni ora sulle posizioni aperte.")}</div>`; return; }
+  const time = (ts) => new Date(ts).toLocaleString(LOCALE, { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+  const per = {};
+  for (const r of rows) per[r.symbol] = (per[r.symbol] || 0) + r.change;
+  const total = rows.reduce((s, r) => s + r.change, 0);
+  const since = time(rows[rows.length - 1].ts);
+  box.innerHTML = `<div class="btab-bar"><span class="muted">${rows.length === 1 ? t("1 pagamento dal {t}", { t: since }) : t("{n} pagamenti dal {t}", { n: rows.length, t: since })} · ${t("totale")} <b class="${cls(total)}">${fsigned(total)}</b></span>
+    <span class="fund-per">${Object.entries(per).sort((a, b) => a[1] - b[1]).map(([sym, v]) => `<span>${esc(sym)} <b class="${cls(v)}">${fsigned(v)}</b></span>`).join("")}</span></div>
+    <table class="table"><thead><tr><th>${t("Ora")}</th><th>${t("Mercato")}</th><th>${t("Lato")}</th><th class="r">Size</th><th class="r" title="${t("Tasso dell'ora: positivo quando i long pagano gli short")}">${t("Tasso")}</th><th class="r">${t("Pagato / ricevuto")}</th></tr></thead><tbody>${
+    rows.map((r) => {
+      const m = byId[r.market_id];
+      return `<tr><td>${time(r.ts)}${r.hours > 1 ? ` <span class="fills">× ${r.hours}h</span>` : ""}</td><td class="mk">${gotoBtn(r.symbol)}</td>
+        <td class="${r.side === "long" ? "up" : "down"}">${r.side === "long" ? "Long" : "Short"}</td><td class="r">${m ? fsize(r.size, m) : r.size}</td>
+        <td class="r">${fpctf(r.rate)}</td><td class="r main ${cls(r.change)}">${fsigned(r.change)}</td></tr>`;
+    }).join("")}</tbody></table>`;
+}
+
 // a market's name in the bottom tables: a click brings up its chart, the one already showing it if any
 const gotoBtn = (sym) => `<button class="goto" data-goto="${esc(sym)}" title="${t("Apri il grafico di {sym}", { sym: esc(sym) })}">${esc(sym)}</button>`;
 
@@ -4231,6 +4254,7 @@ function switchBottom(t) {
   $$(".btab").forEach((s) => s.classList.toggle("hidden", s.id !== "btab-" + t));
   if (t === "orders") loadOrders();
   if (t === "trades") loadTrades();
+  if (t === "funding") loadFundingPaid();
   if (t === "alerts") renderAlerts();
 }
 
@@ -4918,6 +4942,7 @@ function setPaper(on) {
   renderAccount();
   loadOrders(true);
   if (!$("#btab-trades").classList.contains("hidden")) loadTrades();
+  if (!$("#btab-funding").classList.contains("hidden")) loadFundingPaid();
 }
 
 // under the ticket's button, on a live site: the way to paper when nothing is connected, and back to live from paper

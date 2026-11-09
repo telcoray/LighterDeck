@@ -46,6 +46,18 @@ def realized_pnl(fills, positions):
     return out
 
 
+
+def funding_row(f, m):
+    """One funding payment as the tables show it: ms, side and size, the market's rate (% per hour, positive when
+    longs pay, read from who paid so it doesn't hang on Lighter's sign convention) and the money (+ received)."""
+    change, long = float(f["change"]), f.get("position_side") == "long"
+    rate = abs(float(f.get("rate") or 0))
+    return {
+        "ts": int(f["timestamp"]) * 1000, "market_id": f["market_id"], "symbol": m.symbol if m else str(f["market_id"]),
+        "side": "long" if long else "short", "size": abs(float(f.get("position_size") or 0)),
+        "rate": rate if (change < 0) == long else -rate, "change": change,
+    }
+
 class Market:
     def __init__(self, d):
         self.id = d["market_id"]
@@ -427,6 +439,12 @@ class LighterAPI:
                 complete = True
                 break
         return out, complete
+
+    async def funding_history(self, limit=100):
+        """The account's latest funding payments, newest first (one row per market and hour)."""
+        data = await self._get("/api/v1/positionFunding", {"account_index": self.account_index, "limit": limit},
+                               headers={"authorization": await self._auth_token()})
+        return [funding_row(f, self.markets.get(f["market_id"])) for f in data.get("position_fundings", [])]
 
     async def daily_pnl(self):
         """PnL since 00:00 UTC, closed trades and open positions together (fees and funding included).

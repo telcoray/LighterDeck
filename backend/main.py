@@ -348,6 +348,16 @@ async def orderbook(market_id: int):
     return book
 
 
+@app.get("/api/funding_history")
+async def funding_history():
+    """The account's latest funding payments (the Funding history tab)."""
+    _need_key()
+    try:
+        return await api.funding_history()
+    except RuntimeError as e:
+        raise HTTPException(502, str(e))
+
+
 @app.get("/api/trades")
 async def trades(market_id: int | None = None):
     """Latest fills: all markets, or one market's (the chart's fill marks)."""
