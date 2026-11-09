@@ -9,8 +9,10 @@
 //
 // It refuses to run anywhere but on a testnet. Orders are the smallest each market accepts; everything on the
 // account is cancelled and closed at the start, after each scenario and at the end ('history' alone only reads).
-// Chase, Iceberg, trailing and scaled exits run on the server with the second key: tests/testnet.py covers them.
-const SCENARIOS = ["account", "leverage", "margin_mode", "limit", "entry", "conditional", "twap", "basket", "reverse", "rfq", "history"];
+// Trailing, scaled exits, Chase and Iceberg run on the server with a second key: hand one over in the page
+// (account pill, Automations) and they are tested too; without it those scenarios are skipped.
+const AUTO = ["trailing", "scaled_exits", "chase", "iceberg"];
+const SCENARIOS = ["account", "leverage", "margin_mode", "limit", "entry", "conditional", "twap", "scale", "basket", "reverse", "rfq", "history", ...AUTO];
 const READS = new Set(["history"]);
 
 export async function run(...names) {
@@ -51,7 +53,70 @@ export async function run(...names) {
     } catch (e) { console.warn("cleanup", e.message); }
   };
 
+  // the server's engine for this account, Auto on
+  const arm = async () => {
+    if (!Live.auto().armed) await post("/armed?armed=true");
+    return until(async () => Live.auto().armed, 10000);
+  };
+  const working = () => Object.keys(Live.auto().working || {});
+
   const tests = {
+    async trailing() {
+      if (!check("Auto turns on", await arm(), Live.auto())) return;
+      const q = size(A);
+      await post("/order", { market_id: A, side: "buy", kind: "market", size: q, unit: "base", slippage_bps: 100, trail: { mode: "pct", value: 2, activate_pct: 0 } });
+      if (!check("the position opens", Math.abs((await until(() => position(A), 20000)) - q) < 1e-9, await position(A))) return;
+      check("the server has the trailing for this market", await until(async () => (Live.auto().stops || {})[A], 15000), Live.auto().stops);
+      const stop = await until(async () => (await orders(A)).find((x) => x.trigger_price && x.reduce_only && x.is_ask), 45000);
+      if (check("the engine puts the stop on Lighter with the second key", stop, await orders(A))) {
+        const dist = (px(A).mark - stop.trigger_price) / px(A).mark * 100;
+        check("about 2% under the price", dist > 1.2 && dist < 2.8, dist);
+      }
+      await api(`/trail/${A}`, { method: "DELETE" });
+      check("trailing removed from the server", await until(async () => !(Live.auto().stops || {})[A], 15000), Live.auto().stops);
+      note(`after removing the trailing, its stop order ${(await orders(A)).some((x) => x.trigger_price) ? "stays on Lighter" : "is cancelled too"}`);
+    },
+    async scaled_exits() {
+      if (!check("Auto is on", await arm(), Live.auto())) return;
+      const q = size(A, 2.5), p1 = round(mA, px(A).mark * 1.05), p2 = round(mA, px(A).mark * 1.1);
+      await post("/order", { market_id: A, side: "buy", kind: "market", size: q, unit: "base", slippage_bps: 100, tp_levels: [{ price: p1, pct: 50 }, { price: p2, pct: 50 }], be_after_tp1: true });
+      if (!check("the position opens", Math.abs((await until(() => position(A), 20000)) - q) < 1e-9, await position(A))) return;
+      const tps = await until(async () => { const got = (await orders(A)).filter((x) => x.trigger_price && x.reduce_only); return got.length === 2 ? got : null; }, 45000);
+      if (!check("the engine places the two take-profits", tps, await orders(A))) return;
+      const trig = tps.map((x) => x.trigger_price).sort((a, b) => a - b);
+      check("at the two prices asked", Math.abs(trig[0] - p1) < 1e-9 && Math.abs(trig[1] - p2) < 1e-9, trig);
+      const total = tps.reduce((s, x) => s + x.remaining, 0);
+      check("together they close the whole position, each its share", Math.abs(total - q) < 10 ** -mA.size_decimals * 1.5 && tps.every((x) => x.remaining < q), tps.map((x) => x.remaining));
+      check("the server lists the plan", (Live.auto().exits || {})[A], Live.auto().exits);
+    },
+    async chase() {
+      if (!check("Auto is on", await arm(), Live.auto())) return;
+      const q = size(A);
+      await post("/order", { market_id: A, side: "buy", kind: "chase", size: q, unit: "base" });
+      const o = await until(async () => working().length && (await orders(A)).find((x) => working().includes(String(x.client_order_index))), 30000);
+      if (!o) {
+        if (await position(A)) return check("the chase filled at once", true);
+        return check("the chase puts an order on the book", false, [Live.auto().working, await orders(A)]);
+      }
+      const bid = px(A).bid;
+      check("a buy rests near the best bid", !o.is_ask && Math.abs(o.price - bid) / bid < 0.003, [o.price, bid]);
+      await post(`/cancel_order?market_id=${A}&order_index=${o.order_index}`);
+      check("cancelling the order by hand ends the chase", await until(async () => !working().length, 60000), Live.auto().working);
+      await sleep(4000);
+      check("and nothing else is sent", !(await orders(A)).length, await orders(A));
+    },
+    async iceberg() {
+      if (!check("Auto is on", await arm(), Live.auto())) return;
+      const total = size(A, 4), price = round(mA, px(A).bid * 0.97);
+      await post("/order", { market_id: A, side: "buy", kind: "iceberg", size: total, unit: "base", price, ice_slice: 50, post_only: true });
+      const mine = await until(async () => { const got = await orders(A); return working().length && got.length ? got : null; }, 30000);
+      if (!check("the first slice rests on the book", mine, [Live.auto().working, await orders(A)])) return;
+      check("one slice only, smaller than the whole, at its price", mine.length === 1 && mine[0].remaining < total && Math.abs(mine[0].price - price) < 1e-9, mine);
+      await post(`/cancel_order?market_id=${A}&order_index=${mine[0].order_index}`);
+      check("cancelling the slice by hand ends the iceberg", await until(async () => !working().length, 60000), Live.auto().working);
+      await sleep(4000);
+      check("and no further slice is sent", !(await orders(A)).length, await orders(A));
+    },
     async account() {
       const a = await fresh();
       check("account read, with Lighter's cross margin figures", a && a.cross_value !== null && a.initial !== null && a.maintenance !== null, a);
@@ -140,6 +205,15 @@ export async function run(...names) {
       }
       note(`filled before the cancel: ${await position(A)}`);
     },
+    async scale() {
+      const q = size(A, 4), from = round(mA, px(A).bid * 0.95), to = round(mA, px(A).bid * 0.97);
+      await post("/order", { market_id: A, side: "buy", kind: "scale", size: q, unit: "base", scale_from: from, scale_to: to, scale_count: 3, scale_dist: "even", post_only: true });
+      const got = await until(async () => { const list = await orders(A); return list.length === 3 ? list : null; }, 20000);
+      if (!check("three limits rest on the book", got, await orders(A))) return;
+      const ps = got.map((x) => x.price).sort((a, b) => a - b);
+      check("from the first price to the last", Math.abs(ps[0] - from) < 1e-9 && Math.abs(ps[2] - to) < 1e-9, ps);
+      check("together they are the whole size", Math.abs(got.reduce((s, x) => s + x.remaining, 0) - q) < 10 ** -mA.size_decimals * 1.5, got.map((x) => x.remaining));
+    },
     async basket() {
       if (mids.length < 2) return say("SKIP", "needs two markets with prices");
       const B = mids[1], usd = (id) => +(size(id) * px(id).mark * 1.05).toFixed(2);
@@ -184,12 +258,13 @@ export async function run(...names) {
   try {
     for (const name of names) {
       current = name;
+      if (AUTO.includes(name) && !Live.auto().on) { say("SKIP", "automations are off: hand a second testnet key to the server to test it"); continue; }
       try { await tests[name](); } catch (e) { say("FAIL", `stopped by an error: ${e.message}`); }
       if (trades) await flatten();
     }
   } finally { if (trades) await flatten(); }
   const count = (s) => results.filter((r) => r.status === s).length;
-  const summary = `${count("PASS")} passed, ${count("FAIL")} failed, ${count("INFO")} notes`;
+  const summary = `${count("PASS")} passed, ${count("FAIL")} failed, ${count("INFO")} notes` + (count("SKIP") ? `, ${count("SKIP")} skipped` : "");
   console.log(summary);
   return { summary, results: results.filter((r) => r.status !== "PASS"), passed: results.filter((r) => r.status === "PASS").map((r) => `${r.scenario}: ${r.text}`) };
 }
