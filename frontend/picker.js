@@ -80,8 +80,7 @@ function pickerRows() {
 function renderPickerChrome() {
   const scope = markets.filter((m) =>
     pk.tab === "favs" ? favs.includes(m.symbol) : pk.tab === "all" ? true : m.asset_type === pk.tab);
-  if (simpleMode && pk.tab === "spread") pk.tab = "all";
-  $("#pkTabs").innerHTML = TABS.filter(([k]) => !(simpleMode && k === "spread")).map(([k, label]) => {
+  $("#pkTabs").innerHTML = TABS.map(([k, label]) => {
     const n = k === "all" ? markets.length : k === "favs" ? favs.filter((s) => bySymbol[s]).length : k === "spread" ? spreadList().length : markets.filter((m) => m.asset_type === k).length;
     return `<button data-tab="${k}" class="${pk.tab === k ? "active" : ""}">${t(label)}<span>${n}</span></button>`;
   }).join("");
