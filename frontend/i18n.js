@@ -39,6 +39,8 @@ const EN = {
   "Cambia tema": "Change theme",
   "Tema": "Theme",
   "Semplice": "Simple",
+  "Rischio $": "Risk $",
+  "La size è in dollari, nella quantità del mercato, in % del capitale o come rischio in dollari allo stop": "The size in dollars, in the market's quantity, as % of equity or as dollars at risk to the stop",
   "Cross: usa tutto il margine dell'account, e la liquidazione guarda tutto l'account": "Cross: uses all the account's margin, and liquidation looks at the whole account",
   "Isolated: rischia solo il margine di questa posizione": "Isolated: risks only this position's margin",
   "Leva: rotella o trascina, clic per tenerla aperta": "Leverage: wheel or drag, click to keep it open",

@@ -412,8 +412,6 @@ body.resizing { cursor: row-resize; user-select: none; }
 .kv dt { color: var(--muted); font-size: 11px; }
 .kv dd { margin: 0; text-align: right; font-family: var(--mono); font-size: 11.5px; color: var(--text-2); }
 .kv.summary { border-top: 1px solid var(--line); padding-top: 12px; margin-top: 4px; }
-.fl { display: flex; justify-content: space-between; align-items: center; color: var(--muted); font-size: 11px; margin-bottom: 8px; }
-.fl select { width: auto; padding: 3px 6px; font-size: 11px; }
 .field { position: relative; display: flex; align-items: center; background: var(--bg); border: 1px solid var(--line-2); border-radius: var(--r); margin-bottom: 8px; }
 .field:focus-within { border-color: var(--line-3); }
 .field label { flex: none; padding-left: 10px; color: var(--muted); font-size: 11px; }
@@ -1045,7 +1043,7 @@ body.simple #armedBtn:not(.on),
 body.simple #mktSpread, body.simple .stat:has(#stIdx), body.simple .stat:has(#stOi),
 body.simple .toolbar .layouts, body.simple .toolbar .sep, body.simple .tf-more:has(#elBtn),
 body.simple #bottomTabs [data-btab="log"],
-body.simple .ticket .fl:has(#tkUnit), body.simple .ticket .checks:has(#tkReduce), body.simple #tkTpAdd,
+body.simple #tkUnit, body.simple .ticket .checks:has(#tkReduce), body.simple #tkTpAdd,
 body.simple .ticket .trail-check, body.simple #tkTrailBox, body.simple #tkTpBox, body.simple .ticket details.exec,
 body.simple .pair-add, body.simple .ev-trade,
 body.simple .rail .card.cal { display: none !important; }
@@ -1169,9 +1167,8 @@ body.simple #accLevDt, body.simple #accLev { display: none; }
 /* ticket: basket, one row per market instead of the single order's fields */
 .bk-sum { display: none; }
 .ticket[data-kind="basket"] .bk-sum { display: grid; }
-.ticket[data-kind="basket"] #sideSel, .ticket[data-kind="basket"] .tk-controls, .ticket[data-kind="basket"] .fl:has(#tkUnit), .ticket[data-kind="basket"] .field:has(#tkSize),
+.ticket[data-kind="basket"] #sideSel, .ticket[data-kind="basket"] .tk-controls, .ticket[data-kind="basket"] .size-row,
 .ticket[data-kind="basket"] #tkChips, .ticket[data-kind="basket"] #tkPctRow, .ticket[data-kind="basket"] .checks:has(#tkReduce),
-.ticket[data-kind="basket"] dt:has(+ #tkPos), .ticket[data-kind="basket"] #tkPos,
 .ticket[data-kind="basket"] .summary.rows > div:not(:has(#tkAcct, #tkRoom)) { display: none; }
 .bk-leg { display: grid; grid-template-columns: minmax(0, 1fr) 54px 72px 18px; gap: 4px; align-items: center; margin-bottom: 6px; }
 .bk-leg select, .bk-leg input { width: 100%; min-width: 0; height: 28px; padding: 0 6px; background: var(--surface); border: 1px solid var(--line-2); border-radius: var(--r); color: var(--text); font-size: 12px; }
@@ -1209,3 +1206,10 @@ body.simple .rfq-nudge { display: none; }
 /* locked by an open position: as readable as the rest, a padlock says why it doesn't press */
 .tk-mode button:disabled, .tk-mode button:disabled:hover { display: inline-flex; align-items: center; justify-content: center; gap: 4px; color: var(--text-2); cursor: not-allowed; }
 .tk-mode button:disabled::before { content: ""; flex: none; width: 8px; height: 10px; background: currentColor; opacity: .8; -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 10'%3E%3Cpath d='M1 4V3a3 3 0 0 1 6 0v1h.5a.5.5 0 0 1 .5.5v5a.5.5 0 0 1-.5.5h-7a.5.5 0 0 1-.5-.5v-5A.5.5 0 0 1 .5 4zm1.2 0h3.6V3a1.8 1.8 0 0 0-3.6 0z'/%3E%3C/svg%3E") center/contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 10'%3E%3Cpath d='M1 4V3a3 3 0 0 1 6 0v1h.5a.5.5 0 0 1 .5.5v5a.5.5 0 0 1-.5.5h-7a.5.5 0 0 1-.5-.5v-5A.5.5 0 0 1 .5 4zm1.2 0h3.6V3a1.8 1.8 0 0 0-3.6 0z'/%3E%3C/svg%3E") center/contain no-repeat; }
+/* the size and its unit, side by side: the menu says the unit, so the field doesn't repeat it */
+.size-row { display: flex; align-items: stretch; gap: 4px; margin-bottom: 8px; }
+.size-row .field { flex: 1; min-width: 0; margin-bottom: 0; }
+.size-row select { flex: none; width: auto; max-width: 104px; padding: 0 6px; border: 1px solid var(--line-2); border-radius: var(--r); background-color: var(--bg); font-size: 11px; }
+.size-row select:disabled { opacity: .7; }
+.ticket:not(.pair) #tkSizeUnit { display: none; }
+body.simple .ticket #tkSizeUnit { display: block; }

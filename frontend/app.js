@@ -1520,6 +1520,12 @@ function cancelConfirm() {
 }
 
 // ================= ticket =================
+// what's held on the market in the ticket, among the account's figures
+function setAccPos(html) {
+  for (const id of ["#accPos", "#accPosDt"]) $(id).classList.toggle("hidden", !html);
+  $("#accPos").innerHTML = html;
+}
+
 function renderTicket() {
   const pr = activePair();
   $(".ticket").classList.toggle("pair", !!pr);
@@ -1541,9 +1547,9 @@ function renderTicket() {
     b.title = b.disabled ? t("Chiudi la posizione per passare tra cross e isolated")
       : t(b.dataset.cross === "1" ? "Cross: usa tutto il margine dell'account, e la liquidazione guarda tutto l'account" : "Isolated: rischia solo il margine di questa posizione");
   });
-  $("#tkAvail").textContent = account ? fusd(account.available) : "—";
-  $("#tkPos").innerHTML = pos ? `<span class="${pos.size > 0 ? "up" : "down"}">${pos.size > 0 ? "Long" : "Short"} ${fsize(pos.size, m)}</span>` : "—";
+  setAccPos(pos ? `<span class="${pos.size > 0 ? "up" : "down"}">${pos.size > 0 ? "Long" : "Short"} ${fsize(pos.size, m)} ${esc(m.symbol)}</span>` : "");
   const unit = $("#tkUnit").value;
+  $('#tkUnit option[value="base"]').textContent = m.symbol; // the menu is the size's unit
   $("#tkSizeUnit").textContent = { usd: "USD", base: m.symbol, equity_pct: "%", risk_usd: "USD" }[unit];
   const chips = {
     usd: [25, 50, 100, 250].map((v) => [v, "$" + v]),
@@ -1634,9 +1640,8 @@ const pairLegs = () => { const [a, b] = activePair(); return ticket.side === "bu
 
 function renderPairTicket([a, b]) {
   $("#tkSym").textContent = `${a.symbol}/${b.symbol}`;
-  $("#tkAvail").textContent = account ? fusd(account.available) : "—";
   const held = (m) => { const p = account && account.positions.find((x) => x.market_id === m.id); return p ? `<span class="${p.size > 0 ? "up" : "down"}">${m.symbol} ${p.size > 0 ? "Long" : "Short"} ${fsize(p.size, m)}</span>` : ""; };
-  $("#tkPos").innerHTML = [held(a), held(b)].filter(Boolean).join(" · ") || "—";
+  setAccPos([held(a), held(b)].filter(Boolean).join(" · "));
   $('#sideSel [data-side="buy"]').textContent = `Long ${a.symbol} / Short ${b.symbol}`;
   $('#sideSel [data-side="sell"]').textContent = `Short ${a.symbol} / Long ${b.symbol}`;
   $$("#sideSel button").forEach((x) => x.classList.toggle("active", x.dataset.side === ticket.side));

@@ -40,7 +40,7 @@
 </script>
 <style>html.i18n-pending body { visibility: hidden; }</style>
 <link rel="icon" href="favicon.svg?v=1" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=185">
+<link rel="stylesheet" href="style.css?v=186">
 <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
 </head>
 <body>
@@ -233,14 +233,10 @@
           <button class="link bk-add" id="tkBasketAdd" type="button">+ Aggiungi mercato</button>
           <p class="trail-hint">Partono insieme in un solo invio. Se un mercato non viene eseguito lo vedi subito e puoi chiudere gli altri.</p>
         </div>
-        <dl class="kv">
-          <dt>Disponibile</dt><dd id="tkAvail">—</dd>
-          <dt>Posizione</dt><dd id="tkPos">—</dd>
-        </dl>
-        <label class="fl solo-only">Size in
-          <select id="tkUnit" autocomplete="off"><option value="usd">Valore USD</option><option value="base">Quantità</option><option value="equity_pct">% capitale</option><option value="risk_usd">Rischio $ allo stop</option></select>
-        </label>
-        <div class="field"><label><span class="solo-only">Size</span><span class="pair-only">Valore totale</span></label><input id="tkSize" autocomplete="off" type="number" min="0" step="any"><span class="unit" id="tkSizeUnit">USD</span></div>
+        <div class="size-row">
+          <div class="field"><label><span class="solo-only">Size</span><span class="pair-only">Valore totale</span></label><input id="tkSize" autocomplete="off" type="number" min="0" step="any"><span class="unit" id="tkSizeUnit">USD</span></div>
+          <select id="tkUnit" class="solo-only" autocomplete="off" title="La size è in dollari, nella quantità del mercato, in % del capitale o come rischio in dollari allo stop"><option value="usd">USD</option><option value="base">Quantità</option><option value="equity_pct">% capitale</option><option value="risk_usd">Rischio $</option></select>
+        </div>
         <div class="chips" id="tkChips"></div>
         <div class="size-pct solo-only" id="tkPctRow">
           <div class="pct-track"><input id="tkPct" type="range" min="0" max="100" step="1" value="0" autocomplete="off" title="Quota di quanto il margine disponibile può aprire, a questa leva"><i style="left:0"></i><i style="left:25%"></i><i style="left:50%"></i><i style="left:75%"></i><i style="left:100%"></i></div>
@@ -320,6 +316,7 @@
         <div class="mg-legend" id="accMgLegend"></div>
         <dl class="kv">
           <dt>Disponibile</dt><dd id="accAvail">—</dd>
+          <dt class="hidden" id="accPosDt">Posizione</dt><dd class="hidden" id="accPos">—</dd>
           <dt class="hidden" id="accUsedDt">In uso</dt><dd class="hidden" id="accUsed">—</dd>
           <dt class="hidden" id="accLevDt">Esposizione</dt><dd class="hidden" id="accLev">—</dd>
           <dt class="hidden" id="accRoomDt">Alla liquidazione</dt><dd class="hidden" id="accRoom">—</dd>
@@ -713,13 +710,13 @@
 </div>
 
 <div class="toast hidden" id="toast"></div>
-<script src="i18n.js?v=185"></script>
-<script src="i18n-zh.js?v=185"></script>
-<script src="i18n-ko.js?v=185"></script>
-<script src="formulas.js?v=185"></script>
-<script src="paper.js?v=185"></script>
-<script src="live.js?v=185"></script>
-<script src="app.js?v=185"></script>
-<script src="picker.js?v=185"></script>
+<script src="i18n.js?v=186"></script>
+<script src="i18n-zh.js?v=186"></script>
+<script src="i18n-ko.js?v=186"></script>
+<script src="formulas.js?v=186"></script>
+<script src="paper.js?v=186"></script>
+<script src="live.js?v=186"></script>
+<script src="app.js?v=186"></script>
+<script src="picker.js?v=186"></script>
 </body>
 </html>
