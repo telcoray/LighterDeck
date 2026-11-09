@@ -1206,3 +1206,5 @@ dd.warn { color: var(--amber); }
 body.live-first.paper .tk-switch { color: var(--amber); }
 body.live-first.paper #accountPill { border-color: color-mix(in srgb, var(--amber) 45%, transparent); }
 body.live-first:not(.paper):not(.browser-key) #accountPill { color: var(--green); border-color: color-mix(in srgb, var(--green) 40%, transparent); }
+/* the accounts a wallet owns: the one in the form stands out */
+.key-accounts .chip.active { color: var(--text); border-color: var(--green); background: color-mix(in srgb, var(--green) 10%, transparent); }

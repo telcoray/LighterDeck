@@ -5153,12 +5153,21 @@ function wireKeyDialog() {
     $("#keyAccounts").innerHTML = "";
     try {
       const list = await api("/accounts_for_address?address=" + encodeURIComponent($("#keyAddress").value.trim()));
-      if (list.length === 1) $("#keyAccount").value = list[0].index;
-      $("#keyAccounts").innerHTML = list.map((a) =>
-        `<button type="button" class="chip" data-acc="${a.index}">#${a.index} · ${fusd(a.collateral, 0)}</button>`).join("");
+      // the account picked for you: the one with the most money, the main one (lowest index) on a tie
+      const pick = list.slice().sort((a, b) => b.collateral - a.collateral || a.index - b.index)[0];
+      if (pick) $("#keyAccount").value = pick.index;
+      const main = Math.min(...list.map((a) => a.index));
+      $("#keyAccounts").innerHTML = list.length < 2 ? "" : list.map((a) =>
+        `<button type="button" class="chip${a === pick ? " active" : ""}" data-acc="${a.index}">#${a.index} · ${fusd(a.collateral, 0)}${a.index === main ? "" : " · " + t("subaccount")}</button>`).join("");
     } catch (e) { keyError(e.message); }
   };
-  $("#keyAccounts").onclick = (e) => { const b = e.target.closest("[data-acc]"); if (b) $("#keyAccount").value = b.dataset.acc; };
+  $("#keyAccounts").onclick = (e) => {
+    const b = e.target.closest("[data-acc]");
+    if (!b) return;
+    $("#keyAccount").value = b.dataset.acc;
+    $$("#keyAccounts [data-acc]").forEach((x) => x.classList.toggle("active", x === b));
+  };
+  $("#keyAccount").addEventListener("input", () => $$("#keyAccounts [data-acc]").forEach((x) => x.classList.toggle("active", x.dataset.acc === $("#keyAccount").value)));
   $("#keyForm").onsubmit = async (e) => {
     e.preventDefault();
     keyError("");
