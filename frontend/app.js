@@ -1520,6 +1520,47 @@ function cancelConfirm() {
 }
 
 // ================= ticket =================
+// The quick sizes: a share of the money available, rounded to the coarsest step that still gives four different
+// sizes (dollars to the nearest 50 on an ordinary account, a market's quantity to whole units where it can).
+const CHIP_SHARES = [1, 2.5, 5, 10];
+
+function chipSteps(unit, m) {
+  if (unit !== "base") return [50, 10, 5, 1];
+  return Array.from({ length: m.size_decimals + 1 }, (_, i) => +(10 ** -i).toFixed(m.size_decimals));
+}
+
+function quickChips(unit, m) {
+  if (unit === "equity_pct") return CHIP_SHARES.map((v) => [v, v + "%"]);
+  const dollars = unit !== "base";
+  const money = account && account.available > 0 ? account.available : 0;
+  const p = prices[m.id], price = dollars ? 1 : p ? ticketRef(m, p) : 0;
+  const label = (v) => (dollars ? "$" + v : String(v));
+  if (money && price) {
+    const raw = CHIP_SHARES.map((share) => (money * share) / 100 / price);
+    const decimals = dollars ? 0 : m.size_decimals;
+    for (const step of chipSteps(unit, m)) {
+      const out = raw.map((v) => +(Math.round(v / step) * step).toFixed(decimals));
+      if (out[0] > 0 && new Set(out).size === out.length) return out.map((v) => [v, label(v)]);
+    }
+    // so little that even the finest step can't tell them apart: the smallest four sizes, still on the account's scale
+    const fine = chipSteps(unit, m).at(-1);
+    let prev = 0;
+    return raw.map((v) => {
+      prev = +Math.max(Math.round(v / fine) * fine, prev + fine).toFixed(decimals);
+      return [prev, label(prev)];
+    });
+  }
+  // no money to take a share of (read only, or all of it in use): sizes that fit any account
+  if (dollars) return [25, 50, 100, 250].map((v) => [v, label(v)]);
+  return [1, 5, 10, 50].map((x) => +(x * 10 ** -Math.max(0, m.size_decimals - 2)).toFixed(m.size_decimals)).map((v) => [v, label(v)]);
+}
+
+function renderChips(chips) {
+  const box = $("#tkChips");
+  const html = chips.map(([v, label]) => `<button data-v="${v}" title="${t("Aggiunge {v} alla size: clicca più volte per sommare", { v: label })}">${label}</button>`).join("");
+  if (box.dataset.html !== html) { box.innerHTML = html; box.dataset.html = html; } // not under a click on the way
+}
+
 // what's held on the market in the ticket, among the account's figures
 function setAccPos(html) {
   for (const id of ["#accPos", "#accPosDt"]) $(id).classList.toggle("hidden", !html);
@@ -1551,13 +1592,7 @@ function renderTicket() {
   const unit = $("#tkUnit").value;
   $('#tkUnit option[value="base"]').textContent = m.symbol; // the menu is the size's unit
   $("#tkSizeUnit").textContent = { usd: "USD", base: m.symbol, equity_pct: "%", risk_usd: "USD" }[unit];
-  const chips = {
-    usd: [25, 50, 100, 250].map((v) => [v, "$" + v]),
-    base: [1, 5, 10, 50].map((x) => +(x * 10 ** -Math.max(0, m.size_decimals - 2)).toFixed(m.size_decimals)).map((v) => [v, v]),
-    equity_pct: [1, 2, 5, 10].map((v) => [v, v + "%"]),
-    risk_usd: [5, 10, 25, 50].map((v) => [v, "$" + v]),
-  }[unit];
-  $("#tkChips").innerHTML = chips.map(([v, label]) => `<button data-v="${v}" title="${t("Aggiunge {v} alla size: clicca più volte per sommare", { v: label })}">${label}</button>`).join("");
+  renderChips(quickChips(unit, m));
   const showsLimit = hasLimitField(), showsMarket = ticket.kind === "market" || ticket.kind === "rfq" || (ticket.kind === "conditional" && ticketAdv.exec === "market");
   $$(".limit-only").forEach((e) => e.classList.toggle("hidden", !showsLimit));
   $$(".market-only").forEach((e) => e.classList.toggle("hidden", !showsMarket));
@@ -1646,7 +1681,7 @@ function renderPairTicket([a, b]) {
   $('#sideSel [data-side="sell"]').textContent = `Short ${a.symbol} / Long ${b.symbol}`;
   $$("#sideSel button").forEach((x) => x.classList.toggle("active", x.dataset.side === ticket.side));
   $("#tkSizeUnit").textContent = "USD";
-  $("#tkChips").innerHTML = [100, 250, 500, 1000].map((v) => `<button data-v="${v}">$${v}</button>`).join("");
+  renderChips(quickChips("usd", a));
   $$(".market-only").forEach((e) => e.classList.remove("hidden"));
   const ex = $("#tkExec");
   const [l, s] = pairLegs();
