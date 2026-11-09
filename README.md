@@ -93,6 +93,14 @@ TESTNET_API_PRIVATE_KEY=...
 
 Name one or more scenarios to run only those (`python tests/testnet.py limit twap`, `--list` for the names).
 
+The browser-key path (orders signed in the page) has its own run, `tests/browser_testnet.js`. Start an
+instance on the testnet with `LIGHTER_URL=https://testnet.zklighter.elliot.ai`, `PUBLIC_MODE=1` and
+`BROWSER_TRADING=1`, connect the testnet key in the page, then in the browser console:
+
+```
+await (await import("/tests/browser_testnet.js")).run()
+```
+
 ## Public site
 
 With `PUBLIC_MODE=1` in the env file the deck runs as a public site (lighterdeck.xyz): it never loads

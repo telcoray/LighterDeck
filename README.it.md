@@ -92,6 +92,15 @@ TESTNET_API_PRIVATE_KEY=...
 
 Indica uno o più scenari per eseguire solo quelli (`python tests/testnet.py limit twap`, `--list` per i nomi).
 
+Il percorso con la chiave nel browser (ordini firmati nella pagina) ha la sua prova,
+`tests/browser_testnet.js`. Avvia un'istanza sulla testnet con
+`LIGHTER_URL=https://testnet.zklighter.elliot.ai`, `PUBLIC_MODE=1` e `BROWSER_TRADING=1`, collega la
+chiave testnet nella pagina, poi nella console del browser:
+
+```
+await (await import("/tests/browser_testnet.js")).run()
+```
+
 ## Sito pubblico
 
 Con `PUBLIC_MODE=1` nel file env il deck funziona come sito pubblico (lighterdeck.xyz): non carica mai

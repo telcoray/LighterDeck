@@ -114,7 +114,7 @@ async def info(request: Request):
         "credentials": config.CREDENTIALS_SOURCE if api.signer else None,
         "api_key_index": config.API_KEY_INDEX if api.signer else None,
         "network": "testnet" if "testnet" in config.LIGHTER_URL else "mainnet",
-        "ws_url": config.LIGHTER_WS,
+        "ws_url": config.LIGHTER_WS, "lighter_url": config.LIGHTER_URL,
         "limits": {**risk.limits, "hard_cap_usd": config.MAX_NOTIONAL_USD,
                    "max_orders_per_day": config.MAX_ORDERS_PER_DAY},
         "markets": sorted((m.to_dict() for m in api.markets.values()), key=lambda m: -m["volume_usd"]),
@@ -1598,6 +1598,8 @@ async def og_image(symbol: str):
 for _page in PAGES:
     app.add_api_route(f"/{_page}", lambda: FileResponse(FRONTEND / "index.html"), methods=["GET"], include_in_schema=False)
 
+if "testnet" in config.LIGHTER_URL:  # a test instance also serves the browser's testnet scenarios (tests/browser_testnet.js)
+    app.mount("/tests", StaticFiles(directory=FRONTEND.parent / "tests"), name="tests")
 app.mount("/", StaticFiles(directory=FRONTEND), name="static")
 
 

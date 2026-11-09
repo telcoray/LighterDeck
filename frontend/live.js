@@ -7,8 +7,11 @@
 // visitor hands over when turning automations on. Pairs aren't there yet.
 const Live = (() => {
   const STORE = "ld.live.key";
-  const URL_ = "https://mainnet.zklighter.elliot.ai";
-  const CHAIN_ID = 304; // mainnet
+  // the network the server reads its data from: mainnet, or Lighter's testnet on a test instance
+  const net = {
+    get url() { return (info && info.lighter_url) || "https://mainnet.zklighter.elliot.ai"; },
+    get chain() { return info && info.network === "testnet" ? 300 : 304; },
+  };
   const SLIP = 0.005;   // worst-price margin of closes and SL/TP, as the server's MAX_SLIPPAGE_PCT
   const ORDERS_TTL = 4000;
   // order types and time in force, as the signer numbers them
@@ -44,14 +47,14 @@ const Live = (() => {
 
   // ---------- Lighter's REST API ----------
   async function get(path, params = {}, withAuth = false) {
-    const r = await fetch(`${URL_}/api/v1/${path}?${new URLSearchParams(params)}`, withAuth ? { headers: { authorization: await token() } } : {});
+    const r = await fetch(`${net.url}/api/v1/${path}?${new URLSearchParams(params)}`, withAuth ? { headers: { authorization: await token() } } : {});
     const body = await r.json().catch(() => ({}));
     if (!r.ok || (body.code && body.code !== 200)) throw new Error(body.message || `${path}: ${r.status}`);
     return body;
   }
 
   async function post(path, params) {
-    const r = await fetch(`${URL_}/api/v1/${path}`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded", authorization: await token() }, body: new URLSearchParams(params) });
+    const r = await fetch(`${net.url}/api/v1/${path}`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded", authorization: await token() }, body: new URLSearchParams(params) });
     const body = await r.json().catch(() => ({}));
     if (body.code === 64013) err(t("Hai già 3 RFQ aperte su questo mercato: aspetta che si chiudano"));
     if (!r.ok || (body.code && body.code !== 200)) err(body.message || `${path}: ${r.status}`);
@@ -123,7 +126,7 @@ const Live = (() => {
       if (nonce === null) nonce = (await get("nextNonce", { account_index: cred.account_index, api_key_index: cred.api_key_index })).nonce;
       try {
         const tx = build(nonce);
-        const r = await fetch(`${URL_}/api/v1/sendTx`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        const r = await fetch(`${net.url}/api/v1/sendTx`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" },
           body: new URLSearchParams({ tx_type: tx.txType, tx_info: tx.txInfo }) });
         const body = await r.json().catch(() => ({}));
         if (!r.ok || body.code !== 200) err(body.message || `sendTx: ${r.status}`);
@@ -145,7 +148,7 @@ const Live = (() => {
       if (nonce === null) nonce = (await get("nextNonce", { account_index: cred.account_index, api_key_index: cred.api_key_index })).nonce;
       try {
         const txs = builds.map((build, i) => build(nonce + i));
-        const r = await fetch(`${URL_}/api/v1/sendTxBatch`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        const r = await fetch(`${net.url}/api/v1/sendTxBatch`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" },
           body: new URLSearchParams({ tx_types: JSON.stringify(txs.map((x) => x.txType)), tx_infos: JSON.stringify(txs.map((x) => x.txInfo)) }) });
         const body = await r.json().catch(() => ({}));
         if (!r.ok || body.code !== 200) err(body.message || `sendTxBatch: ${r.status}`);
@@ -505,7 +508,7 @@ const Live = (() => {
   // auth token signed with this key must be accepted
   async function connect(c, remember) {
     await loadSigner();
-    const res = window.CreateClient(URL_, c.key.trim(), CHAIN_ID, c.api_key_index, c.account_index);
+    const res = window.CreateClient(net.url, c.key.trim(), net.chain, c.api_key_index, c.account_index);
     if (res && res.error) err(res.error);
     const prev = cred;
     cred = { account_index: c.account_index, api_key_index: c.api_key_index, key: c.key.trim() };
@@ -560,7 +563,7 @@ const Live = (() => {
     if (!saved) return false;
     try {
       await loadSigner();
-      const res = window.CreateClient(URL_, saved.key, CHAIN_ID, saved.api_key_index, saved.account_index);
+      const res = window.CreateClient(net.url, saved.key, net.chain, saved.api_key_index, saved.account_index);
       if (res && res.error) err(res.error);
     } catch { return false; }
     cred = saved;
