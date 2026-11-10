@@ -1584,7 +1584,36 @@ function renderTicketMode() {
   });
 }
 
+// Where something runs, marked only when it isn't Lighter itself: an order on Lighter needs nothing else to work,
+// so it carries no mark. A cloud is LighterDeck's server (it goes on with the page closed, and stops if the server
+// does); a window is this page (it works only while LighterDeck is open: alerts, and everything in paper).
+const RUNS_SVG = {
+  server: '<svg viewBox="0 0 16 16" width="11" height="11" aria-hidden="true"><path d="M4.6 12.5a3 3 0 0 1-.5-5.96 4 4 0 0 1 7.8.56 2.75 2.75 0 0 1-.4 5.4z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>',
+  page: '<svg viewBox="0 0 16 16" width="11" height="11" aria-hidden="true"><rect x="2" y="3" width="12" height="10" rx="1.6" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M2 6.3h12" stroke="currentColor" stroke-width="1.4"/></svg>',
+};
+// what: "auto" (an automation), "trail" (an automation whose stop is an order on Lighter), "alert"
+function runsWhere(what) { return what === "alert" || Paper.on ? "page" : "server"; }
+function runsTitle(what) {
+  if (what === "alert") return t("Gira in questa pagina: avvisa solo mentre LighterDeck è aperto");
+  if (Paper.on) return t("Paper: gira in questa pagina, solo mentre LighterDeck è aperto");
+  return t("Gira sul server di LighterDeck: continua a pagina chiusa e si ferma se si ferma il server")
+    + (what === "trail" ? ". " + t("Lo stop è un ordine su Lighter: resta attivo all'ultimo prezzo anche senza server") : "");
+}
+const runsIcon = (what) => `<i class="runs runs-${runsWhere(what)}" title="${esc(runsTitle(what))}">${RUNS_SVG[runsWhere(what)]}</i>`;
+// the marks written in the page itself (ticket, menus, tabs) follow paper / live and the language
+function renderRuns() {
+  for (const el of $$("i[data-runs]")) {
+    const where = runsWhere(el.dataset.runs), title = runsTitle(el.dataset.runs);
+    if (el.dataset.where === where && el.title === title) continue;
+    el.className = `runs runs-${where}`;
+    el.dataset.where = where;
+    el.title = title;
+    el.innerHTML = RUNS_SVG[where];
+  }
+}
+
 function renderTicket() {
+  renderRuns();
   const pr = activePair();
   $(".ticket").classList.toggle("pair", !!pr);
   if (pr) return renderPairTicket(pr);
@@ -2890,7 +2919,7 @@ function sltpCell(p, m) {
   const st = positionStops(p);
   const one = (k) => `<button class="sltp-v ${k}${st[k] ? "" : " none"}" data-psl="${p.market_id}:${k}">${st[k] ? fp(st[k].trigger_price, m) : "—"}</button>`;
   const x = exits[p.market_id];
-  const steps = x ? `<small class="tp-step" title="${t("Uscite scalari: livelli eseguiti")}">TP ${x.levels.filter((l) => l.done).length}/${x.levels.length}</small>` : "";
+  const steps = x ? `<small class="tp-step" title="${t("Uscite scalari: livelli eseguiti")}">TP ${x.levels.filter((l) => l.done).length}/${x.levels.length}</small>${runsIcon("auto")}` : "";
   return `${steps}${one("tp")}<span class="sltp-sep">/</span>${one("sl")}`;
 }
 
@@ -3119,7 +3148,7 @@ async function loadOrders(fresh = false) {
   box.innerHTML = `<table class="table"><thead><tr><th>${t("Mercato")}</th><th>${t("Tipo")}</th><th>${t("Lato")}</th><th class="r">${t("Prezzo")}</th><th class="r">Trigger</th><th class="r">${t("Size residua")}</th><th>Reduce only</th><th></th></tr></thead><tbody>${
     orders.map((o) => {
       const m = byId[o.market_id];
-      return `<tr><td class="mk">${gotoBtn(o.symbol)}</td><td>${workingOf(o) ? `${orderKind(o)} · ${+workingOf(o).filled}/${+workingOf(o).qty}` : esc(o.type)}</td><td class="${o.is_ask ? "down" : "up"}">${o.is_ask ? "Sell" : "Buy"}</td>
+      return `<tr><td class="mk">${gotoBtn(o.symbol)}</td><td>${workingOf(o) ? `${orderKind(o)} · ${+workingOf(o).filled}/${+workingOf(o).qty}${runsIcon("auto")}` : esc(o.type)}</td><td class="${o.is_ask ? "down" : "up"}">${o.is_ask ? "Sell" : "Buy"}</td>
         <td class="r">${fp(o.price, m)}</td><td class="r">${o.trigger_price ? fp(o.trigger_price, m) : "—"}</td><td class="r">${fsize(o.remaining, m)}</td>
         <td>${o.reduce_only ? t("sì") : "—"}</td><td class="r"><button class="xbtn" data-cancel="${o.market_id}:${o.order_index}" data-ck="cancel:${o.market_id}:${o.order_index}">${t("Annulla")}</button></td></tr>`;
     }).join("")}</tbody></table>`;
@@ -4718,7 +4747,7 @@ function trailButton(marketId, m) {
   if (!s) return `<button class="trail-btn" data-trail="${marketId}">+ ${t("Trailing")}</button>`;
   const paused = !autoOn() || !s.enabled;
   const title = paused ? t("Auto è OFF: il trailing è fermo") : t("Stop gestito attivo");
-  return `<button class="trail-btn on${paused ? " paused" : ""}" data-trail="${marketId}" title="${title}">${trailLabel(s, m)}${s.stop ? " · " + fp(s.stop, m) : ""}</button>`;
+  return `<button class="trail-btn on${paused ? " paused" : ""}" data-trail="${marketId}" title="${title}">${trailLabel(s, m)}${s.stop ? " · " + fp(s.stop, m) : ""}</button>${runsIcon("trail")}`;
 }
 
 function openTrailPop(marketId, anchor) {

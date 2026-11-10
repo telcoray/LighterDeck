@@ -1212,3 +1212,8 @@ body.live-first:not(.paper):not(.browser-key) #accountPill { color: var(--green)
 .fund-per { display: flex; flex-wrap: wrap; gap: 4px 12px; color: var(--muted); font-size: 11px; }
 .fund-per b { font-weight: 500; font-family: var(--mono); }
 .btab-bar b { font-weight: 500; font-family: var(--mono); }
+
+/* ================= where it runs: a cloud for LighterDeck's server, a window for this page ================= */
+.runs { display: inline-flex; align-items: center; margin-left: 4px; color: var(--muted); vertical-align: -1px; font-style: normal; cursor: help; }
+.runs svg { display: block; }
+.runs:hover { color: var(--text-2); }
