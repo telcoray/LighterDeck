@@ -228,6 +228,9 @@ body.reordering { cursor: grabbing; user-select: none; }
 .mkt-spread:hover { color: var(--text); border-color: var(--line-3); }
 /* on a phone the market bar keeps the name and the price: spreads are in the market picker's Spread tab */
 @media (max-width: 640px) { #mktSpread, #mktSelect .tag { display: none !important; } } /* every market here is a perpetual */
+/* the market's name on a phone: as much room after the arrow as before the icon (the bar's 14px) */
+@media (max-width: 640px) { .marketbar #mktSelect { margin-right: -14px; } }
+@media (max-width: 420px) { .marketbar #mktSelect { margin-right: -10px; } }
 .pk-base { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 14px; background: color-mix(in srgb, var(--blue) 10%, transparent); color: var(--text-2); font-size: 12px; border-bottom: 1px solid var(--line); }
 .pk-base b { color: var(--text); }
 .pk-row .zhot { color: var(--amber); }
