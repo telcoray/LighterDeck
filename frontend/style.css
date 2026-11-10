@@ -717,8 +717,6 @@ kbd { font-family: var(--mono); font-size: 9.5px; border: 1px solid var(--line-2
   .pk-row > :nth-child(n+5) { display: none; }
   .pk-foot, #pkCount { display: none; }
 }
-.toast { position: fixed; bottom: 36px; left: 50%; transform: translateX(-50%); background: var(--raised); border: 1px solid var(--line-2); padding: 9px 14px; border-radius: var(--r); z-index: 30; font-size: 12px; }
-.toast.err { border-color: rgba(242,84,109,.4); color: var(--red); }
 
 @media (max-width: 1100px) {
   .rail { width: 270px; }
@@ -1222,3 +1220,15 @@ body.live-first:not(.paper):not(.browser-key) #accountPill { color: var(--green)
 .runs { display: inline-flex; align-items: center; margin-left: 4px; color: var(--muted); vertical-align: -1px; font-style: normal; cursor: help; }
 .runs svg { display: block; }
 .runs:hover { color: var(--text-2); }
+
+/* ================= notices: under the top bar, where the eye already is; a tick when confirmed, a mark on errors ================= */
+.toast { position: fixed; top: 52px; left: 50%; z-index: 60; display: flex; align-items: center; gap: 8px; width: max-content; max-width: min(440px, calc(100vw - 24px));
+  padding: 9px 14px; background: var(--raised); border: 1px solid var(--float-border); border-radius: var(--float-radius); box-shadow: var(--float-shadow);
+  color: var(--text); font-size: 12.5px; line-height: 1.35; cursor: pointer; opacity: 0; transform: translate(-50%, -8px); transition: opacity .18s ease, transform .18s ease; }
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
+.toast:has(.toast-ico) { padding-left: 11px; }
+.toast-ico { flex: none; display: flex; color: var(--muted); }
+.toast.ok .toast-ico { color: var(--green); }
+.toast.err .toast-ico { color: var(--red); }
+.toast.err { border-color: color-mix(in srgb, var(--red) 45%, var(--float-border)); }
+@media (prefers-reduced-motion: reduce) { .toast { transition: none; } }

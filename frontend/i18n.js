@@ -255,7 +255,7 @@ const EN = {
   "PnL realizzato": "Realized PnL",
   "Nessuna attività.": "No activity yet.",
   "Chiudere tutta la posizione {sym} a mercato?": "Close the whole {sym} position at market?",
-  "Chiusura {f}% inviata": "{f}% close sent",
+  "Chiusura {f}%: ordine accettato": "{f}% close: order accepted",
   "Ordine annullato": "Order cancelled",
   // ---- ticket ----
   "Leva e margine": "Leverage and margin",
@@ -287,7 +287,7 @@ const EN = {
   "Eseguito: {side} {size} {sym}. Controlla posizioni e ordini per i fill.":
     "Executed: {side} {size} {sym}. Check positions and orders for fills.",
   "Sola lettura: nessuna API key": "Read-only: no API key",
-  "{sym}: leva {lev}x {mode} inviata": "{sym}: {lev}x {mode} leverage sent",
+  "{sym}: leva impostata a {lev}x {mode}": "{sym}: leverage set to {lev}x {mode}",
   "{sym}: massimo dell'exchange {max}x, tuo limite {cap}x.": "{sym}: exchange maximum {max}x, your limit {cap}x.",
   // ---- account ----
   "Margine disponibile": "Available margin",
@@ -512,7 +512,7 @@ const EN = {
   "Separa: le due posizioni restano aperte, non più come coppia": "Ungroup: both positions stay open, no longer as a pair",
   "Separa": "Ungroup",
   "Chiudi la coppia": "Close the pair",
-  "Chiusura {f}% della coppia inviata": "{f}% close of the pair sent",
+  "Chiusura {f}% della coppia: ordini accettati": "{f}% close of the pair: orders accepted",
   "Serve una posizione long e una short aperte": "It needs an open long and an open short position",
   "Valore totale": "Total value",
   "Scegli due mercati diversi": "Pick two different markets",
@@ -611,7 +611,7 @@ const EN = {
   "Reverse: chiude e apre il lato opposto, stessa size · R": "Reverse: closes and opens the other side, same size · R",
   "Premi di nuovo R: reverse {sym} a {side}": "Press R again: reverse {sym} to {side}",
   "Conferma → {side}": "Confirm → {side}",
-  "Reverse inviato: {sym} {side}": "Reverse sent: {sym} {side}",
+  "Reverse accettato: {sym} {side}": "Reverse accepted: {sym} {side}",
   "Reverse della posizione (due volte)": "Reverse the position (twice)",
   "Paper: reverse {sym} a {price}": "Paper: reverse {sym} at {price}",
   "Apri il grafico di {sym}": "Open the {sym} chart",

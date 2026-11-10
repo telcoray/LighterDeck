@@ -109,12 +109,26 @@ async function api(path, opts = {}) {
   return body;
 }
 
-function toast(msg, err = false) {
-  const t = $("#toast");
-  t.textContent = msg;
-  t.className = "toast" + (err ? " err" : "");
+// A short notice under the top bar. kind: true for an error (red mark, stays longer), "ok" for something the
+// exchange or the app has just confirmed (green tick), nothing for plain information. A click sends it away.
+const TOAST_ICO = {
+  ok: '<svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><circle cx="8" cy="8" r="6.6" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M5 8.3l2.1 2.1L11 6.3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  err: '<svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><circle cx="8" cy="8" r="6.6" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 4.6v4.2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="8" cy="11.2" r=".95" fill="currentColor"/></svg>',
+};
+function toast(msg, kind = false) {
+  const el = $("#toast"), k = kind === true ? "err" : kind === "ok" ? "ok" : "";
+  el.innerHTML = `${k ? `<i class="toast-ico">${TOAST_ICO[k]}</i>` : ""}<span></span>`;
+  el.lastChild.textContent = msg;
+  // just under the top bar; at the top of the screen once the page has scrolled past it (a phone)
+  const bar = $(".topbar"), under = bar ? bar.getBoundingClientRect().bottom : 0;
+  el.style.top = `${Math.max(10, Math.round(under) + 8)}px`;
+  el.className = "toast" + (k ? " " + k : "");
+  void el.offsetWidth; // so the entrance plays again when one notice follows another
+  el.classList.add("show");
   clearTimeout(toast.t);
-  toast.t = setTimeout(() => t.classList.add("hidden"), 3500);
+  const leave = () => { el.classList.remove("show"); toast.t = setTimeout(() => el.classList.add("hidden"), 220); };
+  toast.t = setTimeout(leave, k === "err" ? 6000 : 3500);
+  el.onclick = () => { clearTimeout(toast.t); leave(); };
 }
 
 // ---------- formatting ----------
@@ -2528,7 +2542,7 @@ async function chartStopTrail(m) {
 async function chartClosePosition(pos) {
   try {
     await api(`/close?market_id=${pos.market_id}&fraction=1`, { method: "POST" });
-    toast(t("Chiusura {f}% inviata", { f: 100 }));
+    toast(t("Chiusura {f}%: ordine accettato", { f: 100 }), "ok");
   } catch (err) { toast(err.message, true); }
 }
 
@@ -3119,7 +3133,7 @@ async function loadPairs() {
 async function closePair(id, f) {
   try {
     await api(`/pairs/${encodeURIComponent(id)}/close?fraction=${f / 100}`, { method: "POST" });
-    toast(t("Chiusura {f}% della coppia inviata", { f }));
+    toast(t("Chiusura {f}% della coppia: ordini accettati", { f }), "ok");
   } catch (err) { toast(err.message, true); }
   loadOrders(true);
 }
@@ -4053,7 +4067,7 @@ async function levSend() {
   if (sent && sent.leverage === p.leverage && sent.cross === p.cross) { lev.pending = null; return; }
   lev.lastSent = { id: p.id, leverage: p.leverage, cross: p.cross, at: Date.now() };
   const run = api(`/leverage?market_id=${p.id}&leverage=${p.leverage}&cross=${p.cross}`, { method: "POST" }).then(() => {
-    toast(t("{sym}: leva {lev}x {mode} inviata", { sym: m.symbol, lev: p.leverage, mode: p.cross ? "cross" : "isolated" }));
+    toast(t("{sym}: leva impostata a {lev}x {mode}", { sym: m.symbol, lev: p.leverage, mode: p.cross ? "cross" : "isolated" }), "ok");
     return true;
   }).catch((e) => {
     toast(e.message, true);
@@ -4436,7 +4450,7 @@ function wire() {
     const mid = +b.dataset.close, f = +b.dataset.f;
     if (f === 100 && !askConfirm(`close:${mid}`, t("Chiudi tutto"))) return;
     if (f < 100 && !askConfirm(`close:${mid}:${f}`, t("Conferma {f}%", { f }))) return;
-    try { await api(`/close?market_id=${mid}&fraction=${f / 100}`, { method: "POST" }); toast(t("Chiusura {f}% inviata", { f })); } catch (err) { toast(err.message, true); }
+    try { await api(`/close?market_id=${mid}&fraction=${f / 100}`, { method: "POST" }); toast(t("Chiusura {f}%: ordine accettato", { f }), "ok"); } catch (err) { toast(err.message, true); }
   };
   $("#btab-alerts").onchange = (e) => {
     const c = e.target.closest("[data-auto]");
@@ -5127,7 +5141,7 @@ async function hotkeyClose(m, fraction) {
   if (!pos) return toast(t("Nessuna posizione su {sym}", { sym: m.symbol }), true);
   const key = fraction >= 1 ? `close:${m.id}` : `hk:half:${m.id}`;
   if (!hotkeyConfirm(key, t(fraction >= 1 ? "Premi di nuovo F: chiudi {sym}" : "Premi di nuovo H: chiudi metà {sym}", { sym: m.symbol }))) return;
-  try { await api(`/close?market_id=${m.id}&fraction=${fraction}`, { method: "POST" }); toast(t("Chiusura {f}% inviata", { f: Math.round(fraction * 100) })); }
+  try { await api(`/close?market_id=${m.id}&fraction=${fraction}`, { method: "POST" }); toast(t("Chiusura {f}%: ordine accettato", { f: Math.round(fraction * 100) }), "ok"); }
   catch (err) { toast(err.message, true); }
 }
 
@@ -5139,7 +5153,7 @@ async function reversePosition(mid, viaKey = false) {
   const ok = viaKey ? hotkeyConfirm(`reverse:${mid}`, t("Premi di nuovo R: reverse {sym} a {side}", { sym: m.symbol, side: to }))
     : askConfirm(`reverse:${mid}`, t("Conferma → {side}", { side: to }));
   if (!ok) return;
-  try { await api(`/reverse?market_id=${mid}`, { method: "POST" }); toast(t("Reverse inviato: {sym} {side}", { sym: m.symbol, side: to })); loadOrders(true); }
+  try { await api(`/reverse?market_id=${mid}`, { method: "POST" }); toast(t("Reverse accettato: {sym} {side}", { sym: m.symbol, side: to }), "ok"); loadOrders(true); }
   catch (err) { toast(err.message, true); }
 }
 
