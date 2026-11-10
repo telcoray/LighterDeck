@@ -1231,4 +1231,11 @@ body.live-first:not(.paper):not(.browser-key) #accountPill { color: var(--green)
 .toast.ok .toast-ico { color: var(--green); }
 .toast.err .toast-ico { color: var(--red); }
 .toast.err { border-color: color-mix(in srgb, var(--red) 45%, var(--float-border)); }
+/* on a computer: larger, at the top left under the bar */
+@media (min-width: 861px) {
+  .toast { left: 14px; max-width: 520px; padding: 13px 18px; gap: 10px; font-size: 14px; transform: translate(0, -8px); }
+  .toast.show { transform: none; }
+  .toast:has(.toast-ico) { padding-left: 14px; }
+  .toast-ico svg { width: 19px; height: 19px; }
+}
 @media (prefers-reduced-motion: reduce) { .toast { transition: none; } }
