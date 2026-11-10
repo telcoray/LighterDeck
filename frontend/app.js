@@ -4337,7 +4337,13 @@ function wire() {
   $("#obToggle").onclick = () => toggleBook(!showBook);
   $("#mktSelect").onclick = () => ($("#picker").classList.contains("hidden") ? openPalette() : closePalette());
   wireTickerDrag();
-  $("#ticker").onclick = (e) => { if (Date.now() - tickerDragEnd < 300) return; const b = e.target.closest("[data-sym]"); if (b) setSymbol(b.dataset.sym); };
+  $("#ticker").onclick = (e) => { // from Markets or Calendar too: it opens Trade on that chart
+    if (Date.now() - tickerDragEnd < 300) return;
+    const b = e.target.closest("[data-sym]");
+    if (!b) return;
+    setSymbol(b.dataset.sym);
+    if (curView !== "trade") switchView("trade");
+  };
 
   // market picker lives in picker.js
   document.addEventListener("keydown", (e) => {
