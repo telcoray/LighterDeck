@@ -1298,14 +1298,15 @@ function fundTip(p) {
   if (!rate) { tip.classList.add("hidden"); return; }
   const who = (v) => (v > 0 ? t("i long pagano gli short") : v < 0 ? t("gli short pagano i long") : "");
   const line = (label, v) => `<div class="ft-row"><span>${label}</span><b class="${v > 0 ? "up" : v < 0 ? "down" : ""}">${fpctf(v, 4)}</b></div>${v ? `<div class="ft-who">${who(v)}</div>` : ""}`;
-  tip.innerHTML = `<div class="ft-time">${new Date(p.time * 1000).toLocaleString(LOCALE, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</div>`
+  // in UTC, like the chart's time axis
+  tip.innerHTML = `<div class="ft-time">${new Date(p.time * 1000).toLocaleString(LOCALE, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "UTC" })} UTC</div>`
     + line(t("Funding dell'ora"), rate.value) + (cum ? line(t("Cumulato"), cum.value) : "");
   tip.classList.remove("hidden");
-  const w = box.clientWidth, h = box.clientHeight, tw = tip.offsetWidth, th = tip.offsetHeight;
-  let x = p.point.x + 14, y = p.point.y - th / 2;
-  if (x + tw > w - 8) x = p.point.x - tw - 14;
+  // at the top, on the half away from the pointer: never over the hour being read
+  const plot = fundView.chart.timeScale().width(), left = box.clientWidth - plot - fundView.chart.priceScale("right").width();
+  const x = p.point.x > plot / 2 ? left + 8 : left + plot - tip.offsetWidth - 8;
   tip.style.left = Math.max(4, x) + "px";
-  tip.style.top = Math.max(4, Math.min(h - th - 4, y)) + "px";
+  tip.style.top = "6px";
 }
 
 async function loadFundingHistory() {
