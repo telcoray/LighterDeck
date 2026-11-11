@@ -1244,3 +1244,13 @@ body.live-first:not(.paper):not(.browser-key) #accountPill { color: var(--green)
 .ticket:not(.pair) .sidesel.with-lev { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; }
 .sidesel .tk-lev { height: 30px; margin: 0 3px; padding: 0 8px 0 10px; gap: 5px; border-radius: 5px; background: var(--bg); color: var(--text); font-size: 12px; font-weight: 400; }
 .ticket.pair .sidesel .tk-lev { display: none; }
+
+/* ================= funding history: the hour under the pointer ================= */
+.fund-chart-wrap { position: relative; }
+.fund-tip { position: absolute; z-index: 3; min-width: 168px; padding: 8px 10px; background: var(--raised); border: 1px solid var(--float-border); border-radius: 8px; box-shadow: var(--float-shadow); pointer-events: none; font-size: 11px; }
+.fund-tip .ft-time { margin-bottom: 5px; color: var(--muted); font-family: var(--mono); font-size: 10.5px; }
+.fund-tip .ft-row { display: flex; justify-content: space-between; gap: 14px; color: var(--text-2); }
+.fund-tip .ft-row b { font-family: var(--mono); font-weight: 500; color: var(--text); }
+.fund-tip .ft-row b.up { color: var(--green); } .fund-tip .ft-row b.down { color: var(--red); }
+.fund-tip .ft-who { margin: 1px 0 4px; text-align: right; color: var(--muted); font-size: 10px; }
+.fund-tip .ft-who:last-child { margin-bottom: 0; }

@@ -1291,6 +1291,23 @@ function renderFundingStats() {
   }
 }
 
+// the hour under the pointer: its rate and the running total, and who paid whom
+function fundTip(p) {
+  const tip = $("#fundTip"), box = $("#fundChart");
+  const rate = p.point && p.time ? p.seriesData.get(fundView.rate) : null, cum = rate ? p.seriesData.get(fundView.cum) : null;
+  if (!rate) { tip.classList.add("hidden"); return; }
+  const who = (v) => (v > 0 ? t("i long pagano gli short") : v < 0 ? t("gli short pagano i long") : "");
+  const line = (label, v) => `<div class="ft-row"><span>${label}</span><b class="${v > 0 ? "up" : v < 0 ? "down" : ""}">${fpctf(v, 4)}</b></div>${v ? `<div class="ft-who">${who(v)}</div>` : ""}`;
+  tip.innerHTML = `<div class="ft-time">${new Date(p.time * 1000).toLocaleString(LOCALE, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</div>`
+    + line(t("Funding dell'ora"), rate.value) + (cum ? line(t("Cumulato"), cum.value) : "");
+  tip.classList.remove("hidden");
+  const w = box.clientWidth, h = box.clientHeight, tw = tip.offsetWidth, th = tip.offsetHeight;
+  let x = p.point.x + 14, y = p.point.y - th / 2;
+  if (x + tw > w - 8) x = p.point.x - tw - 14;
+  tip.style.left = Math.max(4, x) + "px";
+  tip.style.top = Math.max(4, Math.min(h - th - 4, y)) + "px";
+}
+
 async function loadFundingHistory() {
   const m = activeMarket();
   if (!m) return;
@@ -1304,11 +1321,13 @@ async function loadFundingHistory() {
       rightPriceScale: { scaleMargins: { top: 0.1, bottom: 0.1 } },
       leftPriceScale: { visible: true, scaleMargins: { top: 0.1, bottom: 0.1 } },
       timeScale: { timeVisible: true, secondsVisible: false },
-      crosshair: { mode: 0, vertLine: { style: 2 }, horzLine: { style: 2 } },
+      // no line following the pointer up and down: the dots sit on both curves and the box reads them out
+      crosshair: { mode: 0, vertLine: { style: 2 }, horzLine: { visible: false, labelVisible: false } },
       handleScroll: false, handleScale: false,
     });
     fundView.cum = fundView.chart.addLineSeries({ priceScaleId: "left", lineWidth: 1.5, priceFormat: pct, lastValueVisible: false, priceLineVisible: false });
     fundView.rate = fundView.chart.addBaselineSeries({ baseValue: { type: "price", price: 0 }, lineWidth: 1.5, priceFormat: pct, priceLineVisible: false });
+    fundView.chart.subscribeCrosshairMove(fundTip);
   }
   fundView.chart.applyOptions({ ...chartTheme(), leftPriceScale: { visible: innerWidth > 640 } }); // phones: room for the chart, cumulative still drawn
   fundView.cum.applyOptions({ color: cssVar("--muted") });
