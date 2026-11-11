@@ -40,7 +40,7 @@
 </script>
 <style>html.i18n-pending body { visibility: hidden; }</style>
 <link rel="icon" href="favicon.svg?v=1" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=205">
+<link rel="stylesheet" href="style.css?v=207">
 <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
 </head>
 <body>
@@ -189,16 +189,16 @@
         <div class="ticket-head"><b id="tkSym">BTC</b>
           <span class="muted pair-only">Spread</span></div>
         <div class="lev-drum hidden" id="levDrum"><div class="lev-cyl" id="levCyl"></div></div>
-        <div class="sidesel" id="sideSel">
-          <button data-side="buy" class="active">Buy / Long</button>
-          <button data-side="sell">Sell / Short</button>
-        </div>
         <div class="tk-controls solo-only">
-          <button type="button" class="tk-lev" id="tkLev" title="Leva: rotella o trascina, clic per tenerla aperta">—</button>
           <div class="tk-mode" id="tkMode">
             <button type="button" data-cross="1" class="active" title="Cross: usa tutto il margine dell'account, e la liquidazione guarda tutto l'account">Cross</button>
             <button type="button" data-cross="0" title="Isolated: rischia solo il margine di questa posizione">Isolated</button>
           </div>
+        </div>
+        <div class="sidesel with-lev" id="sideSel">
+          <button data-side="buy" class="active">Buy / Long</button>
+          <button type="button" class="tk-lev" id="tkLev" title="Leva: rotella o trascina, clic per tenerla aperta">—</button>
+          <button data-side="sell">Sell / Short</button>
         </div>
         <div class="kindsel solo-only" id="kindSel">
           <button data-kind="market" class="active">Market</button>
@@ -713,13 +713,13 @@
 </div>
 
 <div class="toast hidden" id="toast" role="status" aria-live="polite"></div>
-<script src="i18n.js?v=205"></script>
-<script src="i18n-zh.js?v=205"></script>
-<script src="i18n-ko.js?v=205"></script>
-<script src="formulas.js?v=205"></script>
-<script src="paper.js?v=205"></script>
-<script src="live.js?v=205"></script>
-<script src="app.js?v=205"></script>
-<script src="picker.js?v=205"></script>
+<script src="i18n.js?v=207"></script>
+<script src="i18n-zh.js?v=207"></script>
+<script src="i18n-ko.js?v=207"></script>
+<script src="formulas.js?v=207"></script>
+<script src="paper.js?v=207"></script>
+<script src="live.js?v=207"></script>
+<script src="app.js?v=207"></script>
+<script src="picker.js?v=207"></script>
 </body>
 </html>

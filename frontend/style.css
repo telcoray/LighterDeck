@@ -170,6 +170,7 @@ body.paper [data-view="auto"], body.paper [data-view="activity"], body.paper [da
   }
   .kindsel button[data-key]::after { position: static; display: inline-block; transform: none; margin-left: 6px; vertical-align: 1px; }
   .qbtn button[data-key] { padding-right: 22px; }
+  .sidesel.with-lev button[data-key] { padding-right: 20px; } /* narrower with the leverage between them: the text clears the key */
   .qbtn button[data-key]::after { right: 4px; font-size: 8px; padding: 1px 3px; }
   #tkExec[data-key]::after { right: 12px; }
   .confirming[data-key]::after { display: none; }
@@ -1175,9 +1176,8 @@ dd.warn { color: var(--amber); }
 .lev-col[data-col="1"] .lev-row { justify-content: flex-start; }
 /* the chart already says which market it is; a spread's ticket still names its pair */
 .ticket:not(.pair) .ticket-head { display: none; }
-/* locked by an open position: as readable as the rest, a padlock says why it doesn't press */
-.tk-mode button:disabled, .tk-mode button:disabled:hover { display: inline-flex; align-items: center; justify-content: center; gap: 4px; color: var(--text-2); cursor: not-allowed; }
-.tk-mode button:disabled::before { content: ""; flex: none; width: 8px; height: 10px; background: currentColor; opacity: .8; -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 10'%3E%3Cpath d='M1 4V3a3 3 0 0 1 6 0v1h.5a.5.5 0 0 1 .5.5v5a.5.5 0 0 1-.5.5h-7a.5.5 0 0 1-.5-.5v-5A.5.5 0 0 1 .5 4zm1.2 0h3.6V3a1.8 1.8 0 0 0-3.6 0z'/%3E%3C/svg%3E") center/contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 10'%3E%3Cpath d='M1 4V3a3 3 0 0 1 6 0v1h.5a.5.5 0 0 1 .5.5v5a.5.5 0 0 1-.5.5h-7a.5.5 0 0 1-.5-.5v-5A.5.5 0 0 1 .5 4zm1.2 0h3.6V3a1.8 1.8 0 0 0-3.6 0z'/%3E%3C/svg%3E") center/contain no-repeat; }
+/* locked by a position or an open order: readable, not pressable; the tooltip says why */
+.tk-mode button:disabled, .tk-mode button:disabled:hover { color: var(--text-2); opacity: .55; cursor: not-allowed; }
 /* the size and its unit, side by side: the menu says the unit, so the field doesn't repeat it */
 .size-row { display: flex; align-items: stretch; gap: 4px; margin-bottom: 8px; }
 .size-row .field { flex: 1; min-width: 0; margin-bottom: 0; }
@@ -1240,7 +1240,7 @@ body.live-first:not(.paper):not(.browser-key) #accountPill { color: var(--green)
 }
 @media (prefers-reduced-motion: reduce) { .toast { transition: none; } }
 
-/* ================= phone: the leverage between Long and Short ================= */
+/* ================= the leverage between Long and Short ================= */
 .ticket:not(.pair) .sidesel.with-lev { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; }
 .sidesel .tk-lev { height: 30px; margin: 0 3px; padding: 0 8px 0 10px; gap: 5px; border-radius: 5px; background: var(--bg); color: var(--text); font-size: 12px; font-weight: 400; }
 .ticket.pair .sidesel .tk-lev { display: none; }

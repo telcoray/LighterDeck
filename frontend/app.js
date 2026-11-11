@@ -1581,17 +1581,6 @@ function setAccPos(html) {
   $("#accPos").innerHTML = html;
 }
 
-// Where the page is one column (a phone) the ticket is as wide as the screen, and two buttons stretched over it
-// look empty: the leverage goes between Long and Short there. On a computer it stays beside Cross / Isolated.
-const levNarrow = matchMedia("(max-width: 860px)");
-function placeLev() {
-  const b = $("#tkLev"), side = $("#sideSel");
-  if (lev.open) levClose();
-  if (levNarrow.matches) side.insertBefore(b, $('#sideSel [data-side="sell"]'));
-  else $(".tk-controls").prepend(b);
-  side.classList.toggle("with-lev", levNarrow.matches);
-}
-
 // Cross / Isolated: Lighter changes a market's margin mode only with nothing on it, neither a position nor an
 // open order (checked on its testnet), so the other mode is locked until then
 function renderTicketMode() {
@@ -3939,8 +3928,8 @@ function levPlace() {
   // the drum's centre row sits on the button, as if the button had become the wheel
   const top = r.top + r.height / 2 - box.offsetHeight / 2;
   box.style.top = Math.max(4, Math.min(innerHeight - box.offsetHeight - 4, top)) + "px";
-  // between Long and Short (a phone) it opens centred on the button; beside Cross / Isolated, flush with its right edge
-  const left = levNarrow.matches ? r.left + r.width / 2 - box.offsetWidth / 2 : r.right - box.offsetWidth;
+  // between Long and Short: it opens centred on the button
+  const left = r.left + r.width / 2 - box.offsetWidth / 2;
   box.style.left = Math.max(4, Math.min(innerWidth - box.offsetWidth - 4, left)) + "px";
 }
 
@@ -4380,8 +4369,6 @@ function wire() {
 
   // ticket
   $$("#sideSel [data-side]").forEach((b) => (b.onclick = () => { ticket.side = b.dataset.side; renderTicket(); }));
-  placeLev();
-  levNarrow.addEventListener("change", placeLev);
   $$("#kindSel button").forEach((b) => (b.onclick = () => {
     ticket.kind = b.dataset.kind;
     if (ticket.kind === "limit" && !$("#tkPrice").value) fillMid();
