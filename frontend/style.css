@@ -923,7 +923,7 @@ button.pill:hover { border-color: var(--line-3); color: var(--text); }
   .theme-btn { padding: 0 7px; }
 
   /* favourites strip and market stats scroll sideways */
-  .ticker > .caps, .ticker > .grow { display: none; }
+
   .marketbar { gap: 20px; }
 
   /* toolbar wraps onto two lines instead of cutting timeframes off */
@@ -951,7 +951,7 @@ button.pill:hover { border-color: var(--line-3); color: var(--text); }
 
   /* status bar: one line, only the essentials */
   .statusbar { position: sticky; bottom: 0; z-index: 5; background: var(--bg); white-space: nowrap; overflow: hidden; }
-  .statusbar > span:nth-child(3), #sbAge { display: none; }
+  .statusbar > span:nth-child(3), .statusbar > span:nth-child(4), #sbAge { display: none; }
 
   .three { grid-template-columns: 1fr 1fr; }
 }
