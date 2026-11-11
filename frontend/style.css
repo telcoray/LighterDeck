@@ -1239,3 +1239,8 @@ body.live-first:not(.paper):not(.browser-key) #accountPill { color: var(--green)
   .toast-ico svg { width: 19px; height: 19px; }
 }
 @media (prefers-reduced-motion: reduce) { .toast { transition: none; } }
+
+/* ================= phone: the leverage between Long and Short ================= */
+.ticket:not(.pair) .sidesel.with-lev { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; }
+.sidesel .tk-lev { height: 30px; margin: 0 3px; padding: 0 8px 0 10px; gap: 5px; border-radius: 5px; background: var(--bg); color: var(--text); font-size: 12px; font-weight: 400; }
+.ticket.pair .sidesel .tk-lev { display: none; }
