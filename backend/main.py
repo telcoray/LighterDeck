@@ -1567,8 +1567,8 @@ async def trade_page(symbol: str):
     url = f"{config.SITE_URL}/trade/{m.symbol}"
     html = html.replace("<title>LighterDeck</title>", f"<title>{title}</title>", 1)
     for key, value in (("og:title", title), ("twitter:title", title), ("og:description", desc), ("twitter:description", desc),
-                       ("description", desc), ("og:url", url), ("og:image", f"{config.SITE_URL}/og/{m.symbol}.png?v=2"),
-                       ("twitter:image", f"{config.SITE_URL}/og/{m.symbol}.png?v=2"), ("og:image:alt", f"{m.symbol} on LighterDeck, 4h chart")):
+                       ("description", desc), ("og:url", url), ("og:image", f"{config.SITE_URL}/og/{m.symbol}.png?v=3"),
+                       ("twitter:image", f"{config.SITE_URL}/og/{m.symbol}.png?v=3"), ("og:image:alt", f"{m.symbol} on LighterDeck: price, 24h change and its last nine days")):
         html = _set_meta(html, key, value)
     return Response(html, media_type="text/html")
 

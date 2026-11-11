@@ -5448,7 +5448,7 @@ async function init() {
   });
   wireBottomSplit();
   wireTrail();
-  applyTheme(load("theme", "ambra")); // first visit: Ambra
+  applyTheme(load("theme", "ghiaccio")); // first visit: Ice (Ghiaccio)
   $("#themeBtn").onclick = (e) => { e.stopPropagation(); $("#langMenu").classList.add("hidden"); $("#themeMenu").classList.toggle("hidden"); fitInView($("#themeMenu")); };
   $("#themeMenu").onclick = (e) => {
     e.stopPropagation();
