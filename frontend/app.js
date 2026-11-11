@@ -837,7 +837,8 @@ class Panel {
       it.run();
     });
     menu.addEventListener("mousedown", (e) => e.stopPropagation());
-    document.addEventListener("mousedown", (e) => { if (!e.target.closest(".chart-menu")) this.closeOrderMenu(); });
+    // any press outside it closes it, a finger too: on a chart the touch never becomes a mousedown
+    document.addEventListener("pointerdown", (e) => { if (!e.target.closest(".chart-menu")) this.closeOrderMenu(); }, true);
     document.addEventListener("keydown", (e) => { if (e.key === "Escape") this.closeOrderMenu(); });
     box.addEventListener("wheel", () => this.closeOrderMenu(), { passive: true });
   }
