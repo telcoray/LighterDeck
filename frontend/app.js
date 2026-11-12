@@ -5156,6 +5156,7 @@ const HOTKEYS = [
   ["R", "Reverse della posizione (due volte)"],
   ["C", "Annulla i limit del mercato (due volte)"],
   ["A", "Alert al prezzo sotto il mouse"],
+  ["U", "Apri e chiudi i dettagli del funding"],
   ["1–4", "Seleziona il grafico"],
   ["[ ]", "Timeframe precedente / successivo"],
   ["/", "Cerca mercato"],
@@ -5174,6 +5175,7 @@ function applyKeyHints() {
   hint($("#tfs"), null, t("Timeframe · [ e ]"));
   panels.forEach((p) => hint($(".ttl", p.el), null, t("Grafico {n} · tasto {n} · clic per cambiare mercato", { n: p.idx + 1 })));
   hint($("#hkOpen"), null, t("Scorciatoie da tastiera · ?"));
+  hint($("#stFundBtn"), null, t("Dettagli funding · U"));
 }
 
 // once, after the first order sent with the mouse on a computer
@@ -5269,6 +5271,7 @@ function wireHotkeys() {
       r: () => m && reversePosition(m.id, true),
       c: () => m && hotkeyCancel(m),
       a: () => (hoverPanel && hoverPanel.pointerPrice ? addAlert(hoverPanel.market, hoverPanel.pointerPrice) : toast(t("Punta il mouse sul grafico, al prezzo dell'alert, e premi A."))),
+      u: () => toggleFunding(),
       "/": openPalette,
       "?": () => toggleHotkeys(),
       "[": () => stepTf(-1),

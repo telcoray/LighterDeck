@@ -35,6 +35,8 @@ const EN = {
   "Riconnessione…": "Reconnecting…",
   "Interruttore generale delle automazioni": "Master switch for automations",
   "Sola lettura": "Read-only",
+  "Apri e chiudi i dettagli del funding": "Open and close the funding details",
+  "Dettagli funding · U": "Funding details · U",
   "i long pagano gli short": "longs pay shorts",
   "gli short pagano i long": "shorts pay longs",
   "Funding dell'ora": "Hourly funding",
