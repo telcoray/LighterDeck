@@ -40,7 +40,7 @@
 </script>
 <style>html.i18n-pending body { visibility: hidden; }</style>
 <link rel="icon" href="favicon.svg?v=1" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=219">
+<link rel="stylesheet" href="style.css?v=224">
 <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
 </head>
 <body>
@@ -233,14 +233,9 @@
           <p class="trail-hint">Partono insieme in un solo invio. Se un mercato non viene eseguito lo vedi subito e puoi chiudere gli altri.</p>
         </div>
         <div class="size-row">
-          <div class="field"><label><span class="solo-only">Size</span><span class="pair-only">Valore totale</span></label><input id="tkSize" autocomplete="off" type="number" min="0" step="any"><span class="unit" id="tkSizeUnit">USD</span></div>
-          <select id="tkUnit" class="solo-only" autocomplete="off" title="La size è in dollari, nella quantità del mercato, in % del capitale o come rischio in dollari allo stop"><option value="usd">USD</option><option value="base">Quantità</option><option value="equity_pct">% capitale</option><option value="risk_usd">Rischio $</option></select>
+          <div class="field"><label><span class="solo-only">Size</span><span class="pair-only">Valore totale</span></label><input id="tkSize" autocomplete="off" type="number" min="0" step="any"><span class="unit" id="tkSizeUnit">USD</span><select id="tkUnit" class="solo-only" autocomplete="off" title="La size è in dollari, nella quantità del mercato, in % del capitale o come rischio in dollari allo stop"><option value="usd">USD</option><option value="base">Quantità</option><option value="equity_pct">% capitale</option><option value="risk_usd">Rischio $</option></select></div>
         </div>
         <div class="chips" id="tkChips"></div>
-        <div class="size-pct solo-only" id="tkPctRow">
-          <div class="pct-track"><input id="tkPct" type="range" min="0" max="100" step="1" value="0" autocomplete="off" title="Quota di quanto il margine disponibile può aprire, a questa leva"><i style="left:0"></i><i style="left:25%"></i><i style="left:50%"></i><i style="left:75%"></i><i style="left:100%"></i></div>
-          <label class="pct-box"><input id="tkPctIn" type="number" min="0" max="100" step="1" autocomplete="off" placeholder="0"><span>%</span></label>
-        </div>
         <div class="field limit-only hidden"><label>Prezzo limite</label><input id="tkPrice" autocomplete="off" type="number" step="any"><button class="unit link" id="tkMid">Mid</button></div>
         <div class="adv-box adv-twap solo-only">
           <div class="field"><label>Durata · minuti</label><input id="tkTwapMin" autocomplete="off" type="number" min="5" max="1440" step="1" value="60"></div>
@@ -250,8 +245,8 @@
         </div>
         <div class="adv-box adv-scale solo-only">
           <div class="two">
-            <div class="field sm"><label>Da · prezzo</label><input id="tkScaleFrom" autocomplete="off" type="number" step="any"></div>
-            <div class="field sm"><label>A · prezzo</label><input id="tkScaleTo" autocomplete="off" type="number" step="any"></div>
+            <div class="field sm" title="Da · prezzo"><label>Da</label><input id="tkScaleFrom" autocomplete="off" type="number" step="any"></div>
+            <div class="field sm" title="A · prezzo"><label>A</label><input id="tkScaleTo" autocomplete="off" type="number" step="any"></div>
           </div>
           <div class="field sm"><label>Ordini</label><input id="tkScaleN" autocomplete="off" type="number" min="2" max="20" step="1" value="5"></div>
           <div class="seg adv-seg" id="tkScaleDist"><button type="button" data-dist="even" class="active">Uguale</button><button type="button" data-dist="low">Più in basso</button><button type="button" data-dist="high">Più in alto</button></div>
@@ -259,8 +254,8 @@
         </div>
         <div class="adv-box adv-chase solo-only">
           <div class="two">
-            <div class="field sm"><label id="tkChaseCapLabel">Prezzo massimo</label><input id="tkChaseCap" autocomplete="off" type="number" step="any" placeholder="Opzionale"></div>
-            <div class="field sm"><label>Minuti</label><input id="tkChaseMin" autocomplete="off" type="number" min="1" max="1440" step="1" placeholder="Opzionale"></div>
+            <div class="field sm" id="tkChaseCapField"><label id="tkChaseCapLabel">Max</label><input id="tkChaseCap" autocomplete="off" type="number" step="any" placeholder="—"></div>
+            <div class="field sm"><label>Minuti</label><input id="tkChaseMin" autocomplete="off" type="number" min="1" max="1440" step="1" placeholder="—"></div>
           </div>
           <div class="checks hidden" id="tkChaseEndRow"><label><input type="checkbox" id="tkChaseEnd"> Allo scadere, il resto a market</label></div>
           <p class="trail-hint" id="tkChaseHint"></p>
@@ -270,13 +265,9 @@
           <div class="chips" id="tkIceChips"><button type="button" data-pct="5">5%</button><button type="button" data-pct="10">10%</button><button type="button" data-pct="20">20%</button><button type="button" data-pct="25">25%</button></div>
           <p class="trail-hint" id="tkIceHint"></p>
         </div>
-        <div class="checks solo-only">
-          <label><input type="checkbox" id="tkReduce" autocomplete="off"> Reduce only</label>
-          <label class="limit-only hidden"><input type="checkbox" id="tkPost" autocomplete="off"> Post only</label>
-        </div>
         <div class="two solo-only basic-only">
-          <div class="field sm"><label>Stop-loss</label><input id="tkSl" autocomplete="off" type="number" step="any" placeholder="Opzionale"><span class="sltp-out" id="tkSlOut"></span></div>
-          <div class="field sm" id="tkTpField"><label>Take-profit</label><input id="tkTp" autocomplete="off" type="number" step="any" placeholder="Opzionale"><span class="sltp-out" id="tkTpOut"></span></div>
+          <div class="field sm" title="Stop-loss"><label>SL</label><input id="tkSl" autocomplete="off" type="number" step="any" placeholder="—"><span class="sltp-out" id="tkSlOut"></span></div>
+          <div class="field sm" id="tkTpField" title="Take-profit"><label>TP</label><input id="tkTp" autocomplete="off" type="number" step="any" placeholder="—"><span class="sltp-out" id="tkTpOut"></span></div>
         </div>
         <div class="checks trail-check solo-only basic-only">
           <label title="Chiude la posizione a pezzi, su più livelli"><input type="checkbox" id="tkScaled" autocomplete="off"> Uscite scalari<i data-runs="auto"></i></label>
@@ -284,6 +275,10 @@
         </div>
         <div class="tp-levels hidden solo-only basic-only" id="tkTpBox"></div>
         <div class="trail-box hidden solo-only basic-only" id="tkTrailBox"></div>
+        <div class="checks solo-only">
+          <label><input type="checkbox" id="tkReduce" autocomplete="off"> Reduce only</label>
+          <label class="limit-only hidden"><input type="checkbox" id="tkPost" autocomplete="off"> Post only</label>
+        </div>
         <details class="exec market-only">
           <summary>Opzioni di esecuzione</summary>
           <div class="field sm"><label>Slippage massimo · bps</label><input id="tkSlip" autocomplete="off" type="number" min="1" step="1" value="50"></div>
@@ -293,13 +288,13 @@
         <dl class="kv summary rows solo-only">
           <div><dt>Valore ordine</dt><dd id="tkNotional">—</dd></div>
           <div><dt>Quantità</dt><dd id="tkQty">—</dd></div>
-          <div><dt class="hidden" id="tkEntryDt">Prezzo d'entrata</dt><dd class="hidden" id="tkEntry">—</dd></div>
-          <div><dt>Margine</dt><dd id="tkMargin">—</dd></div>
-          <div><dt class="hidden" id="tkPosMarginDt">Margine posizione</dt><dd class="hidden" id="tkPosMargin">—</dd></div>
+          <div><dt>Margine ordine</dt><dd id="tkMargin">—</dd></div>
+          <div><dt>Commissioni stimate</dt><dd id="tkFee">—</dd></div>
           <div><dt class="market-only ticket-extra">Slippage</dt><dd class="market-only ticket-extra" id="tkEstSlip">—</dd></div>
           <div><dt class="hidden ticket-extra" id="tkTpslSlipDt">Slippage TP/SL</dt><dd class="hidden ticket-extra" id="tkTpslSlip">—</dd></div>
-          <div><dt>Commissioni stimate</dt><dd id="tkFee">—</dd></div>
           <div><dt>Liquidazione stimata</dt><dd id="tkLiq">—</dd></div>
+          <div><dt class="hidden" id="tkEntryDt">Entrata posizione</dt><dd class="hidden" id="tkEntry">—</dd></div>
+          <div><dt class="hidden" id="tkPosMarginDt">Margine posizione</dt><dd class="hidden" id="tkPosMargin">—</dd></div>
           <div><dt>Margine in uso</dt><dd class="hidden" id="tkAcct">—</dd></div>
           <div><dt>Alla liquidazione</dt><dd class="hidden" id="tkRoom">—</dd></div>
         </dl>
@@ -712,13 +707,13 @@
 </div>
 
 <div class="toast hidden" id="toast" role="status" aria-live="polite"></div>
-<script src="i18n.js?v=219"></script>
-<script src="i18n-zh.js?v=219"></script>
-<script src="i18n-ko.js?v=219"></script>
-<script src="formulas.js?v=219"></script>
-<script src="paper.js?v=219"></script>
-<script src="live.js?v=219"></script>
-<script src="app.js?v=219"></script>
-<script src="picker.js?v=219"></script>
+<script src="i18n.js?v=224"></script>
+<script src="i18n-zh.js?v=224"></script>
+<script src="i18n-ko.js?v=224"></script>
+<script src="formulas.js?v=224"></script>
+<script src="paper.js?v=224"></script>
+<script src="live.js?v=224"></script>
+<script src="app.js?v=224"></script>
+<script src="picker.js?v=224"></script>
 </body>
 </html>

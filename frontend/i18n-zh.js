@@ -772,3 +772,4 @@ Object.assign(DICTS.zh, {"longs pay shorts": "多头支付空头", "shorts pay l
 Object.assign(DICTS.zh, {"Open and close the funding details": "打开或关闭资金费详情", "Funding details · U": "资金费详情 · U"});
 Object.assign(DICTS.zh, {"Chart {n} · Shift+{n} · click to change market": "图表 {n} · Shift+{n} · 点击更换市场", "Key {n}: into the selected chart": "按键 {n}：载入当前选中的图表", "Favourite no. 1–10 into the selected chart": "第 1–10 个收藏载入当前选中的图表"});
 Object.assign(DICTS.zh, {"Larger timeframe, among those in the bar": "更大的时间周期（工具栏中的）", "Smaller timeframe, among those in the bar": "更小的时间周期（工具栏中的）", "Timeframe · [ and ] · Ctrl with the arrows": "时间周期 · [ 和 ] · Ctrl 加方向键"});
+Object.assign(DICTS.zh, {"Order margin": "订单保证金", "Position entry": "持仓入场价", "The largest size the money available opens at this leverage": "当前杠杆下可用资金能开的最大规模"});

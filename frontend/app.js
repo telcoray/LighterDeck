@@ -1714,9 +1714,11 @@ function quickChips(unit, m) {
   return [1, 5, 10, 50].map((x) => +(x * 10 ** -Math.max(0, m.size_decimals - 2)).toFixed(m.size_decimals)).map((v) => [v, label(v)]);
 }
 
-function renderChips(chips) {
+// max: a last button for the largest size the money available opens at this leverage
+function renderChips(chips, max = false) {
   const box = $("#tkChips");
-  const html = chips.map(([v, label]) => `<button data-v="${v}" title="${t("Aggiunge {v} alla size: clicca più volte per sommare", { v: label })}">${label}</button>`).join("");
+  const html = chips.map(([v, label]) => `<button data-v="${v}" title="${t("Aggiunge {v} alla size: clicca più volte per sommare", { v: label })}">${label}</button>`).join("")
+    + (max ? `<button data-max title="${t("La size più grande che il disponibile apre a questa leva")}">Max</button>` : "");
   if (box.dataset.html !== html) { box.innerHTML = html; box.dataset.html = html; } // not under a click on the way
 }
 
@@ -1790,7 +1792,7 @@ function renderTicket() {
   const unit = $("#tkUnit").value;
   $('#tkUnit option[value="base"]').textContent = m.symbol; // the menu is the size's unit
   $("#tkSizeUnit").textContent = { usd: "USD", base: m.symbol, equity_pct: "%", risk_usd: "USD" }[unit];
-  renderChips(quickChips(unit, m));
+  renderChips(quickChips(unit, m), !!account);
   const showsLimit = hasLimitField(), showsMarket = ticket.kind === "market" || ticket.kind === "rfq" || (ticket.kind === "conditional" && ticketAdv.exec === "market");
   $$(".limit-only").forEach((e) => e.classList.toggle("hidden", !showsLimit));
   $$(".market-only").forEach((e) => e.classList.toggle("hidden", !showsMarket));
@@ -2236,7 +2238,8 @@ function renderAdvHints(m, p, qty) {
   }
   if (ticket.kind === "chase") {
     const cap = +$("#tkChaseCap").value, chaseMin = +$("#tkChaseMin").value;
-    $("#tkChaseCapLabel").textContent = t(buy ? "Prezzo massimo" : "Prezzo minimo");
+    $("#tkChaseCapLabel").textContent = buy ? "Max" : "Min"; // short beside its twin field; the full name on hover
+    $("#tkChaseCapField").title = t(buy ? "Prezzo massimo" : "Prezzo minimo");
     $("#tkChaseEndRow").classList.toggle("hidden", !chaseMin);
     $("#tkChaseHint").textContent = [t(buy ? "Sta sempre sul miglior bid, senza mai pagare da taker." : "Sta sempre sul miglior ask, senza mai pagare da taker."),
       cap ? t(buy ? "Non compra sopra {p}." : "Non vende sotto {p}.", { p: fp(cap, m) }) : "",
@@ -2347,7 +2350,6 @@ function updateTicketSummary() {
   // the size is already in one of them: no need to repeat it
   $("#tkNotional").classList.toggle("hidden", unit === "usd");
   $("#tkQty").classList.toggle("hidden", unit === "base");
-  syncSizeSlider(m, qty, ref);
   renderTicketEstimates(m, p, qty, ref);
   clearTimeout(updateTicketSummary.t);
   updateTicketSummary.t = setTimeout(previewTicket, 350);
@@ -2393,20 +2395,6 @@ function sizeFromPct(pct) {
     : floorTo(qty * ref, 2);
   $("#tkSize").value = v > 0 ? v : "";
   updateTicketSummary();
-}
-
-function syncSizeSlider(m, qty, ref) {
-  const row = $("#tkPctRow"), max = sliderMax(m, ref), off = riskNeedsStop(ref);
-  row.classList.toggle("hidden", !account);
-  row.classList.toggle("sell", ticket.side === "sell");
-  row.classList.toggle("off", off);
-  row.title = off ? t("Imposta lo stop-loss: il rischio si calcola da lì") : "";
-  const range = $("#tkPct"), box = $("#tkPctIn");
-  range.disabled = box.disabled = off;
-  const pct = max && qty ? Math.min(100, (qty / max) * 100) : 0;
-  if (document.activeElement !== range || !range.matches(":active")) range.value = Math.round(pct);
-  range.style.setProperty("--p", range.value + "%");
-  if (document.activeElement !== box) box.value = qty ? Math.round(pct) : "";
 }
 
 // ---------- estimated price: the order walked through the book ----------
@@ -4525,11 +4513,13 @@ function wire() {
     updateTicketSummary();
   };
   ["#tkSize", "#tkPrice"].forEach((s) => ($(s).oninput = updateTicketSummary));
-  $("#tkPct").oninput = (e) => sizeFromPct(+e.target.value);
-  $("#tkPctIn").oninput = (e) => { if (e.target.value === "") { $("#tkSize").value = ""; updateTicketSummary(); } else sizeFromPct(+e.target.value); };
-  $("#tkPct").onchange = (e) => e.target.blur(); // let go: it follows the size again
   // each click adds to the size (4 × $100 = $400); clear the field to start again
   $("#tkChips").onclick = (e) => {
+    if (e.target.closest("[data-max]")) {
+      const m = activeMarket(), ref = m && ticketRef(m, prices[m.id]);
+      if (m && riskNeedsStop(ref)) return ticketMsg(t("Imposta lo stop-loss: il rischio si calcola da lì"), "err");
+      return sizeFromPct(100);
+    }
     const b = e.target.closest("[data-v]");
     if (!b) return;
     const m = activeMarket(), unit = $("#tkUnit").value;
@@ -4789,7 +4779,7 @@ function renderTpLevels(levels) {
   $("#tkScaled").checked = on;
   // the single take-profit stays where it is, handing over to the levels below
   tp.disabled = on;
-  tp.placeholder = t(on ? "Uscite scalari" : "Opzionale");
+  tp.placeholder = "—"; // ticked or not, the box under it says which
   if (on) { tp.value = ""; $("#tkTpOut").textContent = ""; $("#tkTpOut").className = "sltp-out"; }
   box.classList.toggle("hidden", !on);
   if (!on) { box.innerHTML = ""; updateTicketSummary(); return; }
@@ -5337,7 +5327,7 @@ function wireHotkeys() {
   $("#hkOpen").onclick = () => toggleHotkeys(true);
   $("#hkClose").onclick = $("#hkVeil").onmousedown = () => toggleHotkeys(false);
   // Enter in the ticket's fields sends the order, like the button (which asks to confirm)
-  for (const id of ["#tkSize", "#tkPctIn", "#tkPrice", "#tkSl", "#tkTp"]) {
+  for (const id of ["#tkSize", "#tkPrice", "#tkSl", "#tkTp"]) {
     $(id).addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); $("#tkExec").click(); } });
   }
   document.addEventListener("keydown", (e) => {

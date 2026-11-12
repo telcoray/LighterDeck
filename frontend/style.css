@@ -1077,28 +1077,12 @@ body.browser-key :is(.pair-add, #mktSpread) { display: none !important; }
 .lev-row.on { color: var(--text); font-weight: 600; }
 
 /* ================= ticket: size slider ================= */
-.size-pct { display: flex; align-items: center; gap: 10px; margin: -4px 0 12px; }
-.pct-track { position: relative; flex: 1; height: 22px; display: flex; align-items: center; }
-.pct-track i { position: absolute; top: 50%; width: 4px; height: 4px; margin: -2px 0 0 -2px; border-radius: 50%; background: var(--line-3); pointer-events: none; }
-.pct-track input[type="range"] { --p: 0%; --c: var(--green); position: relative; z-index: 1; width: 100%; height: 22px; margin: 0; padding: 0; border: 0; border-radius: 0; outline: 0; background: none; -webkit-appearance: none; appearance: none; cursor: pointer; touch-action: pan-y; }
-.size-pct.sell input[type="range"] { --c: var(--red); }
-.pct-track input[type="range"]::-webkit-slider-runnable-track { height: 4px; border-radius: 2px; background: linear-gradient(to right, var(--c) var(--p), var(--line-2) var(--p)); }
-.pct-track input[type="range"]::-moz-range-track { height: 4px; border-radius: 2px; background: var(--line-2); }
-.pct-track input[type="range"]::-moz-range-progress { height: 4px; border-radius: 2px; background: var(--c); }
-.pct-track input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 8px; height: 18px; margin-top: -7px; border: 0; border-radius: 4px; background: var(--c); }
-.pct-track input[type="range"]::-moz-range-thumb { width: 8px; height: 18px; border: 0; border-radius: 4px; background: var(--c); }
-.pct-box { flex: none; display: flex; align-items: center; gap: 3px; width: 54px; height: 26px; padding: 0 7px; border: 1px solid var(--line-2); border-radius: var(--r); background: var(--surface); color: var(--muted); font-family: var(--mono); font-size: 11px; }
-.pct-box:focus-within { border-color: var(--line-3); }
-.pct-box input { width: 100%; min-width: 0; padding: 0; border: 0; outline: 0; background: none; color: var(--text); font: inherit; text-align: right; -moz-appearance: textfield; appearance: textfield; }
-.pct-box input::-webkit-outer-spin-button, .pct-box input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 /* the summary's labels stay on one line, the values take what they need */
 .ticket .kv.rows { display: flex; flex-direction: column; gap: 7px; }
 .ticket .kv.rows > div { display: flex; flex-wrap: wrap; justify-content: space-between; column-gap: 8px; }
 .ticket .kv.rows > div:has(> dd.hidden) { display: none; }
 .ticket .kv.rows dt { flex: none; white-space: nowrap; }
 .ticket .kv.rows dd { flex: 1 1 auto; white-space: nowrap; font-size: 11px; }
-.size-pct.off { opacity: .4; }
-.size-pct.off input[type="range"] { cursor: not-allowed; }
 
 /* ================= ticket: advanced orders ================= */
 .adv-pick { position: relative; margin-left: auto; }
@@ -1241,7 +1225,7 @@ body.live-first:not(.paper):not(.browser-key) #accountPill { color: var(--green)
 @media (prefers-reduced-motion: reduce) { .toast { transition: none; } }
 
 /* ================= the leverage between Long and Short ================= */
-.ticket:not(.pair) .sidesel.with-lev { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; }
+.ticket:not(.pair) .sidesel.with-lev { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: stretch; }
 .sidesel .tk-lev { height: 30px; margin: 0 3px; padding: 0 8px 0 10px; gap: 5px; border-radius: 5px; background: var(--bg); color: var(--text); font-size: 12px; font-weight: 400; }
 .ticket.pair .sidesel .tk-lev { display: none; }
 
@@ -1270,3 +1254,77 @@ option { background: var(--surface); color: var(--text); }
 
 /* market picker: a thin line between the groups of categories */
 .pk-cats .pk-cat-sep { flex: none; align-self: center; width: 1px; height: 14px; margin: 0 6px; background: var(--line-2); }
+
+/* ================= the order ticket: one rhythm =================
+   Every control 32px tall (the send button 40), 6px corners, 12px text. One selector style for margin mode,
+   side and order type; fields with the label on the left and the value on the right; three blocks (set-up,
+   the order, the outcome) with 10px between rows and a line between blocks. */
+.ticket { --tk-h: 32px; display: flex; flex-direction: column; gap: 10px; }
+.ticket > * { margin-top: 0 !important; margin-bottom: 0 !important; }
+.ticket > .hidden, .ticket > .lev-drum { flex: none; }
+
+/* selectors: a dark track, the chosen option raised */
+.ticket .tk-mode, .ticket .sidesel, .ticket .kindsel { display: flex; align-items: stretch; height: var(--tk-h); padding: 2px; gap: 2px;
+  background: var(--bg); border: 1px solid var(--line-2); border-radius: 6px; }
+.ticket .tk-controls { display: block; }
+.ticket .tk-mode button, .ticket .sidesel button, .ticket .kindsel > button, .ticket #advBtn {
+  flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 5px; height: auto; min-width: 0; padding: 0 8px;
+  border: 0; border-radius: 4px; background: none; color: var(--muted); font-size: 12px; font-weight: 500; white-space: nowrap; }
+.ticket .tk-mode button:hover, .ticket .sidesel button:hover, .ticket .kindsel > button:hover, .ticket #advBtn:hover { color: var(--text); }
+.ticket .tk-mode button.active, .ticket .kindsel > button.active, .ticket #advBtn.active { background: var(--raised); color: var(--text); box-shadow: none; }
+.ticket .tk-mode button.active[data-cross="0"] { color: var(--amber); }
+.ticket .sidesel { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); }
+.ticket.pair .sidesel { grid-template-columns: 1fr 1fr; height: auto; min-height: var(--tk-h); }
+.ticket .sidesel button[data-side=buy].active { background: var(--green); color: var(--green-ink); }
+.ticket .sidesel button[data-side=sell].active { background: var(--red); color: #fff; }
+.ticket .sidesel .tk-lev { margin: 0 2px; padding: 0 8px 0 10px; border: 1px solid var(--line-2); background: var(--surface); color: var(--text); font-family: var(--mono); font-weight: 400; }
+.ticket .sidesel .tk-lev:hover { border-color: var(--line-3); }
+.ticket .kindsel { border-bottom: 1px solid var(--line-2); }
+.ticket .kindsel > button { padding: 0 8px; margin: 0; border-bottom: 0; }
+.ticket .kindsel .adv-pick { flex: 1.3; display: flex; margin: 0; }
+.ticket #advBtn { margin: 0; border-bottom: 0; }
+/* the line closing the set-up block */
+.ticket #kindSel { box-shadow: 0 13px 0 -12px var(--line); margin-bottom: 6px !important; }
+
+/* fields: label left, value right, one height */
+.ticket .field { min-height: var(--tk-h); flex-wrap: wrap; border-radius: 6px; }
+.ticket .field label { padding-left: 10px; font-size: 11.5px; }
+.ticket .field input { flex: 1; width: auto; min-width: 0; height: calc(var(--tk-h) - 2px); padding: 0 10px; font-size: 12px; }
+.ticket .field label { white-space: nowrap; }
+.ticket .field.sm { flex-direction: row; align-items: center; }
+.ticket .field.sm label { padding: 0 0 0 10px; font-size: 11.5px; }
+.ticket .field.sm input { flex: 1; text-align: right; padding: 0 10px; }
+.ticket .field input::placeholder { color: var(--faint); font-family: var(--ui); font-size: 11.5px; }
+.ticket .field .sltp-out { flex-basis: 100%; margin: -4px 0 0; padding: 0 10px 6px; text-align: right; }
+.ticket .size-row { display: block; }
+.ticket .size-row .field { margin: 0; flex-wrap: nowrap; }
+.ticket .size-row .field input { flex: 1; width: auto; }
+.ticket .size-row #tkUnit { flex: none; align-self: stretch; width: auto; height: auto; max-width: 112px; margin: 0; padding: 0 8px 0 10px;
+  border: 0; border-left: 1px solid var(--line-2); border-radius: 0 6px 6px 0; background: transparent; color: var(--text-2); font-family: var(--ui); font-size: 11.5px; }
+.ticket .size-row #tkUnit:hover { color: var(--text); }
+.ticket .two { gap: 8px; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.ticket .two .field { margin: 0; }
+
+/* quick sizes: one row of equal buttons, Max last */
+.ticket .chips { gap: 6px; }
+.ticket .chips:has([data-max]) { grid-template-columns: repeat(5, 1fr); }
+.ticket .chips button { height: var(--tk-h); border-radius: 6px; font-size: 11px; }
+.ticket .chips [data-max] { font-family: var(--ui); color: var(--muted); }
+.ticket .chips [data-max]:hover { color: var(--text); }
+
+/* option rows */
+.ticket .checks { gap: 16px; flex-wrap: wrap; }
+.ticket .checks label { font-size: 12px; }
+.ticket .exec summary { padding: 0; font-size: 12px; }
+
+/* the outcome block: a line above, then the rows and the button */
+.ticket .kv.summary { padding-top: 14px; margin-top: 6px !important; }
+.ticket .kv.rows dt { font-size: 11.5px; }
+.ticket .kv.rows dd { font-size: 11.5px; }
+.ticket .execute { height: 40px; border-radius: 6px; font-size: 12.5px; }
+
+/* the shortcut keys: only while the pointer is on the ticket */
+@media (hover: hover) and (pointer: fine) {
+  .ticket [data-key]::after { transition: opacity .15s; }
+  .ticket:not(:hover) [data-key]::after { opacity: 0 !important; }
+}
