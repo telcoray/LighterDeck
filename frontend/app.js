@@ -405,20 +405,27 @@ class Panel {
 
   // A line's label (LONG 0.5, SL, TP, LIMIT…) is drawn at the right edge, over the latest candles. When one
   // sits within their range, the empty space on the right grows to fit it: bars it needs, or 0.
+  // The gap only grows while the chart stays the same: on a short timeframe a line drifts in and out of the
+  // latest candles' range every few bars, and a gap that came and went made the whole chart jump sideways.
+  // It starts again from nothing with another market or timeframe, or once no line carries a label.
   labelGap() {
     const spacing = this.chart.timeScale().options().barSpacing || 8;
     const ctx = (Panel.measure ||= document.createElement("canvas").getContext("2d"));
     ctx.font = "11px 'JetBrains Mono', monospace"; // the chart's own label font
-    let need = 0;
+    let need = 0, labels = 0;
     for (const l of [...(this.lines || []), ...(this.previewLines || [])]) {
       const o = l.options();
       if (!o.title) continue;
+      labels++;
       const n = Math.ceil((ctx.measureText(o.title).width + 16) / spacing) + 1;
       if (n <= need) continue;
-      const bars = [...this.data.values()].slice(-(n + 10)); // a margin, so the gap doesn't flicker as the price moves
+      const bars = [...this.data.values()].slice(-(n + 10));
       if (bars.length && o.price >= Math.min(...bars.map((b) => b.low)) && o.price <= Math.max(...bars.map((b) => b.high))) need = n;
     }
-    return need;
+    const key = `${this.cfg.symbol}:${this.cfg.tf}:${spacing}`;
+    if (this.gapKey !== key || !labels) { this.gapKey = key; this.gapHeld = 0; }
+    this.gapHeld = Math.max(this.gapHeld, need);
+    return this.gapHeld;
   }
 
   clearZ() {
