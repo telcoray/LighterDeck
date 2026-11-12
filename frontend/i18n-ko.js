@@ -770,3 +770,4 @@ Object.assign(DICTS.ko, {"Runs in this page: it only alerts while LighterDeck is
 Object.assign(DICTS.ko, {"{sym}: leverage set to {lev}x {mode}": "{sym}: 레버리지 {lev}x {mode}(으)로 설정됨", "{f}% close: order accepted": "{f}% 청산: 주문 접수됨", "{f}% close of the pair: orders accepted": "페어 {f}% 청산: 주문 접수됨", "Reverse accepted: {sym} {side}": "리버스 접수됨: {sym} {side}"});
 Object.assign(DICTS.ko, {"longs pay shorts": "롱이 숏에게 지급", "shorts pay longs": "숏이 롱에게 지급", "Hourly funding": "시간당 펀딩"});
 Object.assign(DICTS.ko, {"Open and close the funding details": "펀딩 세부 정보 열기/닫기", "Funding details · U": "펀딩 세부 정보 · U"});
+Object.assign(DICTS.ko, {"Chart {n} · Shift+{n} · click to change market": "차트 {n} · Shift+{n} · 클릭해 마켓 변경", "Key {n}: into the selected chart": "키 {n}: 선택한 차트에 불러오기", "Favourite no. 1–10 into the selected chart": "즐겨찾기 1–10번을 선택한 차트에 불러오기"});

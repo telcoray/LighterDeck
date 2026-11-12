@@ -1384,23 +1384,27 @@ async function loadFundingHistory() {
   fundView.chart.timeScale().fitContent();
 }
 
+// the favourites as the bar shows them: the number keys follow this order (1 is the first, 0 the tenth)
+const shownFavs = () => favs.filter((s) => bySymbol[s] || pairOf(s));
+
 function renderTicker() {
   if (tickerDrag) return; // don't rebuild the row under the pointer
   const box = $("#ticker");
   const active = panelCfg[activeIdx].symbol;
-  box.innerHTML = favs.filter((s) => bySymbol[s] || pairOf(s)).map((s) => {
+  box.innerHTML = shownFavs().map((s, i) => {
     const pr = pairOf(s);
+    const key = i < 10 ? ` title="${t("Tasto {n}: nel grafico selezionato", { n: (i + 1) % 10 })}"` : ""; // the number key that loads it
     if (pr) { // a spread: its ratio and the ratio's 24h change, as in the market bar
       const [pa, pb] = [prices[pr[0].id], prices[pr[1].id]];
       const xa = pa && (pa.last || pa.mark), xb = pb && (pb.last || pb.mark), r = xa && xb ? xa / xb : null;
       const chg = pa && pb ? ((1 + pa.change / 100) / (1 + pb.change / 100) - 1) * 100 : null;
-      return `<button class="tk${active === s ? " active" : ""}" data-sym="${esc(s)}">
+      return `<button class="tk${active === s ? " active" : ""}" data-sym="${esc(s)}"${key}>
         <span class="pair-ico">${ico(pr[0].symbol, "xs")}${ico(pr[1].symbol, "xs")}</span><b>${esc(s)}</b><span class="num">${r ? fp(r, { price_decimals: ratioDecimals(r) }) : "—"}</span>
         <span class="chg ${chg !== null ? cls(chg) : ""}">${chg !== null ? fpct(chg) : ""}</span></button>`;
     }
     const m = bySymbol[s];
     const p = prices[m.id];
-    return `<button class="tk${active === s ? " active" : ""}" data-sym="${s}">
+    return `<button class="tk${active === s ? " active" : ""}" data-sym="${s}"${key}>
       ${ico(s, "xs")}<b>${s}</b><span class="num">${p ? fp(p.last || p.mark, m) : "—"}</span>
       <span class="chg ${p ? cls(p.change) : ""}">${p ? fpct(p.change) : ""}</span></button>`;
   }).join("");
@@ -5157,7 +5161,8 @@ const HOTKEYS = [
   ["C", "Annulla i limit del mercato (due volte)"],
   ["A", "Alert al prezzo sotto il mouse"],
   ["U", "Apri e chiudi i dettagli del funding"],
-  ["1–4", "Seleziona il grafico"],
+  ["1–9 0", "Il preferito n. 1–10 nel grafico selezionato"],
+  ["Shift 1–4", "Seleziona il grafico"],
   ["[ ]", "Timeframe precedente / successivo"],
   ["/", "Cerca mercato"],
   ["?", "Questo elenco"],
@@ -5173,7 +5178,7 @@ function applyKeyHints() {
   hint($("#tkExec"), "↵", t("Invia · Enter"));
   hint($("#mktSelect"), null, t("Cerca mercato · / o Ctrl+K"));
   hint($("#tfs"), null, t("Timeframe · [ e ]"));
-  panels.forEach((p) => hint($(".ttl", p.el), null, t("Grafico {n} · tasto {n} · clic per cambiare mercato", { n: p.idx + 1 })));
+  panels.forEach((p) => hint($(".ttl", p.el), null, t("Grafico {n} · Shift+{n} · clic per cambiare mercato", { n: p.idx + 1 })));
   hint($("#hkOpen"), null, t("Scorciatoie da tastiera · ?"));
   hint($("#stFundBtn"), null, t("Dettagli funding · U"));
 }
@@ -5278,7 +5283,16 @@ function wireHotkeys() {
       "]": () => stepTf(1),
     }[k.length === 1 ? k.toLowerCase() : k];
     if (act) { e.preventDefault(); act(); return; }
-    if (/^[1-4]$/.test(k) && +k <= panels.length) { e.preventDefault(); setActive(+k - 1); }
+    // Shift + 1–4: the chart (by the key's place, whatever symbol Shift gives it on this keyboard);
+    // 1–9 and 0: that favourite into the chart selected now
+    const digit = /^Digit[0-9]$/.test(e.code) ? +e.code.slice(5) : /^[0-9]$/.test(k) ? +k : null;
+    if (digit === null) return;
+    if (e.shiftKey) {
+      if (digit >= 1 && digit <= panels.length) { e.preventDefault(); setActive(digit - 1); }
+      return;
+    }
+    const sym = shownFavs()[(digit + 9) % 10];
+    if (sym) { e.preventDefault(); setSymbol(sym); }
   });
 }
 

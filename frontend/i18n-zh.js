@@ -770,3 +770,4 @@ Object.assign(DICTS.zh, {"Runs in this page: it only alerts while LighterDeck is
 Object.assign(DICTS.zh, {"{sym}: leverage set to {lev}x {mode}": "{sym}：杠杆已设为 {lev}x {mode}", "{f}% close: order accepted": "平仓 {f}%：订单已接受", "{f}% close of the pair: orders accepted": "配对平仓 {f}%：订单已接受", "Reverse accepted: {sym} {side}": "反手已接受：{sym} {side}"});
 Object.assign(DICTS.zh, {"longs pay shorts": "多头支付空头", "shorts pay longs": "空头支付多头", "Hourly funding": "每小时资金费"});
 Object.assign(DICTS.zh, {"Open and close the funding details": "打开或关闭资金费详情", "Funding details · U": "资金费详情 · U"});
+Object.assign(DICTS.zh, {"Chart {n} · Shift+{n} · click to change market": "图表 {n} · Shift+{n} · 点击更换市场", "Key {n}: into the selected chart": "按键 {n}：载入当前选中的图表", "Favourite no. 1–10 into the selected chart": "第 1–10 个收藏载入当前选中的图表"});
