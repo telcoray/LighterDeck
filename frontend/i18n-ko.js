@@ -771,3 +771,4 @@ Object.assign(DICTS.ko, {"{sym}: leverage set to {lev}x {mode}": "{sym}: 레버�
 Object.assign(DICTS.ko, {"longs pay shorts": "롱이 숏에게 지급", "shorts pay longs": "숏이 롱에게 지급", "Hourly funding": "시간당 펀딩"});
 Object.assign(DICTS.ko, {"Open and close the funding details": "펀딩 세부 정보 열기/닫기", "Funding details · U": "펀딩 세부 정보 · U"});
 Object.assign(DICTS.ko, {"Chart {n} · Shift+{n} · click to change market": "차트 {n} · Shift+{n} · 클릭해 마켓 변경", "Key {n}: into the selected chart": "키 {n}: 선택한 차트에 불러오기", "Favourite no. 1–10 into the selected chart": "즐겨찾기 1–10번을 선택한 차트에 불러오기"});
+Object.assign(DICTS.ko, {"Larger timeframe, among those in the bar": "더 큰 타임프레임(툴바에 있는 것 중)", "Smaller timeframe, among those in the bar": "더 작은 타임프레임(툴바에 있는 것 중)", "Timeframe · [ and ] · Ctrl with the arrows": "타임프레임 · [ 와 ] · Ctrl + 화살표"});

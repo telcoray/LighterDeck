@@ -5164,6 +5164,8 @@ const HOTKEYS = [
   ["1–9 0", "Il preferito n. 1–10 nel grafico selezionato"],
   ["Shift 1–4", "Seleziona il grafico"],
   ["[ ]", "Timeframe precedente / successivo"],
+  ["Ctrl ↑ →", "Timeframe più grande, tra quelli nella barra"],
+  ["Ctrl ↓ ←", "Timeframe più piccolo, tra quelli nella barra"],
   ["/", "Cerca mercato"],
   ["?", "Questo elenco"],
 ];
@@ -5177,7 +5179,7 @@ function applyKeyHints() {
   hint($('#kindSel [data-kind="limit"]'), "L", t("Limit al prezzo medio · L"));
   hint($("#tkExec"), "↵", t("Invia · Enter"));
   hint($("#mktSelect"), null, t("Cerca mercato · / o Ctrl+K"));
-  hint($("#tfs"), null, t("Timeframe · [ e ]"));
+  hint($("#tfs"), null, t("Timeframe · [ e ] · Ctrl con le frecce"));
   panels.forEach((p) => hint($(".ttl", p.el), null, t("Grafico {n} · Shift+{n} · clic per cambiare mercato", { n: p.idx + 1 })));
   hint($("#hkOpen"), null, t("Scorciatoie da tastiera · ?"));
   hint($("#stFundBtn"), null, t("Dettagli funding · U"));
@@ -5244,10 +5246,12 @@ async function hotkeyCancel(m) {
   loadOrders(true);
 }
 
+// to the next timeframe shown in the toolbar, larger (dir 1) or smaller (-1), by duration; from one that isn't
+// shown (picked in More) it goes to the nearest shown one on that side
 function stepTf(dir) {
-  const cur = panelCfg[activeIdx].tf;
-  const list = shownTfs.includes(cur) ? shownTfs : ALL_TFS;
-  const next = list[list.indexOf(cur) + dir];
+  const at = ALL_TFS.indexOf(panelCfg[activeIdx].tf);
+  const shown = ALL_TFS.filter((x) => shownTfs.includes(x));
+  const next = dir > 0 ? shown.find((x) => ALL_TFS.indexOf(x) > at) : shown.reverse().find((x) => ALL_TFS.indexOf(x) < at);
   if (next) setTf(next);
 }
 
@@ -5260,9 +5264,18 @@ function wireHotkeys() {
   }
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape" && !$("#hkModal").classList.contains("hidden")) return toggleHotkeys(false);
+    const typing = e.target.closest && e.target.closest("input, textarea, select, [contenteditable]");
+    const dialog = $$(".modal, .picker, #trailPop").some((x) => !x.classList.contains("hidden"));
+    // Ctrl (Cmd on a Mac) with the arrows: through the timeframes shown in the toolbar, up or right to a larger one.
+    // Held down it keeps stepping; in a field the arrows keep moving the cursor by word.
+    const step = { ArrowUp: 1, ArrowRight: 1, ArrowDown: -1, ArrowLeft: -1 }[e.key];
+    if (step && (e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && !typing && !dialog && curView === "trade") {
+      e.preventDefault();
+      return stepTf(step);
+    }
     if (e.ctrlKey || e.metaKey || e.altKey || e.repeat) return;
-    if (e.target.closest("input, textarea, select, [contenteditable]")) return;
-    if ($$(".modal, .picker, #trailPop").some((x) => !x.classList.contains("hidden"))) return;
+    if (typing) return;
+    if (dialog) return;
     if (curView !== "trade" && e.key !== "?") return;
     const m = activeMarket(), k = e.key;
     const focusSize = () => { $("#tkSize").focus(); $("#tkSize").select(); };
