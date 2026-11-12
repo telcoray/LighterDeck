@@ -170,7 +170,6 @@ body.paper [data-view="auto"], body.paper [data-view="activity"], body.paper [da
   }
   .kindsel button[data-key]::after { position: static; display: inline-block; transform: none; margin-left: 6px; vertical-align: 1px; }
   .qbtn button[data-key] { padding-right: 22px; }
-  .sidesel.with-lev button[data-key] { padding-right: 20px; } /* narrower with the leverage between them: the text clears the key */
   .qbtn button[data-key]::after { right: 4px; font-size: 8px; padding: 1px 3px; }
   #tkExec[data-key]::after { right: 12px; }
   .confirming[data-key]::after { display: none; }
@@ -1323,8 +1322,24 @@ option { background: var(--surface); color: var(--text); }
 .ticket .kv.rows dd { font-size: 11.5px; }
 .ticket .execute { height: 40px; border-radius: 6px; font-size: 12.5px; }
 
-/* the shortcut keys: only while the pointer is on the ticket */
-@media (hover: hover) and (pointer: fine) {
-  .ticket [data-key]::after { transition: opacity .15s; }
-  .ticket:not(:hover) [data-key]::after { opacity: 0 !important; }
-}
+/* ================= the size slider: a share of the largest size the money available opens ================= */
+.size-pct { display: flex; align-items: center; gap: 10px; margin: -4px 0 12px; }
+.pct-track { position: relative; flex: 1; height: 22px; display: flex; align-items: center; }
+.pct-track i { position: absolute; top: 50%; width: 4px; height: 4px; margin: -2px 0 0 -2px; border-radius: 50%; background: var(--line-3); pointer-events: none; }
+.pct-track input[type="range"] { --p: 0%; --c: var(--green); position: relative; z-index: 1; width: 100%; height: 22px; margin: 0; padding: 0; border: 0; border-radius: 0; outline: 0; background: none; -webkit-appearance: none; appearance: none; cursor: pointer; touch-action: pan-y; }
+.size-pct.sell input[type="range"] { --c: var(--red); }
+.pct-track input[type="range"]::-webkit-slider-runnable-track { height: 4px; border-radius: 2px; background: linear-gradient(to right, var(--c) var(--p), var(--line-2) var(--p)); }
+.pct-track input[type="range"]::-moz-range-track { height: 4px; border-radius: 2px; background: var(--line-2); }
+.pct-track input[type="range"]::-moz-range-progress { height: 4px; border-radius: 2px; background: var(--c); }
+.pct-track input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 8px; height: 18px; margin-top: -7px; border: 0; border-radius: 4px; background: var(--c); }
+.pct-track input[type="range"]::-moz-range-thumb { width: 8px; height: 18px; border: 0; border-radius: 4px; background: var(--c); }
+.pct-box { flex: none; display: flex; align-items: center; gap: 3px; width: 54px; height: 26px; padding: 0 7px; border: 1px solid var(--line-2); border-radius: var(--r); background: var(--surface); color: var(--muted); font-family: var(--mono); font-size: 11px; }
+.pct-box:focus-within { border-color: var(--line-3); }
+.pct-box input { width: 100%; min-width: 0; padding: 0; border: 0; outline: 0; background: none; color: var(--text); font: inherit; text-align: right; -moz-appearance: textfield; appearance: textfield; }
+.pct-box input::-webkit-outer-spin-button, .pct-box input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.size-pct.off { opacity: .4; }
+.size-pct.off input[type="range"] { cursor: not-allowed; }
+.ticket .size-pct { gap: 10px; height: var(--tk-h); }
+.ticket .pct-track { height: var(--tk-h); }
+.ticket .pct-track input[type="range"] { height: var(--tk-h); }
+.ticket .pct-box { width: 64px; height: var(--tk-h); padding: 0 10px; border-radius: 6px; background: var(--bg); font-size: 12px; }

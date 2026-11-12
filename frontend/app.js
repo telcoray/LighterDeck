@@ -1792,7 +1792,7 @@ function renderTicket() {
   const unit = $("#tkUnit").value;
   $('#tkUnit option[value="base"]').textContent = m.symbol; // the menu is the size's unit
   $("#tkSizeUnit").textContent = { usd: "USD", base: m.symbol, equity_pct: "%", risk_usd: "USD" }[unit];
-  renderChips(quickChips(unit, m), !!account);
+  syncSizeSlider(m, +$("#tkSize").value ? null : 0, null);
   const showsLimit = hasLimitField(), showsMarket = ticket.kind === "market" || ticket.kind === "rfq" || (ticket.kind === "conditional" && ticketAdv.exec === "market");
   $$(".limit-only").forEach((e) => e.classList.toggle("hidden", !showsLimit));
   $$(".market-only").forEach((e) => e.classList.toggle("hidden", !showsMarket));
@@ -2350,6 +2350,7 @@ function updateTicketSummary() {
   // the size is already in one of them: no need to repeat it
   $("#tkNotional").classList.toggle("hidden", unit === "usd");
   $("#tkQty").classList.toggle("hidden", unit === "base");
+  syncSizeSlider(m, qty, ref);
   renderTicketEstimates(m, p, qty, ref);
   clearTimeout(updateTicketSummary.t);
   updateTicketSummary.t = setTimeout(previewTicket, 350);
@@ -2382,6 +2383,25 @@ function sliderMax(m, ref) {
 
 // $ risk needs the stop to be worked out
 const riskNeedsStop = (ref) => $("#tkUnit").value === "risk_usd" && !(+$("#tkSl").value > 0 && +$("#tkSl").value !== ref);
+
+// the slider follows the size typed (as a share of the largest size the money available opens at this leverage)
+function syncSizeSlider(m, qty, ref) {
+  const row = $("#tkPctRow");
+  if (!m || !row) return;
+  ref = ref || ticketRef(m, prices[m.id]);
+  const max = ref ? sliderMax(m, ref) : 0, off = ref ? riskNeedsStop(ref) : false;
+  row.classList.toggle("hidden", !account);
+  row.classList.toggle("sell", ticket.side === "sell");
+  row.classList.toggle("off", off);
+  row.title = off ? t("Imposta lo stop-loss: il rischio si calcola da lì") : "";
+  const range = $("#tkPct"), box = $("#tkPctIn");
+  range.disabled = box.disabled = off;
+  if (qty === null) return; // the summary sets it once the quantity is known
+  const pct = max && qty ? Math.min(100, (qty / max) * 100) : 0;
+  if (document.activeElement !== range || !range.matches(":active")) range.value = Math.round(pct);
+  range.style.setProperty("--p", range.value + "%");
+  if (document.activeElement !== box) box.value = qty ? Math.round(pct) : "";
+}
 
 function sizeFromPct(pct) {
   const m = activeMarket(), p = m && prices[m.id], unit = $("#tkUnit").value;
@@ -4513,6 +4533,9 @@ function wire() {
     updateTicketSummary();
   };
   ["#tkSize", "#tkPrice"].forEach((s) => ($(s).oninput = updateTicketSummary));
+  $("#tkPct").oninput = (e) => sizeFromPct(+e.target.value);
+  $("#tkPctIn").oninput = (e) => { if (e.target.value === "") { $("#tkSize").value = ""; updateTicketSummary(); } else sizeFromPct(+e.target.value); };
+  $("#tkPct").onchange = (e) => e.target.blur(); // let go: it follows the size again
   // each click adds to the size (4 × $100 = $400); clear the field to start again
   $("#tkChips").onclick = (e) => {
     if (e.target.closest("[data-max]")) {
@@ -5241,11 +5264,11 @@ const HOTKEYS = [
 // the key next to the control it drives: a small badge (desktop only, via CSS) and the tooltip
 function applyKeyHints() {
   const hint = (el, key, title) => { if (!el) return; if (key) el.dataset.key = key; if (title) el.title = title; };
-  hint($('#sideSel [data-side="buy"]'), "B", t("Buy / Long · B"));
-  hint($('#sideSel [data-side="sell"]'), "S", t("Sell / Short · S"));
-  hint($('#kindSel [data-kind="market"]'), "M", t("Market · M"));
-  hint($('#kindSel [data-kind="limit"]'), "L", t("Limit al prezzo medio · L"));
-  hint($("#tkExec"), "↵", t("Invia · Enter"));
+  hint($('#sideSel [data-side="buy"]'), null, t("Buy / Long · B"));
+  hint($('#sideSel [data-side="sell"]'), null, t("Sell / Short · S"));
+  hint($('#kindSel [data-kind="market"]'), null, t("Market · M"));
+  hint($('#kindSel [data-kind="limit"]'), null, t("Limit al prezzo medio · L"));
+  hint($("#tkExec"), null, t("Invia · Enter"));
   hint($("#mktSelect"), null, t("Cerca mercato · / o Ctrl+K"));
   hint($("#tfs"), null, t("Timeframe · [ e ] · Ctrl con le frecce"));
   panels.forEach((p) => hint($(".ttl", p.el), null, t("Grafico {n} · Shift+{n} · clic per cambiare mercato", { n: p.idx + 1 })));
@@ -5327,7 +5350,7 @@ function wireHotkeys() {
   $("#hkOpen").onclick = () => toggleHotkeys(true);
   $("#hkClose").onclick = $("#hkVeil").onmousedown = () => toggleHotkeys(false);
   // Enter in the ticket's fields sends the order, like the button (which asks to confirm)
-  for (const id of ["#tkSize", "#tkPrice", "#tkSl", "#tkTp"]) {
+  for (const id of ["#tkSize", "#tkPctIn", "#tkPrice", "#tkSl", "#tkTp"]) {
     $(id).addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); $("#tkExec").click(); } });
   }
   document.addEventListener("keydown", (e) => {
