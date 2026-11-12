@@ -2,11 +2,11 @@
 // Market picker: search, recents, crypto/RWA tabs, categories, sorting, list or grid view.
 // Uses the globals defined in app.js (markets, prices, favs, setSymbol, formatters…).
 
+// three groups, the most traded first in each: crypto, traditional markets, then the special and niche ones
 const CATEGORIES = [
-  ["NEW", "Nuovi"], ["MAJOR", "Majors"], ["PRE_LAUNCH", "Pre-launch"], ["DEFI", "DeFi"],
-  ["STOCK", "Azioni"], ["ETF", "ETF / Indici"], ["FX", "Forex"], ["COMMODITIES", "Materie prime"],
-  ["KRW", "KRW"], ["PRE_IPO", "Pre-IPO"], ["COMPUTE", "Compute"], ["LAYER_1", "Layer 1"],
-  ["LAYER_2", "Layer 2"], ["MEMES", "Meme"], ["AI", "AI"], ["BONDS", "Bond"],
+  ["MAJOR", "Majors", 1], ["LAYER_1", "Layer 1", 1], ["DEFI", "DeFi", 1], ["LAYER_2", "Layer 2", 1], ["AI", "AI", 1], ["MEMES", "Meme", 1],
+  ["STOCK", "Azioni", 2], ["ETF", "ETF / Indici", 2], ["COMMODITIES", "Materie prime", 2], ["FX", "Forex", 2], ["BONDS", "Bond", 2],
+  ["NEW", "Nuovi", 3], ["PRE_IPO", "Pre-IPO", 3], ["PRE_LAUNCH", "Pre-launch", 3], ["KRW", "KRW", 3], ["COMPUTE", "Compute", 3],
 ];
 const TABS = [["all", "Tutti"], ["favs", "Preferiti"], ["CRYPTO", "Crypto"], ["RWA", "RWA"], ["spread", "Spread"]];
 // the Spread tab: these classic pairs plus the ones starred, ordered by how stretched they are (|z|)
@@ -87,7 +87,8 @@ function renderPickerChrome() {
   const cats = CATEGORIES.filter(([k]) => scope.some((m) => (m.categories || []).includes(k)));
   if (pk.cat && !cats.some(([k]) => k === pk.cat)) pk.cat = "";
   $("#pkCats").innerHTML = `<button data-cat="" class="${pk.cat ? "" : "active"}">${t("Tutte")}</button>` +
-    cats.map(([k, label]) => `<button data-cat="${k}" class="${pk.cat === k ? "active" : ""}">${t(label)}</button>`).join("");
+    cats.map(([k, label, group], i) => (i && group !== cats[i - 1][2] ? '<i class="pk-cat-sep" aria-hidden="true"></i>' : "") // a thin line between groups
+      + `<button data-cat="${k}" class="${pk.cat === k ? "active" : ""}">${t(label)}</button>`).join("");
   requestAnimationFrame(updateCatArrows);
   const known = (s) => bySymbol[s] || pairOf(s);
   $("#pkRecents").innerHTML = recents.filter(known).map((s) =>

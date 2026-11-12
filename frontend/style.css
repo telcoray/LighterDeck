@@ -1267,3 +1267,6 @@ select.sel-open { border-color: var(--line-3); }
 /* what the system picker still draws (a phone's list, the select's own arrow) follows the theme's dark */
 select { color-scheme: dark; }
 option { background: var(--surface); color: var(--text); }
+
+/* market picker: a thin line between the groups of categories */
+.pk-cats .pk-cat-sep { flex: none; align-self: center; width: 1px; height: 14px; margin: 0 6px; background: var(--line-2); }
