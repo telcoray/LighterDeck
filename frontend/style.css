@@ -1254,3 +1254,16 @@ body.live-first:not(.paper):not(.browser-key) #accountPill { color: var(--green)
 .fund-tip .ft-row b.up { color: var(--green); } .fund-tip .ft-row b.down { color: var(--red); }
 .fund-tip .ft-who { margin: 1px 0 4px; text-align: right; color: var(--muted); font-size: 10px; }
 .fund-tip .ft-who:last-child { margin-bottom: 0; }
+
+/* ================= drop-down lists in the theme's colours (computers; phones keep the system picker) ================= */
+.sel-menu { position: fixed; z-index: 200; max-width: min(360px, calc(100vw - 16px)); padding: 4px; overflow-y: auto; overscroll-behavior: contain;
+  background: var(--surface); border: 1px solid var(--float-border); border-radius: var(--float-radius); box-shadow: var(--float-shadow); scrollbar-width: thin; }
+.sel-menu button { display: block; width: 100%; padding: 6px 10px; border-radius: 6px; color: var(--text-2); font-size: 12.5px; text-align: left; white-space: nowrap; }
+.sel-menu button:hover, .sel-menu button.focus { background: var(--raised); color: var(--text); }
+.sel-menu button.active { color: var(--text); font-weight: 500; }
+.sel-menu button.active::after { content: "✓"; float: right; margin-left: 14px; color: var(--green); }
+.sel-menu button:disabled { opacity: .45; cursor: default; }
+select.sel-open { border-color: var(--line-3); }
+/* what the system picker still draws (a phone's list, the select's own arrow) follows the theme's dark */
+select { color-scheme: dark; }
+option { background: var(--surface); color: var(--text); }

@@ -1056,6 +1056,84 @@ function toggleTfMenu(open) {
   if (show) { renderTfs(); fitInView(menu); }
 }
 
+// ---------- drop-down lists in the theme's colours ----------
+// A <select>'s own list is drawn by the operating system and ignores the theme. With a mouse, a click on any
+// select opens this menu instead; picking sets the select and fires its change, so the code that reads it is the
+// same. Phones keep the system's picker, which suits a thumb. The select itself still works from the keyboard.
+const selMenu = { el: null, select: null, items: [], at: -1 };
+function openSelMenu(select) {
+  closeSelMenu();
+  const opts = [...select.options];
+  if (!opts.length) return;
+  const el = (selMenu.el ||= Object.assign(document.createElement("div"), { className: "sel-menu hidden" }));
+  if (!el.isConnected) document.body.appendChild(el);
+  el.innerHTML = opts.map((o, i) => `<button type="button" data-i="${i}" class="${o.selected ? "active" : ""}"${o.disabled ? " disabled" : ""}>${esc(o.textContent)}</button>`).join("");
+  selMenu.select = select;
+  selMenu.items = [...el.children];
+  selMenu.at = select.selectedIndex;
+  el.classList.remove("hidden");
+  const r = select.getBoundingClientRect();
+  el.style.minWidth = Math.round(r.width) + "px";
+  const h = el.offsetHeight, w = el.offsetWidth;
+  const below = innerHeight - r.bottom - 8, above = r.top - 8;
+  el.style.left = Math.max(8, Math.min(innerWidth - w - 8, r.left)) + "px";
+  el.style.top = (h <= below || below >= above ? r.bottom + 4 : Math.max(8, r.top - 4 - Math.min(h, above))) + "px";
+  el.style.maxHeight = Math.max(160, Math.min(360, h <= below || below >= above ? below : above)) + "px";
+  const cur = selMenu.items[selMenu.at];
+  if (cur) cur.scrollIntoView({ block: "nearest" });
+  select.classList.add("sel-open");
+}
+function closeSelMenu() {
+  if (!selMenu.select) return;
+  selMenu.select.classList.remove("sel-open");
+  selMenu.el.classList.add("hidden");
+  selMenu.select = null;
+}
+function pickSelMenu(i) {
+  const select = selMenu.select;
+  closeSelMenu();
+  if (!select || i < 0 || select.options[i].disabled) return;
+  select.focus();
+  if (select.selectedIndex === i) return;
+  select.selectedIndex = i;
+  select.dispatchEvent(new Event("input", { bubbles: true }));
+  select.dispatchEvent(new Event("change", { bubbles: true }));
+}
+function moveSelMenu(dir) {
+  const n = selMenu.items.length;
+  let i = selMenu.at;
+  for (let k = 0; k < n; k++) { i = (i + dir + n) % n; if (!selMenu.items[i].disabled) break; }
+  selMenu.items.forEach((b, k) => b.classList.toggle("focus", k === i));
+  selMenu.at = i;
+  selMenu.items[i].scrollIntoView({ block: "nearest" });
+}
+function wireSelMenus() {
+  const mouse = matchMedia("(hover: hover) and (pointer: fine)");
+  document.addEventListener("mousedown", (e) => {
+    const sel = e.target.closest && e.target.closest("select");
+    if (sel && mouse.matches && !sel.multiple && !sel.disabled && e.button === 0) {
+      e.preventDefault(); // no system list
+      if (selMenu.select === sel) return closeSelMenu();
+      sel.focus();
+      return openSelMenu(sel);
+    }
+    if (selMenu.select && !(e.target.closest && e.target.closest(".sel-menu"))) closeSelMenu();
+  }, true);
+  document.addEventListener("click", (e) => {
+    const b = e.target.closest && e.target.closest(".sel-menu [data-i]");
+    if (b) pickSelMenu(+b.dataset.i);
+  });
+  document.addEventListener("keydown", (e) => {
+    if (!selMenu.select) return;
+    const k = { ArrowDown: 1, ArrowUp: -1 }[e.key];
+    if (k) { e.preventDefault(); e.stopPropagation(); return moveSelMenu(k); }
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); return pickSelMenu(selMenu.at); }
+    if (e.key === "Escape" || e.key === "Tab") { e.stopPropagation(); closeSelMenu(); }
+  }, true);
+  for (const ev of ["resize", "blur"]) addEventListener(ev, closeSelMenu);
+  document.addEventListener("scroll", (e) => { if (selMenu.select && !(e.target.closest && e.target.closest(".sel-menu"))) closeSelMenu(); }, true);
+}
+
 // a menu opened next to its button is moved sideways to stay inside the screen (on a phone the button
 // can sit anywhere along a wrapped toolbar)
 function fitInView(el) {
@@ -5511,6 +5589,7 @@ async function init() {
   wirePaper();
   liveIntro();
   wireHotkeys();
+  wireSelMenus();
   applyKeyHints();
   $("#bottom").addEventListener("click", (e) => {
     const b = e.target.closest("[data-goto]");
