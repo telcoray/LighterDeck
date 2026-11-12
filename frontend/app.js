@@ -472,8 +472,10 @@ class Panel {
     if (!xa || !xb || !this.last) return;
     const price = xa / xb;
     const barTime = barStart(this.cfg.tf, Math.floor(Date.now() / 1000));
-    if (barTime > this.last.time) this.last = { time: barTime, open: price, high: price, low: price, close: price };
-    else this.last = { ...this.last, close: price, high: Math.max(this.last.high, price), low: Math.min(this.last.low, price) };
+    if (barTime > this.last.time) {
+      const prev = this.last.close; // a new bar opens where the last one closed, as Lighter's candles do
+      this.last = { time: barTime, open: prev, high: Math.max(prev, price), low: Math.min(prev, price), close: price };
+    } else this.last = { ...this.last, close: price, high: Math.max(this.last.high, price), low: Math.min(this.last.low, price) };
     this.data.set(this.last.time, this.last);
     this.series.update(this.last);
     this.updateZ();
@@ -489,8 +491,14 @@ class Panel {
     const price = p.mark || p.last; // the mark moves between trades, as on Lighter's chart (history merges it too)
     if (!price) return;
     const barTime = barStart(this.cfg.tf, Math.floor(Date.now() / 1000));
-    if (barTime > this.last.time) this.last = { time: barTime, open: price, high: price, low: price, close: price, volume: 0 };
-    else this.last = { ...this.last, close: price, high: Math.max(this.last.high, price), low: Math.min(this.last.low, price) };
+    if (barTime > this.last.time) {
+      // a new bar opens where the last one closed, as Lighter's candles do (no step between them), and the bar
+      // just closed is read again from Lighter in a moment: built here from the prices that came in, it can lack
+      // a wick or two, and it should look the same as after a reload
+      const prev = this.last.close;
+      this.last = { time: barTime, open: prev, high: Math.max(prev, price), low: Math.min(prev, price), close: price, volume: 0 };
+      this.syncClosed();
+    } else this.last = { ...this.last, close: price, high: Math.max(this.last.high, price), low: Math.min(this.last.low, price) };
     this.data.set(this.last.time, this.last);
     this.series.update(this.last);
     if (!this.hover) this.renderLegend();
@@ -498,6 +506,33 @@ class Panel {
     const s = stops[m.id];
     if (this.stopLine && s && s.stop) this.stopLine.applyOptions({ title: this.stopTitle(s) });
     if (this.markLine && p.mark) this.markLine.applyOptions({ price: p.mark });
+  }
+
+  // the last closed bars as Lighter has them, a few seconds after a new bar starts
+  syncClosed() {
+    const m = this.market, tf = this.cfg.tf, token = this.loadToken;
+    clearTimeout(this.syncTimer);
+    this.syncTimer = setTimeout(async () => {
+      const rows = await api(`/candles?market_id=${m.id}&resolution=${tf}&count=4`).catch(() => null);
+      if (!rows || token !== this.loadToken || this.market !== m || this.cfg.tf !== tf || !this.last) return;
+      let changed = false;
+      for (const c of rows) {
+        if (c.time >= this.last.time || !this.data.has(c.time)) continue; // the live bar stays the page's own
+        const old = this.data.get(c.time);
+        if (old.open === c.open && old.high === c.high && old.low === c.low && old.close === c.close && old.volume === c.volume) continue;
+        this.data.set(c.time, c);
+        changed = true;
+      }
+      if (!changed) return;
+      const prev = [...this.data.values()].filter((b) => b.time < this.last.time).pop();
+      if (prev && prev.close !== this.last.open) { // the live bar opens where the corrected one closed
+        this.last = { ...this.last, open: prev.close, high: Math.max(this.last.high, prev.close), low: Math.min(this.last.low, prev.close) };
+        this.data.set(this.last.time, this.last);
+      }
+      const bars = [...this.data.values()];
+      this.series.setData(bars);
+      this.vol.setData(bars.map((c) => ({ time: c.time, value: c.volume, color: c.close >= c.open ? "rgba(43,217,164,.28)" : "rgba(242,84,109,.28)" })));
+    }, 4000);
   }
 
   drawMarkers() {
