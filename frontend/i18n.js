@@ -35,7 +35,7 @@ const EN = {
   "Riconnessione…": "Reconnecting…",
   "Interruttore generale delle automazioni": "Master switch for automations",
   "Sola lettura": "Read-only",
-  "Testo sulle linee": "Text on the lines",
+  "Testo sulle linee del grafico": "Text on graph lines",
   "Margine ordine": "Order margin",
   "Entrata posizione": "Position entry",
   "La size più grande che il disponibile apre a questa leva": "The largest size the money available opens at this leverage",

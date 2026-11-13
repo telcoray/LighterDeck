@@ -738,7 +738,7 @@ class Panel {
       const fm = this.market || { price_decimals: this.pairDec || 6 }; // a spread's ratio has its own decimals
       const price = +p.toFixed(decimals(fm));
       this.drag.to = price;
-      this.drag.line.applyOptions({ price, title: `${this.drag.label} → ${fp(price, fm)}` });
+      this.drag.line.applyOptions({ price, title: lineTitle(`${this.drag.label} → ${fp(price, fm)}`) }); // the axis shows the price anyway
     };
     // capture phase: the chart never sees a press that grabs a line, so it doesn't pan at the same time
     box.addEventListener("mousedown", (e) => {
@@ -999,10 +999,10 @@ function savePanels() { store("panels", panelCfg); }
 // ---------- Chart elements menu: which lines and marks every chart draws ----------
 // A line's text (SL PnL −$24, LONG 0.5, LIMIT…) is drawn at the chart's right edge, over the latest candles, and
 // the chart makes room for it there. Off by default: the line and its price on the price axis are enough, and the
-// chart doesn't move. "Testo sulle linee" in Elements brings it back.
+// chart doesn't move. "Text on graph lines" in Elements brings it back.
 const lineTitle = (title) => (chartEls.labels ? title || "" : "");
 const CHART_ELEMENTS = [
-  ["labels", "Testo sulle linee"], ["orders", "Linee ordini"], ["stop", "Stop gestito"], ["position", "Linea posizione"],
+  ["labels", "Testo sulle linee del grafico"], ["orders", "Linee ordini"], ["stop", "Stop gestito"], ["position", "Linea posizione"],
   ["liq", "Prezzo di liquidazione"], ["mark", "Linea prezzo mark"], ["events", "Eventi macro"], ["fills", "I tuoi fill"], ["alerts", "Alert di prezzo"], ["zscore", "Z-score degli spread"], ["preview", "Anteprima ticket"],
 ];
 let chartEls = { labels: false, orders: true, stop: true, position: true, liq: true, mark: false, events: true, fills: true, alerts: true, zscore: true, preview: true, ...load("chartEls", {}) };
