@@ -174,6 +174,8 @@ function zStats(closes) {
 // ================= charts =================
 // empty bars between the last candle and the price scale, so the live candle reads as the last one:
 // fewer on a phone, where every bar of width counts
+// how far from the price a line can be and still be kept in view (beyond it, taken for a typo)
+const IN_VIEW = 0.15;
 const rightGap = () => (innerWidth < 768 ? 1 : 4);
 
 class Panel {
@@ -213,7 +215,7 @@ class Panel {
       if (!r || !r.priceRange || !last) return r;
       const keep = [...this.dragOrders, ...this.dragPreview].map((d) => d.price)
         .concat(this.stopLine ? [this.stopLine.options().price] : [])
-        .filter((p) => Math.abs(p - last) / last < 0.15); // a typo far away doesn't squash the chart
+        .filter((p) => Math.abs(p - last) / last < IN_VIEW); // a typo far away doesn't squash the chart
       let lo = Math.min(r.priceRange.minValue, ...keep), hi = Math.max(r.priceRange.maxValue, ...keep);
       // the mouse wheel over the price scale stretches or squeezes the prices around the middle
       if (this.yZoom !== 1) { const mid = (lo + hi) / 2, half = (hi - lo) / 2 * this.yZoom; lo = mid - half; hi = mid + half; }
@@ -2390,7 +2392,8 @@ const riskNeedsStop = (ref) => $("#tkUnit").value === "risk_usd" && !(+$("#tkSl"
 
 // The wheel on a focused stop-loss or take-profit moves it by 0.1% of the order's entry (1% with Shift) and keeps it
 // on its own side: below the entry for a long's stop and a short's take-profit, above it for the other two, never
-// at or through it and never below zero. An empty field starts one step from the entry.
+// at or through it, never below zero, and within what the chart keeps in view. An empty field starts one step from
+// the entry. Typed by hand, any value goes.
 function wheelStop(e) {
   const input = e.currentTarget, m = activeMarket();
   if (document.activeElement !== input || !m || input.disabled) return;
@@ -2405,6 +2408,10 @@ function wheelStop(e) {
   if (!(v > 0)) v = below ? entry - step : entry + step;
   else v += delta < 0 ? step : -step;
   v = below ? Math.min(v, entry - tick) : Math.max(v, entry + tick);
+  // and no further than the chart keeps a line in view: past it the chart would snap back and lose the line
+  const last = (activePanel() && activePanel().last && activePanel().last.close) || entry;
+  const edge = below ? last * (1 - IN_VIEW) + tick : last * (1 + IN_VIEW) - tick;
+  if (below ? edge < entry - tick : edge > entry + tick) v = below ? Math.max(v, Math.ceil(edge / tick) * tick) : Math.min(v, Math.floor(edge / tick) * tick);
   input.value = +Math.max(tick, v).toFixed(dec);
   input.dispatchEvent(new Event("input", { bubbles: true }));
 }
