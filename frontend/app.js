@@ -2388,6 +2388,27 @@ function sliderMax(m, ref) {
 // $ risk needs the stop to be worked out
 const riskNeedsStop = (ref) => $("#tkUnit").value === "risk_usd" && !(+$("#tkSl").value > 0 && +$("#tkSl").value !== ref);
 
+// The wheel on a focused stop-loss or take-profit moves it by 0.1% of the order's entry (1% with Shift) and keeps it
+// on its own side: below the entry for a long's stop and a short's take-profit, above it for the other two, never
+// at or through it and never below zero. An empty field starts one step from the entry.
+function wheelStop(e) {
+  const input = e.currentTarget, m = activeMarket();
+  if (document.activeElement !== input || !m || input.disabled) return;
+  const entry = ticketRef(m, prices[m.id]);
+  if (!(entry > 0)) return;
+  e.preventDefault();
+  const dec = m.price_decimals, tick = 10 ** -dec;
+  const step = Math.max(tick, +(entry * (e.shiftKey ? 0.01 : 0.001)).toFixed(dec));
+  const below = (input.id === "tkSl") === (ticket.side === "buy");
+  const delta = e.deltaY || e.deltaX; // Shift turns some wheels sideways
+  let v = +input.value;
+  if (!(v > 0)) v = below ? entry - step : entry + step;
+  else v += delta < 0 ? step : -step;
+  v = below ? Math.min(v, entry - tick) : Math.max(v, entry + tick);
+  input.value = +Math.max(tick, v).toFixed(dec);
+  input.dispatchEvent(new Event("input", { bubbles: true }));
+}
+
 // the slider follows the size typed (as a share of the largest size the money available opens at this leverage)
 function syncSizeSlider(m, qty, ref) {
   const row = $("#tkPctRow");
@@ -2545,6 +2566,9 @@ function renderTicketEstimates(m, p, qty, entry) {
     const check = Formulas.sltpOutcome({ isSL, side, entry, trigger, qty: qty || 1, leverage });
     const res = Formulas.sltpOutcome({ isSL, side, entry: avgEntry, trigger, qty: totQty || null, leverage });
     if (trigger > 0) draft.lines.push({ kind: isSL ? "sl" : "tp", price: trigger, title: isSL ? "SL" : "TP" });
+    const pctEl = $(`#tk${id}Pct`), move = trigger > 0 && entry > 0 ? ((trigger - entry) / entry) * 100 * side : null;
+    pctEl.textContent = move === null ? "" : `${move >= 0 ? "+" : "−"}${Math.abs(move).toFixed(Math.abs(move) < 10 ? 2 : 1)}%`;
+    pctEl.className = "sltp-pct" + (move === null ? "" : move < 0 ? " down" : " up");
     if (!res || !check) { out.textContent = ""; out.className = "sltp-out"; continue; }
     // a level on the wrong side shows nothing here: the check comes when the trade button is pressed
     if (check.usd < 0) { out.textContent = ""; out.className = "sltp-out"; continue; }
@@ -4559,6 +4583,7 @@ function wire() {
   $("#tkMid").onclick = fillMid;
   $("#tkExec").onclick = (e) => (info.trading ? executeTicket(e.detail > 0) : openKeyDialog());
   ["#tkSl", "#tkTp", "#tkSlip"].forEach((s) => ($(s).oninput = updateTicketSummary));
+  ["#tkSl", "#tkTp"].forEach((s) => $(s).addEventListener("wheel", wheelStop, { passive: false }));
   ["#tkReduce", "#tkPost"].forEach((s) => ($(s).onchange = updateTicketSummary));
   wireLevWheel();
   $("#limitsForm").oninput = renderLimitValues;
@@ -4807,7 +4832,7 @@ function renderTpLevels(levels) {
   // the single take-profit stays where it is, handing over to the levels below
   tp.disabled = on;
   tp.placeholder = "—"; // ticked or not, the box under it says which
-  if (on) { tp.value = ""; $("#tkTpOut").textContent = ""; $("#tkTpOut").className = "sltp-out"; }
+  if (on) { tp.value = ""; $("#tkTpOut").textContent = ""; $("#tkTpOut").className = "sltp-out"; $("#tkTpPct").textContent = ""; }
   box.classList.toggle("hidden", !on);
   if (!on) { box.innerHTML = ""; updateTicketSummary(); return; }
   const be = $("#tkTpBe") ? $("#tkTpBe").checked : load("tpBe", true);
