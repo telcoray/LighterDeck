@@ -354,7 +354,7 @@ class Panel {
 
   drawPairLines() {
     if (!chartEls.position && !chartEls.orders) return;
-    const add = (o) => { const l = this.series.createPriceLine({ lineWidth: 1, lineStyle: 0, ...o }); this.lines.push(l); return l; };
+    const add = (o) => { const l = this.series.createPriceLine({ lineWidth: 1, lineStyle: 0, ...o, title: lineTitle(o.title) }); this.lines.push(l); return l; };
     const conv = (v, inv) => (inv ? 1 / v : v);
     for (const { x, inv } of this.pairsHere()) {
       const side = inv ? "SHORT" : "LONG"; // long the pair = long this spread, unless the spread is the other way round
@@ -504,7 +504,7 @@ class Panel {
     if (!this.hover) this.renderLegend();
     setBadges($(".chart-ctx", this.el), m, 3);
     const s = stops[m.id];
-    if (this.stopLine && s && s.stop) this.stopLine.applyOptions({ title: this.stopTitle(s) });
+    if (this.stopLine && s && s.stop) this.stopLine.applyOptions({ title: lineTitle(this.stopTitle(s)) });
     if (this.markLine && p.mark) this.markLine.applyOptions({ price: p.mark });
   }
 
@@ -652,7 +652,7 @@ class Panel {
     const m = this.market;
     if (this.pair) return this.drawPairLines();
     if (!m) return;
-    const add = (o) => { const l = this.series.createPriceLine({ lineWidth: 1, lineStyle: 0, ...o }); this.lines.push(l); return l; };
+    const add = (o) => { const l = this.series.createPriceLine({ lineWidth: 1, lineStyle: 0, ...o, title: lineTitle(o.title) }); this.lines.push(l); return l; };
     const pos = account && account.positions.find((p) => p.market_id === m.id);
     const s = pos && stops[m.id];
     this.posPrice = pos && chartEls.position ? pos.entry : null;
@@ -702,7 +702,7 @@ class Panel {
     const colour = { limit: cssVar("--text-2"), sl: C.red, tp: C.green, trail: cssVar("--amber") };
     const add = (price, color, title, style = 1) => {
       if (!(price > 0)) return null;
-      const line = this.series.createPriceLine({ price, color: fade(color), lineWidth: 1, lineStyle: style, title });
+      const line = this.series.createPriceLine({ price, color: fade(color), lineWidth: 1, lineStyle: style, title: lineTitle(title) });
       this.previewLines.push(line);
       return line;
     };
@@ -997,11 +997,15 @@ class Panel {
 function savePanels() { store("panels", panelCfg); }
 
 // ---------- Chart elements menu: which lines and marks every chart draws ----------
+// A line's text (SL PnL −$24, LONG 0.5, LIMIT…) is drawn at the chart's right edge, over the latest candles, and
+// the chart makes room for it there. Off by default: the line and its price on the price axis are enough, and the
+// chart doesn't move. "Testo sulle linee" in Elements brings it back.
+const lineTitle = (title) => (chartEls.labels ? title || "" : "");
 const CHART_ELEMENTS = [
-  ["orders", "Linee ordini"], ["stop", "Stop gestito"], ["position", "Linea posizione"],
+  ["labels", "Testo sulle linee"], ["orders", "Linee ordini"], ["stop", "Stop gestito"], ["position", "Linea posizione"],
   ["liq", "Prezzo di liquidazione"], ["mark", "Linea prezzo mark"], ["events", "Eventi macro"], ["fills", "I tuoi fill"], ["alerts", "Alert di prezzo"], ["zscore", "Z-score degli spread"], ["preview", "Anteprima ticket"],
 ];
-let chartEls = { orders: true, stop: true, position: true, liq: true, mark: false, events: true, fills: true, alerts: true, zscore: true, preview: true, ...load("chartEls", {}) };
+let chartEls = { labels: false, orders: true, stop: true, position: true, liq: true, mark: false, events: true, fills: true, alerts: true, zscore: true, preview: true, ...load("chartEls", {}) };
 let openOrders = {}; // market id -> open orders on Lighter, shared by the chart lines and the Orders tab
 const fade = (c) => (/^#[0-9a-f]{6}$/i.test(c) ? c + "b0" : c); // hex colour at ~70% for provisional lines
 // a trigger order that isn't reduce-only opens a position: it is no SL or TP
@@ -1022,7 +1026,7 @@ function toggleChartEl(k) {
   renderChartEls();
   panels.forEach((p) => { p.drawLines(); p.drawMarkers(); });
   if (k === "zscore") panels.forEach((p) => { p.drawZ(); p.renderLegend(); });
-  if (k === "preview") updateTicketSummary();
+  if (k === "preview" || k === "labels") updateTicketSummary(); // the ticket's lines are drawn from there
   if (k === "orders" && chartEls.orders) fetchOpenOrders().catch(() => {});
   if (k === "fills") panels.forEach((p) => p.loadFills(true));
 }
