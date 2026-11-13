@@ -174,8 +174,6 @@ function zStats(closes) {
 // ================= charts =================
 // empty bars between the last candle and the price scale, so the live candle reads as the last one:
 // fewer on a phone, where every bar of width counts
-// how far from the price a line can be and still be kept in view (beyond it, taken for a typo)
-const IN_VIEW = 0.15;
 const rightGap = () => (innerWidth < 768 ? 1 : 4);
 
 class Panel {
@@ -208,15 +206,13 @@ class Panel {
     this.lines = [];
     this.dragOrders = [];  // open orders on this chart that can be dragged: { line, price, label, order }
     this.dragPreview = []; // ticket preview lines that can be dragged: { line, price, label, kind, preview }
-    // order, preview and trailing lines near the price stay in view instead of sitting off-screen
+    // the price scale follows the candles only: a line (an order, the ticket's SL or TP, the managed stop) shows when
+    // it falls inside, and a farther one is reached with a larger timeframe or by zooming out, not by the chart
+    // stretching and snapping back under it
     this.series.applyOptions({ autoscaleInfoProvider: (original) => {
       const r = original();
-      const last = this.last && this.last.close;
-      if (!r || !r.priceRange || !last) return r;
-      const keep = [...this.dragOrders, ...this.dragPreview].map((d) => d.price)
-        .concat(this.stopLine ? [this.stopLine.options().price] : [])
-        .filter((p) => Math.abs(p - last) / last < IN_VIEW); // a typo far away doesn't squash the chart
-      let lo = Math.min(r.priceRange.minValue, ...keep), hi = Math.max(r.priceRange.maxValue, ...keep);
+      if (!r || !r.priceRange) return r;
+      let lo = r.priceRange.minValue, hi = r.priceRange.maxValue;
       // the mouse wheel over the price scale stretches or squeezes the prices around the middle
       if (this.yZoom !== 1) { const mid = (lo + hi) / 2, half = (hi - lo) / 2 * this.yZoom; lo = mid - half; hi = mid + half; }
       return { ...r, priceRange: { minValue: lo, maxValue: hi } };
@@ -2392,8 +2388,7 @@ const riskNeedsStop = (ref) => $("#tkUnit").value === "risk_usd" && !(+$("#tkSl"
 
 // The wheel on a focused stop-loss or take-profit moves it by 0.1% of the order's entry (1% with Shift) and keeps it
 // on its own side: below the entry for a long's stop and a short's take-profit, above it for the other two, never
-// at or through it, never below zero, and within what the chart keeps in view. An empty field starts one step from
-// the entry. Typed by hand, any value goes.
+// at or through it and never below zero. An empty field starts one step from the entry.
 function wheelStop(e) {
   const input = e.currentTarget, m = activeMarket();
   if (document.activeElement !== input || !m || input.disabled) return;
@@ -2408,10 +2403,6 @@ function wheelStop(e) {
   if (!(v > 0)) v = below ? entry - step : entry + step;
   else v += delta < 0 ? step : -step;
   v = below ? Math.min(v, entry - tick) : Math.max(v, entry + tick);
-  // and no further than the chart keeps a line in view: past it the chart would snap back and lose the line
-  const last = (activePanel() && activePanel().last && activePanel().last.close) || entry;
-  const edge = below ? last * (1 - IN_VIEW) + tick : last * (1 + IN_VIEW) - tick;
-  if (below ? edge < entry - tick : edge > entry + tick) v = below ? Math.max(v, Math.ceil(edge / tick) * tick) : Math.min(v, Math.floor(edge / tick) * tick);
   input.value = +Math.max(tick, v).toFixed(dec);
   input.dispatchEvent(new Event("input", { bubbles: true }));
 }
