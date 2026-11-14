@@ -2383,12 +2383,13 @@ function syncExitEditor(id, m, ref, qty, write = false) {
   move.disabled = !ready;
   move.title = usd && !ready ? t("Per usare USD, imposta la size in USD, quantità o % capitale")
     : usd ? t("Stima lorda sulla quantità dell’ordine al prezzo di trigger") : t("Variazione del prezzo dall’entrata, senza leva");
+  // the distance is shown signed (− a loss, + a gain); typed, its sign is ignored: an SL's distance goes the losing way, a TP's the winning way
+  const typed = +move.value.replace(/[+−-]/g, "").replace(",", ".").trim();
   if (write && ready) {
-    if (move.validity.badInput) return;
-    if (!move.value) trigger.value = "";
+    if (!move.value.trim()) trigger.value = "";
     else {
-      const price = +(ref + direction * +move.value / factor).toFixed(decimals(m));
-      if (!(+move.value > 0 && price > 0 && (price - ref) * direction > 0)) {
+      const price = +(ref + direction * typed / factor).toFixed(decimals(m));
+      if (!(typed > 0 && price > 0 && (price - ref) * direction > 0)) {
         move.setCustomValidity(t("Scegli una distanza che produca un prezzo valido"));
         return;
       }
@@ -2398,8 +2399,11 @@ function syncExitEditor(id, m, ref, qty, write = false) {
   } else if (document.activeElement !== move) {
     if (ready && !move.validity.valid) return;
     move.setCustomValidity("");
-    const value = (+trigger.value - ref) * direction * factor;
-    move.value = ready && +trigger.value > 0 && value > 0 ? +value.toFixed(2) : "";
+    const value = (+trigger.value - ref) * direction * factor; // > 0: the exit's own way (a loss for the SL)
+    const gain = id === "Tp" ? value > 0 : value < 0;
+    move.value = ready && +trigger.value > 0 && value ? `${gain ? "+" : "−"}${Math.abs(value).toLocaleString(undefined, { maximumFractionDigits: 2, useGrouping: false })}` : "";
+    move.classList.toggle("up", !!move.value && gain);
+    move.classList.toggle("down", !!move.value && !gain);
   }
 }
 
