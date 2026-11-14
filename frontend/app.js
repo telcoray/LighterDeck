@@ -5032,7 +5032,7 @@ function trailLabel(s, m) {
 
 function trailForm(v) {
   const unit = TRAIL_UNITS.map(([k, u]) => `<option value="${k}" ${v.mode === k ? "selected" : ""}>${t(u)}</option>`).join("");
-  return `<div class="trail-dist"><div class="field sm"><label>${t("Distanza dal prezzo migliore")}</label><input data-tr="value" type="number" min="0" step="any" value="${v.value ?? ""}" placeholder="${v.mode === "atr" ? "1.5" : v.mode === "price" ? "" : "1"}"></div>
+  return `<div class="trail-dist"><div class="field sm"><label title="${t("Distanza dal prezzo migliore")}">${t("Distanza")}</label><input data-tr="value" type="number" min="0" step="any" value="${v.value ?? ""}" placeholder="${v.mode === "atr" ? "1.5" : v.mode === "price" ? "" : "1"}"></div>
       <select data-tr="mode">${unit}</select></div>
     <div class="two"><div class="field sm"><label>${t("Parte da PnL +%")}</label><input data-tr="activate_pct" type="number" min="0" step="any" value="${v.activate_pct || ""}" placeholder="0"></div>
       <div class="field sm"><label>${t("Breakeven a PnL +%")}</label><input data-tr="breakeven_at_pct" type="number" min="0" step="any" value="${v.breakeven_at_pct ?? ""}" placeholder="${t("Opzionale")}"></div></div>
@@ -5072,6 +5072,9 @@ function renderTicketTrail() {
       if (tr) store("trailPrefs", tr);
       updateTicketSummary();
     });
+    // in the ticket the unit sits inside the distance field, like the SL/TP %/USD menus
+    const box = $("#tkTrailBox");
+    box.querySelector(".trail-dist .field").append(box.querySelector('[data-tr="mode"]'));
   }
   updateTicketSummary();
 }

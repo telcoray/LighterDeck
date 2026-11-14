@@ -1380,3 +1380,14 @@ option { background: var(--surface); color: var(--text); }
   border: 0; border-left: 1px solid var(--line-2); border-radius: 0 6px 6px 0; background: transparent; color: var(--text-2); font-family: var(--ui); font-size: 11.5px; }
 .ticket .field > select:not(#tkUnit):hover { color: var(--text); }
 .ticket .field > label + select:not(#tkUnit) { border-left: 0; }
+
+/* the ticket's trailing box: one column of full-width fields 6px apart, the unit menu inside the distance field */
+.ticket .trail-box { display: flex; flex-direction: column; gap: 6px; padding: 8px; }
+.ticket .trail-box .field { margin: 0; flex-wrap: nowrap; }
+.ticket .trail-box .field label { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.ticket .trail-box .field input { min-width: 40px; padding-left: 6px; }
+.ticket .trail-box .trail-dist { display: block; }
+.ticket .trail-box .two { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+.ticket .trail-box .trail-hint { margin: 0; padding: 0 2px; }
+/* Scaled exits and Trailing stop sit in the middle of the row */
+.ticket .trail-check { justify-content: center; }
