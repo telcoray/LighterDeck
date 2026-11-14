@@ -1282,8 +1282,10 @@ option { background: var(--surface); color: var(--text); }
 .ticket .kindsel > button { padding: 0 8px; margin: 0; border-bottom: 0; }
 .ticket .kindsel .adv-pick { flex: 1.3; display: flex; margin: 0; }
 .ticket #advBtn { margin: 0; border-bottom: 0; }
+.tk-protection-arrow { flex: none; display: block; }
 /* the line closing the set-up block */
-.ticket #kindSel { box-shadow: 0 13px 0 -12px var(--line); margin-bottom: 6px !important; }
+.ticket #kindSel { position: relative; }
+.ticket #kindSel::after { content: ""; position: absolute; left: 12px; right: 12px; bottom: -4px; height: 1px; background: var(--line); pointer-events: none; }
 
 /* fields: label left, value right, one height */
 .ticket .field { min-height: var(--tk-h); flex-wrap: wrap; border-radius: 6px; }
