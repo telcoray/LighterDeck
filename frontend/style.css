@@ -1397,3 +1397,11 @@ option { background: var(--surface); color: var(--text); }
 .ticket .slip-edit { display: inline-flex; align-items: center; gap: 2px; }
 .ticket .slip-in { width: 52px; height: 20px; margin: -3px 0; padding: 0 4px; border: 1px solid var(--line-3); border-radius: 4px; background: var(--bg);
   color: var(--text); font: inherit; text-align: right; }
+
+/* Cross / Isolated: one control split by a diagonal, so it reads as either-or. Both buttons are cut along the
+   same slanted line (their 12px overlap), clicks follow the cut, and a thin line draws it */
+.ticket .tk-mode { position: relative; gap: 0; --tk-slant: 12px; }
+.ticket .tk-mode button:first-child { clip-path: polygon(0 0, 100% 0, calc(100% - var(--tk-slant)) 100%, 0 100%); padding-right: calc(8px + var(--tk-slant) / 2); }
+.ticket .tk-mode button:last-child { margin-left: calc(var(--tk-slant) * -1); clip-path: polygon(var(--tk-slant) 0, 100% 0, 100% 100%, 0 100%); padding-left: calc(8px + var(--tk-slant) / 2); }
+.ticket .tk-mode::after { content: ""; position: absolute; top: 2px; bottom: 2px; left: 50%; width: 1px; background: var(--line-2);
+  transform: skewX(calc(atan2(var(--tk-slant), calc(var(--tk-h) - 6px)) * -1)); pointer-events: none; }
