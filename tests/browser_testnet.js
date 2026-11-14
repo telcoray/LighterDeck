@@ -12,7 +12,7 @@
 // Trailing, scaled exits, Chase and Iceberg run on the server with a second key: hand one over in the page
 // (account pill, Automations) and they are tested too; without it those scenarios are skipped.
 const AUTO = ["trailing", "scaled_exits", "chase", "iceberg"];
-const SCENARIOS = ["account", "leverage", "margin_mode", "limit", "entry", "conditional", "twap", "scale", "basket", "reverse", "rfq", "history", ...AUTO];
+const SCENARIOS = ["account", "leverage", "margin_mode", "limit", "entry", "limit_exits", "conditional", "twap", "scale", "basket", "reverse", "rfq", "history", ...AUTO];
 const READS = new Set(["history"]);
 
 export async function run(...names) {
@@ -182,6 +182,24 @@ export async function run(...names) {
       check("closed", await until(async () => !(await position(A)), 20000), await position(A));
       if (await until(async () => !(await orders(A)).length, 20000)) check("Lighter removes the SL and TP of a closed position", true);
       else note(`SL/TP still listed 20s after the close: ${JSON.stringify((await orders(A)).map((x) => [x.type, x.status]))}`);
+    },
+    async limit_exits() {
+      const q = size(A), sl = round(mA, px(A).mark * 0.9), tp = round(mA, px(A).mark * 1.1);
+      const slLim = round(mA, sl * 0.995), tpLim = round(mA, tp * 0.995);
+      try { await post("/order", { market_id: A, side: "buy", kind: "market", size: q, unit: "base", sl_price: sl, tp_price: tp, sl_limit_price: slLim, tp_limit_price: tpLim, slippage_bps: 100 }); }
+      catch (e) { return check("Lighter accepts stop-limit SL and TP attached to the entry", false, e.message); }
+      const pos = await until(() => position(A), 20000);
+      if (!check("the position opens", Math.abs(pos - q) < 1e-9, pos)) return;
+      const prot = await until(async () => { const got = (await orders(A)).filter((x) => x.trigger_price); return got.length === 2 ? got : null; }, 20000);
+      if (!check("SL and TP are on the book, reduce-only", prot && prot.every((x) => x.reduce_only && x.is_ask), await orders(A))) return;
+      note(`listed as types ${JSON.stringify(prot.map((x) => x.type).sort())}`);
+      const oSl = prot.find((x) => Math.abs(x.trigger_price - sl) < 1e-9), oTp = prot.find((x) => Math.abs(x.trigger_price - tp) < 1e-9);
+      check("the SL keeps its trigger and its limit price", oSl && Math.abs(oSl.price - slLim) < 1e-9, oSl);
+      check("the TP keeps its trigger and its limit price", oTp && Math.abs(oTp.price - tpLim) < 1e-9, oTp);
+      check("both are limit types, not market", prot.every((x) => /limit/i.test(x.type)), prot.map((x) => x.type));
+      await post(`/close?market_id=${A}&fraction=1`);
+      if (await until(async () => !(await position(A)) && !(await orders(A)).length, 20000)) check("closing the position takes the stop-limits away too", true);
+      else note(`stop-limits still listed 20s after the close: ${JSON.stringify((await orders(A)).map((x) => [x.type, x.status]))}`);
     },
     async conditional() {
       const q = size(A), up = round(mA, px(A).mark * 1.05), down = round(mA, px(A).mark * 0.95);

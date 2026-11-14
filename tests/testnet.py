@@ -325,6 +325,47 @@ class Run:
         else:
             info(f"SL/TP still listed 20s after the close: {[(o['type'], o['status']) for o in await self.orders(mid)]}")
 
+    async def limit_exits(self):
+        """Market entry with SL and TP as stop-limit orders (a trigger and a limit price), in the same send"""
+        mid = self.mids[0]
+        m = self.api.markets[mid]
+        s = await self.feed.refresh(mid)
+        size = self.size(mid)
+        sl, tp = m.round_price(s["mark"] * 0.9), m.round_price(s["mark"] * 1.1)
+        sl_lim, tp_lim = m.round_price(sl * 0.995), m.round_price(tp * 0.995)
+        try:
+            await self.api.entry(mid, size, "market", m.round_price(s["ask"] * 1.01), sl=sl, tp=tp,
+                                 sl_limit_price=sl_lim, tp_limit_price=tp_lim)
+        except Exception as e:
+            return check("Lighter accepts stop-limit SL and TP attached to the entry", False, e)
+        pos = await until(lambda: self.position(mid), 20)
+        if not check("the position opens", abs(pos - size) < 1e-9, pos):
+            return
+
+        async def protections():
+            got = [o for o in await self.orders(mid) if o["trigger_price"]]
+            return got if len(got) == 2 else None
+
+        prot = await until(protections, 20)
+        if not check("SL and TP are on the book, reduce-only", prot and all(o["reduce_only"] and o["is_ask"] for o in prot), await self.orders(mid)):
+            return
+        info(f"listed as types {sorted(o['type'] for o in prot)}")
+        by_trig = {round(o["trigger_price"], m.price_decimals): o for o in prot}
+        o_sl, o_tp = by_trig.get(sl), by_trig.get(tp)
+        check("the SL keeps its trigger and its limit price", o_sl and abs(o_sl["price"] - sl_lim) < 1e-9, o_sl)
+        check("the TP keeps its trigger and its limit price", o_tp and abs(o_tp["price"] - tp_lim) < 1e-9, o_tp)
+        check("both are limit types, not market", all("limit" in o["type"] for o in prot), [o["type"] for o in prot])
+        s = await self.feed.refresh(mid)
+        await self.api.market_order(mid, -pos, s["bid"], reduce_only=True, slippage_pct=2)
+
+        async def clean():
+            return not await self.position(mid) and not await self.orders(mid)
+
+        if await until(clean, 20):
+            check("closing the position takes the stop-limits away too", True)
+        else:
+            info(f"stop-limits still listed 20s after the close: {[(o['type'], o['status']) for o in await self.orders(mid)]}")
+
     async def conditional(self):
         """Conditional orders that OPEN a position (not reduce-only), market and limit"""
         mid = self.mids[0]
@@ -489,7 +530,7 @@ class Run:
             check("the rate is a % per hour, as the table shows it", 0.2 < ratio < 5, ratio)
 
 
-SCENARIOS = ["account", "leverage", "margin_mode", "limit", "entry", "conditional", "twap", "basket", "chase", "iceberg", "rfq", "history"]
+SCENARIOS = ["account", "leverage", "margin_mode", "limit", "entry", "limit_exits", "conditional", "twap", "basket", "chase", "iceberg", "rfq", "history"]
 READS = {"history"}  # these only read: run alone, they leave the account's orders and positions as they are
 
 
