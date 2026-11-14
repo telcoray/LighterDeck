@@ -2343,10 +2343,34 @@ function wireAdvOrders() {
   });
 }
 
+function renderProtectionSummary(m) {
+  const levels = readTpLevels();
+  const sl = +$("#tkSl").value, tp = +$("#tkTp").value;
+  const parts = [];
+  if (sl > 0) parts.push(`SL ${fp(sl, m)}`);
+  if (levels) {
+    const set = levels.filter((level) => level.price > 0).length;
+    parts.push(`TP ${set}/${levels.length}`);
+  } else if (tp > 0) {
+    parts.push(`TP ${fp(tp, m)}`);
+  }
+  if ($("#tkTrail").checked && !$("#tkReduce").checked) parts.push(t("Trailing stop"));
+  const summary = $("#tkProtectionSummary");
+  summary.textContent = parts.join(" · ");
+  summary.classList.toggle("hidden", !parts.length || !$("#tkProtection").classList.contains("hidden"));
+}
+
+function toggleTicketProtection() {
+  const open = !$("#tkProtection").classList.toggle("hidden");
+  $("#tkProtectionToggle").setAttribute("aria-expanded", String(open));
+  renderProtectionSummary(activeMarket());
+}
+
 function updateTicketSummary() {
   if (activePair()) return updatePairSummary();
   if (ticket.kind === "basket") return updateBasketSummary();
   const m = activeMarket();
+  if (m && isBasicKind()) renderProtectionSummary(m);
   const p = m && prices[m.id];
   const size = +$("#tkSize").value;
   const unit = $("#tkUnit").value;
@@ -4606,6 +4630,7 @@ function wire() {
     updateTicketSummary();
   };
   $("#tkMid").onclick = fillMid;
+  $("#tkProtectionToggle").onclick = toggleTicketProtection;
   $("#tkExec").onclick = (e) => (info.trading ? executeTicket(e.detail > 0) : openKeyDialog());
   ["#tkSl", "#tkTp", "#tkSlip"].forEach((s) => ($(s).oninput = updateTicketSummary));
   ["#tkSl", "#tkTp"].forEach((s) => $(s).addEventListener("wheel", wheelStop, { passive: false }));

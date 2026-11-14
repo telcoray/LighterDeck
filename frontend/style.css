@@ -1351,6 +1351,17 @@ option { background: var(--surface); color: var(--text); }
 /* stop-loss and take-profit: a row each, the move from the entry beside the price */
 .ticket .sltp-rows { display: flex; flex-direction: column; gap: 10px; }
 .ticket .sltp-rows .field { margin: 0; }
+.tk-protection-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.ticket[data-kind="basket"] .tk-protection-bar,
+.ticket.rfq-on .tk-protection-bar { display: none; }
+.tk-protection-bar .checks { margin: 0 0 0 auto; gap: 10px; }
+#tkProtectionToggle { display: inline-flex; align-items: center; gap: 8px; min-height: var(--tk-h); padding: 0 9px;
+  border: 1px solid var(--line-2); border-radius: 6px; color: var(--text-2); }
+#tkProtectionToggle:hover, #tkProtectionToggle[aria-expanded="true"] { background: var(--raised); color: var(--text); }
+#tkProtectionToggle[aria-expanded="true"] .tk-protection-arrow { transform: rotate(180deg); }
+.tk-protection-summary { flex-basis: 100%; color: var(--text-2); font: 11px var(--mono); overflow-wrap: anywhere; }
+.tk-protection { display: flex; flex-direction: column; gap: 10px; }
+.ticket .tk-protection > * { margin: 0; }
 .ticket .sltp-pct { flex: none; padding-right: 10px; font-family: var(--mono); font-size: 11px; color: var(--muted); }
 .ticket .sltp-pct:empty { display: none; }
 .ticket .sltp-pct.up { color: var(--green); }

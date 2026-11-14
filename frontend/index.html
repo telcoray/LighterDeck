@@ -40,7 +40,7 @@
 </script>
 <style>html.i18n-pending body { visibility: hidden; }</style>
 <link rel="icon" href="favicon.svg?v=1" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=231">
+<link rel="stylesheet" href="style.css?v=232">
 <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
 </head>
 <body>
@@ -273,19 +273,27 @@
           <div class="chips" id="tkIceChips"><button type="button" data-pct="5">5%</button><button type="button" data-pct="10">10%</button><button type="button" data-pct="20">20%</button><button type="button" data-pct="25">25%</button></div>
           <p class="trail-hint" id="tkIceHint"></p>
         </div>
-        <div class="sltp-rows solo-only basic-only">
-          <div class="field"><label>Stop-loss</label><input id="tkSl" autocomplete="off" type="number" step="any" placeholder="—"><span class="sltp-pct" id="tkSlPct"></span><span class="sltp-out" id="tkSlOut"></span></div>
-          <div class="field" id="tkTpField"><label>Take-profit</label><input id="tkTp" autocomplete="off" type="number" step="any" placeholder="—"><span class="sltp-pct" id="tkTpPct"></span><span class="sltp-out" id="tkTpOut"></span></div>
+        <div class="tk-protection-bar solo-only">
+          <button type="button" id="tkProtectionToggle" class="basic-only" aria-expanded="false" aria-controls="tkProtection">
+            <span>TP / SL</span><span class="tk-protection-arrow" aria-hidden="true">⌄</span>
+          </button>
+          <div class="checks">
+            <label><input type="checkbox" id="tkReduce" autocomplete="off"> Reduce only</label>
+            <label class="limit-only hidden"><input type="checkbox" id="tkPost" autocomplete="off"> Post only</label>
+          </div>
+          <div class="tk-protection-summary basic-only hidden" id="tkProtectionSummary"></div>
         </div>
-        <div class="checks trail-check solo-only basic-only">
-          <label title="Chiude la posizione a pezzi, su più livelli"><input type="checkbox" id="tkScaled" autocomplete="off"> Uscite scalari<i data-runs="auto"></i></label>
-          <label title="LighterDeck sposta lo stop dietro al prezzo mentre la posizione guadagna"><input type="checkbox" id="tkTrail" autocomplete="off"> Trailing stop<i data-runs="trail"></i></label>
-        </div>
-        <div class="tp-levels hidden solo-only basic-only" id="tkTpBox"></div>
-        <div class="trail-box hidden solo-only basic-only" id="tkTrailBox"></div>
-        <div class="checks solo-only">
-          <label><input type="checkbox" id="tkReduce" autocomplete="off"> Reduce only</label>
-          <label class="limit-only hidden"><input type="checkbox" id="tkPost" autocomplete="off"> Post only</label>
+        <div class="tk-protection solo-only basic-only hidden" id="tkProtection">
+          <div class="sltp-rows">
+            <div class="field"><label>Stop-loss</label><input id="tkSl" autocomplete="off" type="number" step="any" placeholder="—"><span class="sltp-pct" id="tkSlPct"></span><span class="sltp-out" id="tkSlOut"></span></div>
+            <div class="field" id="tkTpField"><label>Take-profit</label><input id="tkTp" autocomplete="off" type="number" step="any" placeholder="—"><span class="sltp-pct" id="tkTpPct"></span><span class="sltp-out" id="tkTpOut"></span></div>
+          </div>
+          <div class="checks trail-check solo-only basic-only">
+            <label title="Chiude la posizione a pezzi, su più livelli"><input type="checkbox" id="tkScaled" autocomplete="off"> Uscite scalari<i data-runs="auto"></i></label>
+            <label title="LighterDeck sposta lo stop dietro al prezzo mentre la posizione guadagna"><input type="checkbox" id="tkTrail" autocomplete="off"> Trailing stop<i data-runs="trail"></i></label>
+          </div>
+          <div class="tp-levels hidden solo-only basic-only" id="tkTpBox"></div>
+          <div class="trail-box hidden solo-only basic-only" id="tkTrailBox"></div>
         </div>
         <details class="exec market-only">
           <summary>Opzioni di esecuzione</summary>
@@ -716,13 +724,13 @@
 </div>
 
 <div class="toast hidden" id="toast" role="status" aria-live="polite"></div>
-<script src="i18n.js?v=231"></script>
-<script src="i18n-zh.js?v=231"></script>
-<script src="i18n-ko.js?v=231"></script>
-<script src="formulas.js?v=231"></script>
-<script src="paper.js?v=231"></script>
-<script src="live.js?v=231"></script>
-<script src="app.js?v=231"></script>
-<script src="picker.js?v=231"></script>
+<script src="i18n.js?v=232"></script>
+<script src="i18n-zh.js?v=232"></script>
+<script src="i18n-ko.js?v=232"></script>
+<script src="formulas.js?v=232"></script>
+<script src="paper.js?v=232"></script>
+<script src="live.js?v=232"></script>
+<script src="app.js?v=232"></script>
+<script src="picker.js?v=232"></script>
 </body>
 </html>
