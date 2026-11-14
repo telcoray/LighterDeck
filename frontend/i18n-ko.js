@@ -774,3 +774,8 @@ Object.assign(DICTS.ko, {"Chart {n} · Shift+{n} · click to change market": "�
 Object.assign(DICTS.ko, {"Larger timeframe, among those in the bar": "더 큰 타임프레임(툴바에 있는 것 중)", "Smaller timeframe, among those in the bar": "더 작은 타임프레임(툴바에 있는 것 중)", "Timeframe · [ and ] · Ctrl with the arrows": "타임프레임 · [ 와 ] · Ctrl + 화살표"});
 Object.assign(DICTS.ko, {"Order margin": "주문 증거금", "Position entry": "포지션 진입가", "The largest size the money available opens at this leverage": "현재 레버리지로 사용 가능 금액이 열 수 있는 최대 크기"});
 Object.assign(DICTS.ko, {"Text on graph lines": "차트 선 위의 텍스트"});
+Object.assign(DICTS.ko, {
+  "Position after order": "주문 후 포지션",
+  "Percentage of maximum size": "최대 주문 수량의 비율",
+  "Percentage of reducible position": "줄일 수 있는 포지션의 비율",
+});

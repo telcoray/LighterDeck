@@ -774,3 +774,8 @@ Object.assign(DICTS.zh, {"Chart {n} · Shift+{n} · click to change market": "�
 Object.assign(DICTS.zh, {"Larger timeframe, among those in the bar": "更大的时间周期（工具栏中的）", "Smaller timeframe, among those in the bar": "更小的时间周期（工具栏中的）", "Timeframe · [ and ] · Ctrl with the arrows": "时间周期 · [ 和 ] · Ctrl 加方向键"});
 Object.assign(DICTS.zh, {"Order margin": "订单保证金", "Position entry": "持仓入场价", "The largest size the money available opens at this leverage": "当前杠杆下可用资金能开的最大规模"});
 Object.assign(DICTS.zh, {"Text on graph lines": "图表线上的文字"});
+Object.assign(DICTS.zh, {
+  "Position after order": "下单后仓位",
+  "Percentage of maximum size": "最大下单数量的百分比",
+  "Percentage of reducible position": "可减仓数量的百分比",
+});

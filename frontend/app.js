@@ -1730,6 +1730,18 @@ function setAccPos(html) {
   $("#accPos").innerHTML = html;
 }
 
+function positionLabel(size, m) {
+  return size ? `${size > 0 ? "Long" : "Short"} ${fsize(size, m)} ${m.symbol}` : "—";
+}
+
+function renderSizeContext(m, pos) {
+  $("#tkSizeContext").classList.toggle("hidden", !account || ticket.kind === "basket");
+  $("#tkAvailable").textContent = account ? fusd(account.available) : "—";
+  const value = $("#tkPosition");
+  value.textContent = positionLabel(pos?.size, m);
+  value.className = pos ? cls(pos.size) : "";
+}
+
 // Cross / Isolated: Lighter changes a market's margin mode only with nothing on it, neither a position nor an
 // open order (checked on its testnet), so the other mode is locked until then
 function renderTicketMode() {
@@ -1786,6 +1798,7 @@ function renderTicket() {
   if (!m) return;
   $("#tkSym").textContent = m.symbol;
   const pos = account && account.positions.find((p) => p.market_id === m.id);
+  renderSizeContext(m, pos);
   const set = levSet(m);
   const levNow = set ? set.leverage : m.default_leverage;
   $("#tkLev").textContent = levNow ? `${levNow}x` : "—";
@@ -2412,25 +2425,32 @@ function syncSizeSlider(m, qty, ref) {
   const row = $("#tkPctRow");
   if (!m || !row) return;
   ref = ref || ticketRef(m, prices[m.id]);
-  const max = ref ? sliderMax(m, ref) : 0, off = ref ? riskNeedsStop(ref) : false;
+  const max = ref ? sliderMax(m, ref) : 0;
+  const needsStop = ref && riskNeedsStop(ref);
+  const off = !(max > 0) || needsStop;
   row.classList.toggle("hidden", !account);
   row.classList.toggle("sell", ticket.side === "sell");
   row.classList.toggle("off", off);
-  row.title = off ? t("Imposta lo stop-loss: il rischio si calcola da lì") : "";
+  const reduce = $("#tkReduce").checked;
+  const label = t(reduce ? "Percentuale della posizione riducibile" : "Percentuale della size massima");
+  row.title = needsStop ? t("Imposta lo stop-loss: il rischio si calcola da lì")
+    : off && reduce ? t("Nessuna posizione da ridurre su {sym}", { sym: m.symbol }) : label;
   const range = $("#tkPct"), box = $("#tkPctIn");
+  range.title = row.title;
+  for (const input of [range, box]) input.setAttribute("aria-label", label);
   range.disabled = box.disabled = off;
   if (qty === null) return; // the summary sets it once the quantity is known
-  const pct = max && qty ? Math.min(100, (qty / max) * 100) : 0;
+  const pct = !off && qty ? Math.min(100, (qty / max) * 100) : 0;
   if (document.activeElement !== range || !range.matches(":active")) range.value = Math.round(pct);
   range.style.setProperty("--p", range.value + "%");
-  if (document.activeElement !== box) box.value = qty ? Math.round(pct) : "";
+  if (document.activeElement !== box) box.value = qty && !off ? +(pct.toFixed(1)) : "";
 }
 
 function sizeFromPct(pct) {
   const m = activeMarket(), p = m && prices[m.id], unit = $("#tkUnit").value;
   const ref = ticketRef(m, p);
   const max = sliderMax(m, ref);
-  if (!max || riskNeedsStop(ref)) return;
+  if (!(max > 0) || riskNeedsStop(ref)) return;
   const qty = max * Math.max(0, Math.min(100, pct)) / 100;
   const v = unit === "base" ? floorTo(qty, m.size_decimals)
     : unit === "equity_pct" ? floorTo(qty * ref / account.total_value * 100, 2)
@@ -2511,6 +2531,13 @@ function renderTicketEstimates(m, p, qty, entry) {
   $("#tkTpslSlip").textContent = t("max {m}%", { m: +((+$("#tkSlip").value || 50) / 100).toFixed(2) });
   const mark = p && p.mark;
   const curPos = account && account.positions.find((x) => x.market_id === m.id);
+  const after = $("#tkPositionAfter");
+  const current = curPos?.size || 0;
+  const orderQty = qty ? +qty.toFixed(m.size_decimals) : 0;
+  const impactQty = !reduce ? orderQty : Math.sign(current) === -side ? Math.min(orderQty, Math.abs(current)) : 0;
+  const nextSize = +(current + side * impactQty).toFixed(m.size_decimals);
+  after.textContent = nextSize ? positionLabel(nextSize, m) : t("Nessuna posizione aperta.");
+  after.className = impactQty && account ? (nextSize ? cls(nextSize) : "") : "hidden";
   const liq = set && set.cross === false
     ? (() => { // isolated: the position after the order stands on its own margin
         const size = (curPos ? curPos.size : 0) + side * qty;
