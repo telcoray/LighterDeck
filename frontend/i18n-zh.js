@@ -107,7 +107,6 @@ DICTS.zh = {
   "Stop-loss · price": "止损 · 价格",
   "Take-profit · price": "止盈 · 价格",
   "Optional": "可选",
-  "Execution options": "执行选项",
   "Max slippage · bps": "最大滑点 · bps",
   "Order value": "订单价值",
   "Required margin": "所需保证金",
@@ -714,7 +713,7 @@ Object.assign(DICTS.zh, {
 });
 Object.assign(DICTS.zh, { "Adds {v} to the size: click several times to add up": "在数量上加 {v}：多次点击可累加" });
 Object.assign(DICTS.zh, { "Leverage: scroll or drag \u00b7 click for cross / isolated": "杠杆：滚动或拖动 · 点击切换全仓 / 逐仓" });
-Object.assign(DICTS.zh, { "Share of what the available margin can open, at this leverage": "可用保证金在当前杠杆下可开仓位的比例", "Position margin": "仓位保证金", "Est. price": "预估价格", "TP/SL slippage": "止盈/止损滑点", "est. {e}%": "预估 {e}%", "max {m}%": "最大 {m}%", "Slippage": "滑点" });
+Object.assign(DICTS.zh, { "Share of what the available margin can open, at this leverage": "可用保证金在当前杠杆下可开仓位的比例", "Position margin": "仓位保证金", "Est. price": "预估价格", "TP/SL slippage": "止盈/止损滑点", "est. {e}%": "预估 {e}%", "max {m}%": "最大 {m}%", "Max slippage: click to change": "最大滑点：点击修改", "Slippage": "滑点" });
 Object.assign(DICTS.zh, { "Entry price": "入场价", "Set the stop-loss: the risk is worked out from it": "请设置止损：风险由此计算" });
 Object.assign(DICTS.zh, {
   "Advanced": "高级",

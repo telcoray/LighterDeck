@@ -40,7 +40,7 @@
 </script>
 <style>html.i18n-pending body { visibility: hidden; }</style>
 <link rel="icon" href="favicon.svg?v=1" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=243">
+<link rel="stylesheet" href="style.css?v=245">
 <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
 </head>
 <body>
@@ -305,10 +305,7 @@
           <div class="tp-levels hidden solo-only basic-only" id="tkTpBox"></div>
           <div class="trail-box hidden solo-only basic-only" id="tkTrailBox"></div>
         </div>
-        <details class="exec market-only">
-          <summary>Opzioni di esecuzione</summary>
-          <div class="field sm"><label>Slippage massimo · bps</label><input id="tkSlip" autocomplete="off" type="number" min="1" step="1" value="50"></div>
-        </details>
+        <input id="tkSlip" type="hidden" value="50"><!-- the max slippage in bps, set from the summary's Slippage row -->
         <dl class="kv summary pair-only" id="tkPairSum"></dl>
         <dl class="kv summary bk-sum solo-only" id="tkBasketSum"></dl>
         <dl class="kv summary rows solo-only">
@@ -317,7 +314,7 @@
           <div><dt>Margine ordine</dt><dd id="tkMargin">—</dd></div>
           <div><dt>Posizione dopo l'ordine</dt><dd class="hidden" id="tkPositionAfter">—</dd></div>
           <div><dt>Commissioni stimate</dt><dd id="tkFee">—</dd></div>
-          <div><dt class="market-only ticket-extra">Slippage</dt><dd class="market-only ticket-extra" id="tkEstSlip">—</dd></div>
+          <div><dt class="market-only ticket-extra">Slippage</dt><dd class="market-only ticket-extra"><span id="tkEstSlip"></span><button type="button" class="slip-max" data-slip title="Slippage massimo: clicca per cambiarlo"></button></dd></div>
           <div><dt class="hidden ticket-extra" id="tkTpslSlipDt">Slippage TP/SL</dt><dd class="hidden ticket-extra" id="tkTpslSlip">—</dd></div>
           <div><dt>Liquidazione stimata</dt><dd id="tkLiq">—</dd></div>
           <div><dt class="hidden" id="tkEntryDt">Entrata posizione</dt><dd class="hidden" id="tkEntry">—</dd></div>
@@ -734,13 +731,13 @@
 </div>
 
 <div class="toast hidden" id="toast" role="status" aria-live="polite"></div>
-<script src="i18n.js?v=243"></script>
-<script src="i18n-zh.js?v=243"></script>
-<script src="i18n-ko.js?v=243"></script>
-<script src="formulas.js?v=243"></script>
-<script src="paper.js?v=243"></script>
-<script src="live.js?v=243"></script>
-<script src="app.js?v=243"></script>
-<script src="picker.js?v=243"></script>
+<script src="i18n.js?v=245"></script>
+<script src="i18n-zh.js?v=245"></script>
+<script src="i18n-ko.js?v=245"></script>
+<script src="formulas.js?v=245"></script>
+<script src="paper.js?v=245"></script>
+<script src="live.js?v=245"></script>
+<script src="app.js?v=245"></script>
+<script src="picker.js?v=245"></script>
 </body>
 </html>

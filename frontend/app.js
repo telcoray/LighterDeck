@@ -1934,7 +1934,8 @@ function updatePairSummary() {
   const tot = (k) => legs.reduce((s, x) => s + x[k], 0);
   $("#tkPairSum").innerHTML = legs.map(row).join("") +
     `<dt>${t("Margine richiesto")}</dt><dd>${size > 0 ? fusd(tot("margin")) : "—"}</dd>
-     <dt>${t("Commissioni stimate")}</dt><dd>${size > 0 ? fusd(tot("fee")) : "—"}</dd>`;
+     <dt>${t("Commissioni stimate")}</dt><dd>${size > 0 ? fusd(tot("fee")) : "—"}</dd>
+     <dt>${t("Slippage")}</dt><dd>${slipButton()}</dd>`;
   setTicketDraft({ market: null, lines: [] });
   clearTimeout(updateTicketSummary.t);
   updateTicketSummary.t = setTimeout(previewPair, 350);
@@ -2147,7 +2148,7 @@ function updateBasketSummary() {
   const money = (k) => rows.reduce((s, x) => s + k(x), 0);
   const fees = money((x) => x.usd * feeRates(x.m).taker);
   $("#tkBasketSum").innerHTML = rows.map((x) => `<dt><span class="${x.side === "buy" ? "up" : "down"}">${x.side === "buy" ? "Long" : "Short"}</span> ${esc(x.m.symbol)}</dt><dd>${fsize(x.qty, x.m)}</dd>`).join("") +
-    (rows.length ? `<dt>${t("Valore ordine")}</dt><dd>${fusd(money((x) => x.usd))}</dd><dt>${t("Margine")}</dt><dd>${fusd(money((x) => x.usd / x.lev))}</dd>${fees ? `<dt>${t("Commissioni stimate")}</dt><dd>${fusd(fees)}</dd>` : ""}` : "");
+    (rows.length ? `<dt>${t("Valore ordine")}</dt><dd>${fusd(money((x) => x.usd))}</dd><dt>${t("Margine")}</dt><dd>${fusd(money((x) => x.usd / x.lev))}</dd>${fees ? `<dt>${t("Commissioni stimate")}</dt><dd>${fusd(fees)}</dd>` : ""}<dt>${t("Slippage")}</dt><dd>${slipButton()}</dd>` : "");
   setTicketMargin(rows.length && account ? rows.map((x) => ({ market_id: x.m.id, delta: (x.side === "buy" ? 1 : -1) * x.qty, price: x.ref, leverage: x.lev, cross: x.cross })) : null);
   setTicketDraft({ market: null, lines: [] });
   clearTimeout(updateTicketSummary.t);
@@ -2532,11 +2533,11 @@ function renderEstFill(m, qty, entry) {
   const buy = ticket.side === "buy", maxSlip = (+$("#tkSlip").value || 50) / 100;
   const slip = $("#tkEstSlip");
   const levels = estBook.market === m.id ? (buy ? estBook.asks : estBook.bids) : [];
-  const maxText = t("max {m}%", { m: +maxSlip.toFixed(2) });
+  renderSlipButtons();
   estBook.last = null;
   if (!qty || !levels.length) {
-    slip.textContent = maxText;
-    slip.classList.remove("down");
+    slip.textContent = "";
+    slip.parentElement.classList.remove("down");
     return entry;
   }
   let left = qty, cost = 0;
@@ -2551,9 +2552,48 @@ function renderEstFill(m, qty, entry) {
   const mid = other ? (best + other[0]) / 2 : best;
   const est = Math.abs(avg - mid) / mid * 100, deep = left > 1e-12; // past the levels we can see
   estBook.last = { est, deep };
-  slip.textContent = `${t("stimato {e}%", { e: (deep ? "> " : "") + est.toFixed(2) })} · ${maxText}`;
-  slip.classList.toggle("down", est >= maxSlip || deep);
+  slip.textContent = `${t("stimato {e}%", { e: (deep ? "> " : "") + est.toFixed(2) })} · `;
+  slip.parentElement.classList.toggle("down", est >= maxSlip || deep);
   return avg;
+}
+
+// ---------- max slippage: shown as "max 0.5%" in the summaries, a click turns it into a field ----------
+const slipBps = () => +$("#tkSlip").value || 50;
+const slipButton = () => `<button type="button" class="slip-max" data-slip title="${t("Slippage massimo: clicca per cambiarlo")}">${t("max {m}%", { m: +(slipBps() / 100).toFixed(2) })}</button>`;
+
+function renderSlipButtons() {
+  for (const b of $$(".ticket .slip-max")) b.textContent = t("max {m}%", { m: +(slipBps() / 100).toFixed(2) });
+}
+
+function editSlip(btn) {
+  const input = document.createElement("input");
+  Object.assign(input, { type: "number", min: "0.01", max: "10", step: "0.05", className: "slip-in", value: +(slipBps() / 100).toFixed(2) });
+  input.setAttribute("aria-label", t("Slippage massimo: clicca per cambiarlo"));
+  const wrap = document.createElement("span");
+  wrap.className = "slip-edit";
+  wrap.append(input, "%");
+  btn.replaceWith(wrap);
+  input.focus();
+  input.select();
+  let done = false;
+  const finish = (save) => {
+    if (done) return;
+    done = true;
+    const pct = +input.value;
+    if (save && pct > 0) {
+      const bps = Math.min(1000, Math.max(1, Math.round(pct * 100)));
+      $("#tkSlip").value = bps;
+      store("slipBps", bps);
+    }
+    btn.textContent = t("max {m}%", { m: +(slipBps() / 100).toFixed(2) });
+    wrap.replaceWith(btn);
+    updateTicketSummary();
+  };
+  input.onkeydown = (e) => {
+    if (e.key === "Enter") { e.preventDefault(); finish(true); }
+    else if (e.key === "Escape") { e.preventDefault(); finish(false); }
+  };
+  input.onblur = () => finish(true);
 }
 
 function refreshEstBook(m, qty, entry) {
@@ -2596,7 +2636,7 @@ function renderTicketEstimates(m, p, qty, entry) {
     (+$("#tkTp").value > 0 && $("#tkTpExec").value === "market") || !!readTpLevels()
   );
   for (const id of ["#tkTpslSlipDt", "#tkTpslSlip"]) $(id).classList.toggle("hidden", !hasStops);
-  $("#tkTpslSlip").textContent = t("max {m}%", { m: +((+$("#tkSlip").value || 50) / 100).toFixed(2) });
+  $("#tkTpslSlip").textContent = t("max {m}%", { m: +(slipBps() / 100).toFixed(2) });
   const mark = p && p.mark;
   const curPos = account && account.positions.find((x) => x.market_id === m.id);
   const after = $("#tkPositionAfter");
@@ -4707,7 +4747,8 @@ function wire() {
     };
   }
   $("#tkExec").onclick = (e) => (info.trading ? executeTicket(e.detail > 0) : openKeyDialog());
-  $("#tkSlip").oninput = updateTicketSummary;
+  $("#tkSlip").value = load("slipBps", 50);
+  $(".ticket").addEventListener("click", (e) => { const b = e.target.closest("[data-slip]"); if (b) editSlip(b); });
   ["#tkSl", "#tkTp"].forEach((s) => $(s).addEventListener("wheel", wheelStop, { passive: false }));
   ["#tkReduce", "#tkPost"].forEach((s) => ($(s).onchange = updateTicketSummary));
   wireLevWheel();

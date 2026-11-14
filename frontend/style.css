@@ -445,10 +445,6 @@ select option, select optgroup { background-color: var(--surface); color: var(--
 #limitsForm .field > input { flex: 1 1 auto; width: 0; min-width: 44px; }
 .two { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
 .three { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
-.exec { margin-bottom: 10px; }
-.exec summary { cursor: pointer; color: var(--muted); font-size: 11px; padding: 4px 0 8px; list-style: none; display: flex; justify-content: space-between; }
-.exec summary::after { content: "+"; }
-.exec[open] summary::after { content: "–"; }
 .execute { width: 100%; height: 38px; border-radius: var(--r); font-weight: 600; background: var(--green); color: var(--green-ink); }
 .execute.sell { background: var(--red); color: #fff; }
 .execute:disabled { background: var(--raised); color: var(--muted); cursor: not-allowed; }
@@ -1320,7 +1316,6 @@ option { background: var(--surface); color: var(--text); }
 /* option rows */
 .ticket .checks { gap: 16px; flex-wrap: wrap; }
 .ticket .checks label { font-size: 12px; }
-.ticket .exec summary { padding: 0; font-size: 12px; }
 
 /* the outcome block: a line above, then the rows and the button */
 .ticket .kv.summary { padding-top: 10px; margin-top: 4px !important; }
@@ -1391,3 +1386,11 @@ option { background: var(--surface); color: var(--text); }
 .ticket .trail-box .trail-hint { margin: 0; padding: 0 2px; }
 /* Scaled exits and Trailing stop sit in the middle of the row */
 .ticket .trail-check { justify-content: center; }
+
+/* the max slippage in the summaries: a dotted underline says it can be changed, a click makes it a field */
+.ticket .slip-max { padding: 0; border: 0; background: none; color: inherit; font: inherit; cursor: pointer;
+  text-decoration: underline dotted var(--text-2); text-underline-offset: 3px; }
+.ticket .slip-max:hover { color: var(--text); }
+.ticket .slip-edit { display: inline-flex; align-items: center; gap: 2px; }
+.ticket .slip-in { width: 52px; height: 20px; margin: -3px 0; padding: 0 4px; border: 1px solid var(--line-3); border-radius: 4px; background: var(--bg);
+  color: var(--text); font: inherit; text-align: right; }
