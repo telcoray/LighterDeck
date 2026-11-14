@@ -2399,7 +2399,7 @@ function syncExitEditor(id, m, ref, qty, write = false) {
     if (ready && !move.validity.valid) return;
     move.setCustomValidity("");
     const value = (+trigger.value - ref) * direction * factor;
-    move.value = ready && +trigger.value > 0 && value > 0 ? +value.toFixed(4) : "";
+    move.value = ready && +trigger.value > 0 && value > 0 ? +value.toFixed(2) : "";
   }
 }
 
@@ -2699,9 +2699,6 @@ function renderTicketEstimates(m, p, qty, entry) {
     const check = Formulas.sltpOutcome({ isSL, side, entry, trigger, qty: qty || 1, leverage });
     const res = Formulas.sltpOutcome({ isSL, side, entry: avgEntry, trigger, qty: totQty || null, leverage });
     if (trigger > 0) draft.lines.push({ kind: isSL ? "sl" : "tp", price: trigger, title: isSL ? "SL" : "TP" });
-    const pctEl = $(`#tk${id}Pct`), move = trigger > 0 && entry > 0 ? ((trigger - entry) / entry) * 100 * side : null;
-    pctEl.textContent = move === null ? "" : `${move >= 0 ? "+" : "−"}${Math.abs(move).toFixed(Math.abs(move) < 10 ? 2 : 1)}%`;
-    pctEl.className = "sltp-pct" + (move === null ? "" : move < 0 ? " down" : " up");
     if (!res || !check) { out.textContent = ""; out.className = "sltp-out"; continue; }
     // a level on the wrong side shows nothing here: the check comes when the trade button is pressed
     if (check.usd < 0) { out.textContent = ""; out.className = "sltp-out"; continue; }
@@ -4998,7 +4995,7 @@ function renderTpLevels(levels) {
   // the single take-profit stays where it is, handing over to the levels below
   tp.disabled = on;
   tp.placeholder = "—"; // ticked or not, the box under it says which
-  if (on) { tp.value = ""; $("#tkTpOut").textContent = ""; $("#tkTpOut").className = "sltp-out"; $("#tkTpPct").textContent = ""; }
+  if (on) { tp.value = ""; $("#tkTpOut").textContent = ""; $("#tkTpOut").className = "sltp-out"; $("#tkTpMove").value = ""; }
   box.classList.toggle("hidden", !on);
   if (!on) { box.innerHTML = ""; updateTicketSummary(); return; }
   const be = $("#tkTpBe") ? $("#tkTpBe").checked : load("tpBe", true);
