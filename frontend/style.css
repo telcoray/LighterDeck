@@ -389,7 +389,8 @@ body.resizing { cursor: row-resize; user-select: none; }
 .xbtn:hover { color: var(--red); background: var(--red-soft); }
 
 /* ---------- right rail ---------- */
-.rail { width: 300px; flex: none; border-left: 1px solid var(--line); overflow-y: auto; scrollbar-gutter: stable both-edges; }
+.rail { width: 300px; flex: none; border-left: 1px solid var(--line); overflow-y: auto; scrollbar-width: none; }
+.rail::-webkit-scrollbar { display: none; } /* scrolls with the wheel; no bar, so both sides keep the same margin and the width never changes */
 .card { padding: 14px; border-bottom: 1px solid var(--line); }
 .card-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 12px; }
 .card-head b { font-weight: 500; font-size: 12px; }
