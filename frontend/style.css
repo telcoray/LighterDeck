@@ -1351,7 +1351,7 @@ option { background: var(--surface); color: var(--text); }
 /* stop-loss and take-profit: a row each, the move from the entry beside the price */
 .ticket .sltp-rows { display: flex; flex-direction: column; gap: 10px; }
 .ticket .sltp-rows .field { margin: 0; }
-.tk-exit-options { display: grid; gap: 6px; }
+.tk-exit-options { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; }
 .ticket .tk-exit-options .field { flex-wrap: nowrap; }
 .tk-exit-options select { width: auto; margin-left: auto; padding: 0 8px; color: var(--text-2); }
 .tk-protection-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
@@ -1371,3 +1371,10 @@ option { background: var(--surface); color: var(--text); }
 .ticket .sltp-pct.down { color: var(--red); }
 .ticket .sltp-pct:not(:empty) ~ .sltp-out { padding-right: 10px; }
 .ticket .field:has(.sltp-pct:not(:empty)) input { padding-right: 8px; }
+
+/* a menu inside any ticket field looks and sits like the size's unit: at the right end, behind a thin line,
+   as wide as its words (the TP/SL panel's %/USD and Market/Limit menus) */
+.ticket .field > select:not(#tkUnit) { flex: none; align-self: stretch; width: auto; height: auto; max-width: 112px; margin: 0 0 0 auto; padding: 0 8px 0 10px;
+  border: 0; border-left: 1px solid var(--line-2); border-radius: 0 6px 6px 0; background: transparent; color: var(--text-2); font-family: var(--ui); font-size: 11.5px; }
+.ticket .field > select:not(#tkUnit):hover { color: var(--text); }
+.ticket .field > label + select:not(#tkUnit) { border-left: 0; }
