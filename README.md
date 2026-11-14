@@ -10,6 +10,8 @@ A trading terminal for the perpetual futures on [Lighter](https://lighter.xyz), 
 
 ## Features
 
+[Order ticket design notes (Italian)](docs/order-ticket.it.md) · Inventory and open decisions for the final ticket.
+
 | Area | What's there |
 | --- | --- |
 | Charts | 1, 2 or 4 charts (side by side or stacked), 14 timeframes, OHLC legend, volume, entry, liquidation, open orders (SL/TP/limit, draggable to move them) and the managed stop moving on the chart, mark price, macro events, your fills (buy and sell arrows, details on hover), price alerts; each one can be turned on or off from **Elements**. Right-click a price for a limit, the ticket's SL/TP, the position's SL/TP or an alert; right-click a line to cancel that order, remove the alert, stop the trailing or close the position |

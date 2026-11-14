@@ -10,6 +10,8 @@ Terminale di trading per i perpetual di Lighter (lighter.xyz), con automazioni l
 
 ## Funzioni
 
+[Wiki del pannello ordini](docs/order-ticket.it.md) · Inventario e decisioni aperte per il ticket definitivo.
+
 | Area | Cosa c'è |
 | --- | --- |
 | Grafici | 1, 2 o 4 grafici (affiancati o sovrapposti), legenda OHLC, volumi, linee di entry, liquidazione, ordini aperti (SL/TP/limit, trascinabili per spostarli) e dello stop gestito che si muove sul grafico, prezzo mark, eventi macro, i tuoi fill (frecce di acquisto e vendita, dettagli al passaggio del mouse), alert di prezzo; ognuno si accende o spegne da **Elementi**. Click destro su un prezzo per un limit, SL/TP del ticket, SL/TP della posizione o un alert; click destro su una linea per annullare quell'ordine, togliere l'alert, fermare il trailing o chiudere la posizione |
