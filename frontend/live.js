@@ -180,16 +180,17 @@ const Live = (() => {
 
   // the opening order with exchange-native SL/TP attached (OTO / OTOCO): position-tied, Lighter cancels
   // them when the position closes or flips
-  function entry(m, size, kind, price, sl, tp, slip, post) {
+  function entry(m, size, kind, price, sl, tp, slip, post, slLimit, tpLimit) {
     const isAsk = size < 0, c = coi();
     const tif = kind === "market" ? IOC : post ? POST_ONLY : GTT;
     const list = [{ MarketIndex: m.id, ClientOrderIndex: c, BaseAmount: sizeInt(m, size), Price: priceInt(m, roundPrice(m, price)),
       IsAsk: isAsk ? 1 : 0, Type: kind === "market" ? MARKET : LIMIT, TimeInForce: tif, ReduceOnly: 0, TriggerPrice: 0, OrderExpiry: kind === "market" ? 0 : -1 }];
-    for (const [trigger, type] of [[tp, TAKE_PROFIT], [sl, STOP_LOSS]]) {
+    for (const [trigger, limit, marketType, limitType] of [[tp, tpLimit, TAKE_PROFIT, TAKE_PROFIT_LIMIT], [sl, slLimit, STOP_LOSS, STOP_LOSS_LIMIT]]) {
       if (!trigger) continue;
-      const worst = isAsk ? trigger * (1 + slip) : trigger * (1 - slip);
+      const worst = limit ?? trigger * (isAsk ? 1 + slip : 1 - slip);
       list.push({ MarketIndex: m.id, ClientOrderIndex: c + list.length, BaseAmount: 0, Price: priceInt(m, roundPrice(m, worst)),
-        IsAsk: isAsk ? 0 : 1, Type: type, TimeInForce: IOC, ReduceOnly: 1, TriggerPrice: priceInt(m, roundPrice(m, trigger)), OrderExpiry: -1 });
+        IsAsk: isAsk ? 0 : 1, Type: limit == null ? marketType : limitType, TimeInForce: limit == null ? IOC : GTT,
+        ReduceOnly: 1, TriggerPrice: priceInt(m, roundPrice(m, trigger)), OrderExpiry: -1 });
     }
     if (list.length === 1) {
       const o = list[0];
@@ -347,7 +348,7 @@ const Live = (() => {
     if (o.reduce_only) {
       if (o.kind === "limit") await limitOrder(m, signed, o.price, true, o.post_only);
       else await marketOrder(m, signed, pl.ref, true, pl.slippage_bps / 10000);
-    } else await entry(m, signed, o.kind, pl.worst, o.sl_price, o.tp_price, pl.slippage_bps / 10000, o.post_only);
+    } else await entry(m, signed, o.kind, pl.worst, o.sl_price, o.tp_price, pl.slippage_bps / 10000, o.post_only, o.sl_limit_price, o.tp_limit_price);
     note(`${o.kind} ${o.side} ${pl.size} ${m.symbol} @ ~${pl.ref}` + (o.sl_price ? ` SL ${o.sl_price}` : "") + (o.tp_price ? ` TP ${o.tp_price}` : ""), "warning");
     // the order is on Lighter; the server's engine takes over what follows it
     const after = [];

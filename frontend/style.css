@@ -1351,6 +1351,9 @@ option { background: var(--surface); color: var(--text); }
 /* stop-loss and take-profit: a row each, the move from the entry beside the price */
 .ticket .sltp-rows { display: flex; flex-direction: column; gap: 10px; }
 .ticket .sltp-rows .field { margin: 0; }
+.tk-exit-options { display: grid; gap: 6px; }
+.ticket .tk-exit-options .field { flex-wrap: nowrap; }
+.tk-exit-options select { width: auto; margin-left: auto; padding: 0 8px; color: var(--text-2); }
 .tk-protection-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
 .ticket[data-kind="basket"] .tk-protection-bar,
 .ticket.rfq-on .tk-protection-bar { display: none; }

@@ -2,6 +2,7 @@
 import asyncio
 import json
 import logging
+import math
 import os
 import re
 import time
@@ -408,6 +409,8 @@ class OrderReq(BaseModel):
     post_only: bool = False
     sl_price: float | None = None
     tp_price: float | None = None
+    sl_limit_price: float | None = None
+    tp_limit_price: float | None = None
     slippage_bps: float | None = None
     trail: TrailReq | None = None     # managed stop to start once the order fills
     tp_levels: list[TpLevel] | None = None   # scaled exits instead of tp_price: 2 to 5 levels
@@ -483,6 +486,11 @@ def scale_prices(o: OrderReq, m):
 
 
 async def plan_order(o: OrderReq, check_sides=True):
+    for trigger, limit in ((o.sl_price, o.sl_limit_price), (o.tp_price, o.tp_limit_price)):
+        if limit is not None and (not trigger or not trigger > 0 or not math.isfinite(trigger)
+                                  or not limit > 0 or not math.isfinite(limit)):
+            raise Blocked(L("Il prezzo limite dell'uscita richiede un trigger e un prezzo valido",
+                            "An exit limit requires a trigger and a valid price"))
     """Size, prices and risk checks for a ticket. Raises Blocked / ValueError."""
     m = api.markets.get(o.market_id)
     if not m:
@@ -622,7 +630,8 @@ async def place_order(o: OrderReq):
                                        slippage_pct=plan["slippage_bps"] / 100)
         else:
             await api.entry(o.market_id, signed, o.kind, plan["worst"], o.sl_price, o.tp_price,
-                            slippage_pct=plan["slippage_bps"] / 100, post_only=o.post_only)
+                            slippage_pct=plan["slippage_bps"] / 100, post_only=o.post_only,
+                            **{k: v for k, v in (("sl_limit_price", o.sl_limit_price), ("tp_limit_price", o.tp_limit_price)) if v is not None})
     except Exception as e:
         engine.note(f"manual order failed: {e}", "error")
         raise HTTPException(400, str(e))

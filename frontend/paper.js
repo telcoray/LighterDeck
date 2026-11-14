@@ -108,10 +108,12 @@ const Paper = (() => {
     changed = true;
   }
 
-  function addTriggers(id, isAsk, sl, tp) {
-    for (const [trigger, type] of [[tp, "take-profit"], [sl, "stop-loss"]]) {
+  function addTriggers(id, isAsk, sl, tp, slLimit, tpLimit) {
+    const group = sl && tp && (slLimit != null || tpLimit != null) ? S.next : null;
+    for (const [trigger, type, limit] of [[tp, "take-profit", tpLimit], [sl, "stop-loss", slLimit]]) {
       if (!trigger) continue;
-      S.orders.push({ order_index: S.next++, client_order_index: 0, market_id: +id, is_ask: isAsk, type, price: trigger,
+      S.orders.push({ order_index: S.next++, client_order_index: 0, market_id: +id, is_ask: isAsk,
+        type: limit == null ? type : type + "-limit", price: limit == null ? trigger : roundPrice(limit, mkt(id)), exitGroup: group,
         trigger_price: trigger, remaining: 0, reduce_only: true, status: "open", ts: now() });
     }
   }
@@ -199,6 +201,10 @@ const Paper = (() => {
   // sizes its orders here too, with Lighter's account
   function plan(o, checkSides = true, ctx = { px, account }) {
     const m = mkt(o.market_id);
+    for (const [trigger, limit] of [[o.sl_price, o.sl_limit_price], [o.tp_price, o.tp_limit_price]]) {
+      if (limit != null && (!(trigger > 0) || !Number.isFinite(trigger) || !(limit > 0) || !Number.isFinite(limit)))
+        err(t("Il prezzo limite dell'uscita richiede un trigger e un prezzo valido"));
+    }
     const side = o.side === "buy" ? 1 : -1;
     const p = ctx.px(m.id);
     const markOf = (id) => { const q = ctx.px(id); return q && q.mark ? q.mark : null; };
@@ -350,7 +356,8 @@ const Paper = (() => {
     if (o.kind === "limit" && !crosses) {
       S.orders.push({ order_index: S.next++, client_order_index: 0, market_id: id, is_ask: pl.side < 0, type: "limit",
         price: roundPrice(o.price, m), trigger_price: 0, remaining: pl.size, reduce_only: !!o.reduce_only, status: "open",
-        post_only: !!o.post_only, sl: o.sl_price || null, tp: o.tp_price || null, trail: o.trail || null,
+        post_only: !!o.post_only, sl: o.sl_price || null, tp: o.tp_price || null,
+        slLimit: o.sl_limit_price, tpLimit: o.tp_limit_price, trail: o.trail || null,
         exits: pl.tp_levels || null, be: o.be_after_tp1 !== false, ts: now() });
       note(t("Paper: limit {side} {size} {sym} a {price}", { side: o.side, size: pl.size, sym: m.symbol, price: fp(o.price, m) }));
     } else {
@@ -358,7 +365,7 @@ const Paper = (() => {
       const price = o.kind === "limit" ? (pl.side > 0 ? p.ask : p.bid) : pl.ref;
       fill(id, fillQty, price, "taker");
       if (!o.reduce_only) {
-        addTriggers(id, pl.side > 0, o.sl_price, o.tp_price); // a long closes by selling
+        addTriggers(id, pl.side > 0, o.sl_price, o.tp_price, o.sl_limit_price, o.tp_limit_price);
         addExits(id, pl.side > 0, pl.tp_levels, o.be_after_tp1 !== false);
         if (o.trail) setStop(id, o.trail);
       }
@@ -631,7 +638,7 @@ const Paper = (() => {
         const what = isSl ? t("Lo stop-loss") : t("Il take-profit");
         err(t(below ? "{what} deve stare sotto il prezzo mark ({mark}), altrimenti scatterebbe subito" : "{what} deve stare sopra il prezzo mark ({mark}), altrimenti scatterebbe subito", { what, mark: +mark.toPrecision(10) }));
       }
-      o.price = o.cond ? roundPrice(o.price * price / o.trigger_price, m) : price; // a conditional keeps its gap
+      o.price = o.cond || /limit$/.test(o.type) ? roundPrice(o.price * price / o.trigger_price, m) : price;
       o.trigger_price = price;
     } else {
       if ((!o.is_ask && p.ask && price >= p.ask) || (o.is_ask && p.bid && price <= p.bid))
@@ -801,6 +808,11 @@ const Paper = (() => {
       if (!p || !m || !S.orders.includes(o)) continue;
       const pos = S.positions[o.market_id];
       if (o.type === "limit") {
+        if (o.positionExit && (!pos || Math.sign(pos.size) !== (o.is_ask ? 1 : -1))) {
+          S.orders.splice(S.orders.indexOf(o), 1);
+          changed = true;
+          continue;
+        }
         if (o.chase) {
           if (o.chase.until && now() >= o.chase.until) { // time up: cancelled, or what's left at market
             S.orders.splice(S.orders.indexOf(o), 1);
@@ -828,7 +840,7 @@ const Paper = (() => {
         }
         fill(o.market_id, qty, o.price, "maker", o.order_index);
         if (!o.reduce_only) {
-          addTriggers(o.market_id, !o.is_ask, o.sl, o.tp);
+          addTriggers(o.market_id, !o.is_ask, o.sl, o.tp, o.slLimit, o.tpLimit);
           addExits(o.market_id, !o.is_ask, o.exits, o.be);
           if (o.trail) setStop(o.market_id, o.trail);
         }
@@ -863,8 +875,14 @@ const Paper = (() => {
       }
       // SL/TP: reduce-only triggers on the mark price; gone once there is nothing left to close
       if (!pos || Math.sign(pos.size) !== (o.is_ask ? 1 : -1)) { S.orders.splice(S.orders.indexOf(o), 1); changed = true; continue; }
-      const isSl = o.type === "stop-loss", below = isSl === o.is_ask;
+      const isSl = o.type.startsWith("stop-loss"), below = isSl === o.is_ask;
       if (!(below ? p.mark <= o.trigger_price : p.mark >= o.trigger_price)) continue;
+      if (o.exitGroup) S.orders = S.orders.filter((x) => x === o || x.exitGroup !== o.exitGroup);
+      if (o.type.endsWith("-limit")) {
+        Object.assign(o, { type: "limit", trigger_price: 0, remaining: Math.abs(pos.size), positionExit: true });
+        changed = true;
+        continue;
+      }
       S.orders.splice(S.orders.indexOf(o), 1);
       const price = replayFill ? replayFill(o.trigger_price, p.mark) : (o.is_ask ? p.bid : p.ask) || p.mark;
       // a sized trigger (a scaled exit) closes its part; a position-tied one the whole position

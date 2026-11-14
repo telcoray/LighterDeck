@@ -599,7 +599,8 @@ class LighterAPI:
         ), f"limit {'sell' if size < 0 else 'buy'} {abs(size)} {m.symbol} @ {price}")
         return coi
 
-    async def entry(self, market_id, size, kind, price, sl=None, tp=None, slippage_pct=None, post_only=False):
+    async def entry(self, market_id, size, kind, price, sl=None, tp=None, slippage_pct=None, post_only=False,
+                    *, sl_limit_price=None, tp_limit_price=None):
         """Opening order with exchange-native protection attached (OTO / OTOCO).
 
         size > 0 buys. For market orders `price` is the worst acceptable fill price;
@@ -623,15 +624,20 @@ class LighterAPI:
             ReduceOnly=0, TriggerPrice=0, OrderExpiry=0 if kind == "market" else -1,
         )]
         slip = (slippage_pct if slippage_pct is not None else config.MAX_SLIPPAGE_PCT) / 100
-        for trigger, order_type in ((tp, S.ORDER_TYPE_TAKE_PROFIT), (sl, S.ORDER_TYPE_STOP_LOSS)):
+        for trigger, limit, market_type, limit_type in (
+            (tp, tp_limit_price, S.ORDER_TYPE_TAKE_PROFIT, S.ORDER_TYPE_TAKE_PROFIT_LIMIT),
+            (sl, sl_limit_price, S.ORDER_TYPE_STOP_LOSS, S.ORDER_TYPE_STOP_LOSS_LIMIT),
+        ):
             if not trigger:
                 continue
             # closing side: a long exits by selling, so accept down to trigger*(1-slip)
-            worst = trigger * (1 - slip) if not is_ask else trigger * (1 + slip)
+            worst = limit if limit is not None else trigger * (1 + slip if is_ask else 1 - slip)
             orders.append(CreateOrderTxReq(
                 MarketIndex=market_id, ClientOrderIndex=coi + len(orders), BaseAmount=0,
-                Price=m.price_int(m.round_price(worst)), IsAsk=int(not is_ask), Type=order_type,
-                TimeInForce=S.ORDER_TIME_IN_FORCE_IMMEDIATE_OR_CANCEL, ReduceOnly=1,
+                Price=m.price_int(m.round_price(worst)), IsAsk=int(not is_ask),
+                Type=limit_type if limit is not None else market_type,
+                TimeInForce=S.ORDER_TIME_IN_FORCE_GOOD_TILL_TIME if limit is not None else S.ORDER_TIME_IN_FORCE_IMMEDIATE_OR_CANCEL,
+                ReduceOnly=1,
                 TriggerPrice=m.price_int(m.round_price(trigger)), OrderExpiry=-1,
             ))
         label = f"{kind} {'sell' if is_ask else 'buy'} {abs(size)} {m.symbol} @ {price}" + (

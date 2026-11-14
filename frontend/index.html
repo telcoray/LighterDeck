@@ -40,7 +40,7 @@
 </script>
 <style>html.i18n-pending body { visibility: hidden; }</style>
 <link rel="icon" href="favicon.svg?v=1" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=232">
+<link rel="stylesheet" href="style.css?v=233">
 <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
 </head>
 <body>
@@ -285,8 +285,18 @@
         </div>
         <div class="tk-protection solo-only basic-only hidden" id="tkProtection">
           <div class="sltp-rows">
-            <div class="field"><label>Stop-loss</label><input id="tkSl" autocomplete="off" type="number" step="any" placeholder="—"><span class="sltp-pct" id="tkSlPct"></span><span class="sltp-out" id="tkSlOut"></span></div>
-            <div class="field" id="tkTpField"><label>Take-profit</label><input id="tkTp" autocomplete="off" type="number" step="any" placeholder="—"><span class="sltp-pct" id="tkTpPct"></span><span class="sltp-out" id="tkTpOut"></span></div>
+            <div class="field"><label for="tkSl">Stop-loss</label><input id="tkSl" autocomplete="off" type="number" step="any" placeholder="—"><span class="sltp-pct" id="tkSlPct"></span><span class="sltp-out" id="tkSlOut"></span></div>
+            <div class="tk-exit-options" id="tkSlOptions">
+              <div class="field"><label for="tkSlMove">Perdita</label><input id="tkSlMove" type="number" min="0" step="any" placeholder="—"><select id="tkSlUnit" aria-label="Unità del risultato"><option value="pct">%</option><option value="usd">USD</option></select></div>
+              <div class="field"><label for="tkSlExec">Esecuzione SL</label><select id="tkSlExec"><option value="market">Market</option><option value="limit">Limit</option></select></div>
+              <div class="field hidden" id="tkSlLimitRow"><label for="tkSlLimit">Prezzo limite SL</label><input id="tkSlLimit" type="number" min="0" step="any" placeholder="—"></div>
+            </div>
+            <div class="field" id="tkTpField"><label for="tkTp">Take-profit</label><input id="tkTp" autocomplete="off" type="number" step="any" placeholder="—"><span class="sltp-pct" id="tkTpPct"></span><span class="sltp-out" id="tkTpOut"></span></div>
+            <div class="tk-exit-options" id="tkTpOptions">
+              <div class="field"><label for="tkTpMove">Guadagno</label><input id="tkTpMove" type="number" min="0" step="any" placeholder="—"><select id="tkTpUnit" aria-label="Unità del risultato"><option value="pct">%</option><option value="usd">USD</option></select></div>
+              <div class="field"><label for="tkTpExec">Esecuzione TP</label><select id="tkTpExec"><option value="market">Market</option><option value="limit">Limit</option></select></div>
+              <div class="field hidden" id="tkTpLimitRow"><label for="tkTpLimit">Prezzo limite TP</label><input id="tkTpLimit" type="number" min="0" step="any" placeholder="—"></div>
+            </div>
           </div>
           <div class="checks trail-check solo-only basic-only">
             <label title="Chiude la posizione a pezzi, su più livelli"><input type="checkbox" id="tkScaled" autocomplete="off"> Uscite scalari<i data-runs="auto"></i></label>
@@ -724,13 +734,13 @@
 </div>
 
 <div class="toast hidden" id="toast" role="status" aria-live="polite"></div>
-<script src="i18n.js?v=232"></script>
-<script src="i18n-zh.js?v=232"></script>
-<script src="i18n-ko.js?v=232"></script>
-<script src="formulas.js?v=232"></script>
-<script src="paper.js?v=232"></script>
-<script src="live.js?v=232"></script>
-<script src="app.js?v=232"></script>
-<script src="picker.js?v=232"></script>
+<script src="i18n.js?v=233"></script>
+<script src="i18n-zh.js?v=233"></script>
+<script src="i18n-ko.js?v=233"></script>
+<script src="formulas.js?v=233"></script>
+<script src="paper.js?v=233"></script>
+<script src="live.js?v=233"></script>
+<script src="app.js?v=233"></script>
+<script src="picker.js?v=233"></script>
 </body>
 </html>

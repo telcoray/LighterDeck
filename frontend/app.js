@@ -1875,6 +1875,11 @@ function ticketBody() {
     body.tp_levels = levels;
     body.be_after_tp1 = $("#tkTpBe").checked;
   } else if (+$("#tkTp").value) body.tp_price = +$("#tkTp").value;
+  for (const [id, key] of [["Sl", "sl"], ["Tp", "tp"]]) {
+    if ((id !== "Tp" || !levels) && $(`#tk${id}Exec`).value === "limit") {
+      body[`${key}_limit_price`] = +$(`#tk${id}Limit`).value;
+    }
+  }
   if ($("#tkTrail").checked && !body.reduce_only) body.trail = readTrail($("#tkTrailBox"));
   if (ticket.kind === "limit") {
     body.price = +$("#tkPrice").value;
@@ -2347,12 +2352,12 @@ function renderProtectionSummary(m) {
   const levels = readTpLevels();
   const sl = +$("#tkSl").value, tp = +$("#tkTp").value;
   const parts = [];
-  if (sl > 0) parts.push(`SL ${fp(sl, m)}`);
+  if (sl > 0) parts.push(`SL ${fp(sl, m)}${$("#tkSlExec").value === "limit" ? " · Limit" : ""}`);
   if (levels) {
     const set = levels.filter((level) => level.price > 0).length;
     parts.push(`TP ${set}/${levels.length}`);
   } else if (tp > 0) {
-    parts.push(`TP ${fp(tp, m)}`);
+    parts.push(`TP ${fp(tp, m)}${$("#tkTpExec").value === "limit" ? " · Limit" : ""}`);
   }
   if ($("#tkTrail").checked && !$("#tkReduce").checked) parts.push(t("Trailing stop"));
   const summary = $("#tkProtectionSummary");
@@ -2366,23 +2371,56 @@ function toggleTicketProtection() {
   renderProtectionSummary(activeMarket());
 }
 
+function syncExitEditor(id, m, ref, qty, write = false) {
+  const el = (suffix) => $(`#tk${id}${suffix}`);
+  const trigger = el(""), move = el("Move"), usd = el("Unit").value === "usd";
+  const direction = (ticket.side === "buy" ? 1 : -1) * (id === "Tp" ? 1 : -1);
+  const factor = usd ? qty : 100 / ref;
+  const ready = ref > 0 && Number.isFinite(factor) && factor > 0 && !(usd && $("#tkUnit").value === "risk_usd");
+  el("Options").classList.toggle("hidden", trigger.disabled);
+  el("LimitRow").classList.toggle("hidden", el("Exec").value !== "limit");
+  move.disabled = !ready;
+  move.title = usd && !ready ? t("Per usare USD, imposta la size in USD, quantità o % capitale")
+    : usd ? t("Stima lorda sulla quantità dell’ordine al prezzo di trigger") : t("Variazione del prezzo dall’entrata, senza leva");
+  if (write && ready) {
+    if (move.validity.badInput) return;
+    if (!move.value) trigger.value = "";
+    else {
+      const price = +(ref + direction * +move.value / factor).toFixed(decimals(m));
+      if (!(+move.value > 0 && price > 0 && (price - ref) * direction > 0)) {
+        move.setCustomValidity(t("Scegli una distanza che produca un prezzo valido"));
+        return;
+      }
+      trigger.value = price;
+    }
+    move.setCustomValidity("");
+  } else if (document.activeElement !== move) {
+    if (ready && !move.validity.valid) return;
+    move.setCustomValidity("");
+    const value = (+trigger.value - ref) * direction * factor;
+    move.value = ready && +trigger.value > 0 && value > 0 ? +value.toFixed(4) : "";
+  }
+}
+
+function ticketQuantity(ref) {
+  const size = +$("#tkSize").value, unit = $("#tkUnit").value, sl = +$("#tkSl").value;
+  if (!(ref > 0 && size > 0)) return null;
+  if (unit === "usd") return size / ref;
+  if (unit === "base") return size;
+  if (unit === "equity_pct" && account) return account.total_value * size / 100 / ref;
+  if (unit === "risk_usd" && sl && sl !== ref) return size / Math.abs(ref - sl);
+  return null;
+}
+
 function updateTicketSummary() {
   if (activePair()) return updatePairSummary();
   if (ticket.kind === "basket") return updateBasketSummary();
   const m = activeMarket();
   if (m && isBasicKind()) renderProtectionSummary(m);
   const p = m && prices[m.id];
-  const size = +$("#tkSize").value;
   const unit = $("#tkUnit").value;
-  const sl = +$("#tkSl").value;
   const ref = m ? ticketRef(m, p) : 0;
-  let qty = null;
-  if (m && ref && size > 0) {
-    if (unit === "usd") qty = size / ref;
-    else if (unit === "base") qty = size;
-    else if (unit === "equity_pct" && account) qty = (account.total_value * size) / 100 / ref;
-    else if (unit === "risk_usd" && sl && sl !== ref) qty = size / Math.abs(ref - sl);
-  }
+  const qty = ticketQuantity(ref);
   tpHint();
   $("#tkNotional").textContent = qty ? fusd(qty * ref) : "—";
   $("#tkQty").textContent = qty ? `${qty.toFixed(m.size_decimals)} ${m.symbol}` : "—";
@@ -2390,6 +2428,9 @@ function updateTicketSummary() {
   $("#tkNotional").classList.toggle("hidden", unit === "usd");
   $("#tkQty").classList.toggle("hidden", unit === "base");
   syncSizeSlider(m, qty, ref);
+  if (m && isBasicKind()) {
+    for (const id of ["Sl", "Tp"]) syncExitEditor(id, m, ref, qty && +qty.toFixed(m.size_decimals));
+  }
   renderTicketEstimates(m, p, qty, ref);
   clearTimeout(updateTicketSummary.t);
   updateTicketSummary.t = setTimeout(previewTicket, 350);
@@ -2550,7 +2591,10 @@ function renderTicketEstimates(m, p, qty, entry) {
   renderRfqLive();
   refreshEstBook(m, qty, entry);
   // SL/TP fill within the same slippage as the order
-  const hasStops = isBasicKind() && !reduce && (+$("#tkSl").value > 0 || +$("#tkTp").value > 0 || !!readTpLevels());
+  const hasStops = isBasicKind() && !reduce && (
+    (+$("#tkSl").value > 0 && $("#tkSlExec").value === "market") ||
+    (+$("#tkTp").value > 0 && $("#tkTpExec").value === "market") || !!readTpLevels()
+  );
   for (const id of ["#tkTpslSlipDt", "#tkTpslSlip"]) $(id).classList.toggle("hidden", !hasStops);
   $("#tkTpslSlip").textContent = t("max {m}%", { m: +((+$("#tkSlip").value || 50) / 100).toFixed(2) });
   const mark = p && p.mark;
@@ -2694,6 +2738,10 @@ async function executeTicket(byMouse = false) {
   if (activePair()) return executePair(byMouse);
   if (ticket.kind === "basket") return executeBasket(byMouse);
   if (ticket.kind === "rfq") return executeRfq(byMouse);
+  if (isBasicKind() && ["Sl", "Tp"].some((id) => {
+    const input = $(`#tk${id}Move`);
+    return !input.disabled && !$(`#tk${id}`).disabled && !input.validity.valid;
+  })) return ticketMsg(t("Scegli una distanza che produca un prezzo valido"), "err");
   if (!(await levFlush())) return; // the leverage on screen didn't go through: no order on the wrong one
   const m = activeMarket();
   const size = +$("#tkSize").value;
@@ -2703,12 +2751,18 @@ async function executeTicket(byMouse = false) {
   if (body.trail === null) return ticketMsg(t("Inserisci la distanza del trailing."), "err");
   const label = `${ticket.side === "buy" ? "LONG" : "SHORT"} ${m.symbol} · ${$("#tkNotional").textContent} · ${ticket.kind}`
     + (body.tp_levels ? ` · ${body.tp_levels.length} TP` : "") + (body.trail ? ` · trailing ${trailLabel(trailToStop(body.trail), m)}` : "");
+  const bodyKey = JSON.stringify(body);
+  if (pendingConfirm?.key === "order" && pendingConfirm.body !== bodyKey) cancelConfirm();
   if (!(pendingConfirm && pendingConfirm.key === "order")) { // first click: full check, SL/TP sides included
-    const r = await api("/preview", { method: "POST", body: JSON.stringify(body) }).catch((e) => ({ ok: false, error: e.message }));
+    const r = await api("/preview", { method: "POST", body: bodyKey }).catch((e) => ({ ok: false, error: e.message }));
+    if (!activeMarket() || activePair() || JSON.stringify(ticketBody()) !== bodyKey) return;
     if (!r.ok) return ticketMsg(r.error, "err");
     $("#tkMsg").className = "ticket-msg hidden";
   }
-  if (!askConfirm("order", `${t("Conferma")} ${label}`)) return;
+  if (!askConfirm("order", `${t("Conferma")} ${label}`)) {
+    pendingConfirm.body = bodyKey;
+    return;
+  }
   const btn = $("#tkExec");
   btn.disabled = true;
   try {
@@ -4631,8 +4685,29 @@ function wire() {
   };
   $("#tkMid").onclick = fillMid;
   $("#tkProtectionToggle").onclick = toggleTicketProtection;
+  for (const id of ["Sl", "Tp"]) {
+    const move = $(`#tk${id}Move`);
+    move.oninput = () => {
+      const m = activeMarket();
+      if (!m) return;
+      const ref = ticketRef(m, prices[m.id]), qty = ticketQuantity(ref);
+      syncExitEditor(id, m, ref, qty && +qty.toFixed(m.size_decimals), true);
+      updateTicketSummary();
+    };
+    move.onblur = updateTicketSummary;
+    $(`#tk${id}Unit`).onchange = () => {
+      move.setCustomValidity("");
+      updateTicketSummary();
+    };
+    $(`#tk${id}Exec`).onchange = updateTicketSummary;
+    $(`#tk${id}Limit`).oninput = updateTicketSummary;
+    $(`#tk${id}`).oninput = () => {
+      move.setCustomValidity("");
+      updateTicketSummary();
+    };
+  }
   $("#tkExec").onclick = (e) => (info.trading ? executeTicket(e.detail > 0) : openKeyDialog());
-  ["#tkSl", "#tkTp", "#tkSlip"].forEach((s) => ($(s).oninput = updateTicketSummary));
+  $("#tkSlip").oninput = updateTicketSummary;
   ["#tkSl", "#tkTp"].forEach((s) => $(s).addEventListener("wheel", wheelStop, { passive: false }));
   ["#tkReduce", "#tkPost"].forEach((s) => ($(s).onchange = updateTicketSummary));
   wireLevWheel();
