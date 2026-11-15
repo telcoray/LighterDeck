@@ -119,10 +119,17 @@ function toast(msg, kind = false) {
   const el = $("#toast"), k = kind === true ? "err" : kind === "ok" ? "ok" : "";
   el.innerHTML = `${k ? `<i class="toast-ico">${TOAST_ICO[k]}</i>` : ""}<span></span>`;
   el.lastChild.textContent = msg;
-  // just under the top bar; at the top of the screen once the page has scrolled past it (a phone)
-  const bar = $(".topbar"), under = bar ? bar.getBoundingClientRect().bottom : 0;
-  el.style.top = `${Math.max(10, Math.round(under) + 8)}px`;
   el.className = "toast" + (k ? " " + k : "");
+  // a computer: at the right, centred on the favourites strip. A phone: just under the top bar,
+  // at the top of the screen once the page has scrolled past it
+  const strip = $(".ticker"), bar = $(".topbar");
+  if (innerWidth > 860 && strip) {
+    const r = strip.getBoundingClientRect();
+    el.style.top = `${Math.max(6, Math.round(r.top + r.height / 2 - el.offsetHeight / 2))}px`;
+  } else {
+    const under = bar ? bar.getBoundingClientRect().bottom : 0;
+    el.style.top = `${Math.max(10, Math.round(under) + 8)}px`;
+  }
   void el.offsetWidth; // so the entrance plays again when one notice follows another
   el.classList.add("show");
   clearTimeout(toast.t);
