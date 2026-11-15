@@ -1442,3 +1442,8 @@ option { background: var(--surface); color: var(--text); }
 .farm-page tbody tr:hover { background: var(--raised); }
 .farm-side { font-family: var(--ui); font-weight: 500; }
 .farm-side.up { color: var(--green); } .farm-side.down { color: var(--red); }
+
+/* notices look like the theme's other floating panels (the menus): same surface, its text colour, its accents */
+.toast { background: var(--surface); color: var(--text-2); }
+.toast.ok .toast-ico { color: var(--green); }
+.toast.err .toast-ico { color: var(--red); }
