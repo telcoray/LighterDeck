@@ -2376,13 +2376,15 @@ function syncExitEditor(id, m, ref, qty, write = false) {
   const el = (suffix) => $(`#tk${id}${suffix}`);
   const trigger = el(""), move = el("Move"), usd = el("Unit").value === "usd";
   const direction = (ticket.side === "buy" ? 1 : -1) * (id === "Tp" ? 1 : -1);
-  const factor = usd ? qty : 100 / ref;
+  // % is of the margin, so the leverage counts: a 1% move at 10x is 10%
+  const set = levSet(m), leverage = (set && set.leverage) || m.default_leverage;
+  const factor = usd ? qty : 100 * leverage / ref;
   const ready = ref > 0 && Number.isFinite(factor) && factor > 0 && !(usd && $("#tkUnit").value === "risk_usd");
   el("Options").classList.toggle("hidden", trigger.disabled);
   el("LimitRow").classList.toggle("hidden", el("Exec").value !== "limit");
   move.disabled = !ready;
   move.title = usd && !ready ? t("Per usare USD, imposta la size in USD, quantità o % capitale")
-    : usd ? t("Stima lorda sulla quantità dell’ordine al prezzo di trigger") : t("Variazione del prezzo dall’entrata, senza leva");
+    : usd ? t("Stima lorda sulla quantità dell’ordine al prezzo di trigger") : t("Perdita o guadagno in % del margine, con la leva ({lev}x)", { lev: +(+leverage).toFixed(1) });
   // the distance is shown signed (− a loss, + a gain); typed, its sign is ignored: an SL's distance goes the losing way, a TP's the winning way
   const typed = +move.value.replace(/[+−-]/g, "").replace(",", ".").trim();
   if (write && ready) {

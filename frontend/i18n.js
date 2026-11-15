@@ -39,7 +39,7 @@ const EN = {
   "Guadagno": "Gain",
   "Per usare USD, imposta la size in USD, quantità o % capitale": "To use USD, set size in USD, quantity or % of equity",
   "Stima lorda sulla quantità dell’ordine al prezzo di trigger": "Gross estimate on the order quantity at the trigger price",
-  "Variazione del prezzo dall’entrata, senza leva": "Price change from entry, without leverage",
+  "Perdita o guadagno in % del margine, con la leva ({lev}x)": "Loss or gain as a % of the margin, with the leverage ({lev}x)",
   "Unità del risultato": "Outcome unit",
   "Esecuzione SL": "SL execution",
   "Esecuzione TP": "TP execution",
