@@ -1413,3 +1413,8 @@ option { background: var(--surface); color: var(--text); }
 .pk-col-grip::after { content: ""; position: absolute; top: 7px; bottom: 7px; left: 4px; width: 1px; background: var(--line-2); }
 .pk-col-grip:hover::after, .pk-col-grip:active::after { background: var(--text-2); }
 @media (max-width: 860px) { .pk-col-grip { display: none; } }
+
+/* the picker's right edge: drag to resize the whole panel, double-click for the usual width (not on narrow screens) */
+.pk-resize { position: absolute; top: 0; right: 0; bottom: 0; width: 7px; z-index: 3; cursor: ew-resize; }
+.pk-resize:hover, .pk-resize:active { background: linear-gradient(to left, var(--line-3) 2px, transparent 2px); }
+@media (max-width: 860px) { .pk-resize { display: none; } }

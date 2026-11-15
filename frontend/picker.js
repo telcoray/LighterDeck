@@ -230,15 +230,39 @@ function wirePickerColumn() {
   });
 }
 
+// the whole picker can be dragged wider or narrower from its right edge (double-click: the usual width); remembered.
+// Never narrower than the market column (when it was resized) plus the other columns at their minimum.
+function pickerWidth(w, left) {
+  const name = parseFloat($("#picker").style.getPropertyValue("--pk-name")) || 0;
+  const least = Math.max(560, name + 28 + 5 * 78 + 6 * 8 + 22 + 2);
+  return Math.round(Math.max(least, Math.min(w, innerWidth - Math.max(8, left) - 16)));
+}
+
+function wirePickerResize() {
+  const grip = $("#pkResize"), box = $("#picker");
+  grip.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    grip.setPointerCapture(e.pointerId);
+    const x0 = e.clientX, w0 = box.getBoundingClientRect().width, left = box.getBoundingClientRect().left;
+    grip.onpointermove = (ev) => { box.style.width = pickerWidth(w0 + ev.clientX - x0, left) + "px"; };
+    grip.onpointerup = grip.onpointercancel = () => {
+      grip.onpointermove = grip.onpointerup = grip.onpointercancel = null;
+      store("pickerW", Math.round(box.getBoundingClientRect().width));
+      updateCatArrows();
+    };
+  });
+  grip.addEventListener("dblclick", () => { store("pickerW", 940); placePicker(); updateCatArrows(); });
+}
+
 function placePicker() {
   const anchor = $("#mktSelect").getBoundingClientRect();
   const box = $("#picker");
   const narrow = innerWidth < 860;
   box.style.left = narrow ? "8px" : Math.max(8, anchor.left) + "px";
   box.style.top = anchor.bottom + 6 + "px";
-  box.style.width = narrow ? `calc(100vw - 16px)` : Math.min(940, innerWidth - anchor.left - 16) + "px";
-  box.style.maxHeight = innerHeight - anchor.bottom - 20 + "px";
   setPickerNameWidth(narrow ? null : load("pkNameW", null)); // on a phone the columns keep their own widths
+  box.style.width = narrow ? `calc(100vw - 16px)` : pickerWidth(load("pickerW", 940), anchor.left) + "px";
+  box.style.maxHeight = innerHeight - anchor.bottom - 20 + "px";
 }
 
 // arrows appear only on the side that has hidden categories
@@ -343,6 +367,7 @@ function moveSel(d) {
   $("#pkBase").addEventListener("click", (e) => { if (e.target.closest("#pkBaseOff")) { pk.base = null; $("#pkBase").classList.add("hidden"); if (!touchUI()) $("#pkSearch").focus(); } });
   $("#pkClose").addEventListener("click", closePalette);
   wirePickerColumn();
+  wirePickerResize();
   $("#picker").addEventListener("click", (e) => {
     const t = e.target;
     const star = t.closest("[data-star]");
