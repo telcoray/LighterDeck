@@ -2542,6 +2542,20 @@ function wheelStop(e) {
   input.dispatchEvent(new Event("input", { bubbles: true }));
 }
 
+// the wheel on a focused SL/TP distance: up widens it, down narrows it, never to zero; 1 a notch (% of margin or $),
+// 5 with Shift. The price follows, as when the distance is typed
+function wheelMove(e) {
+  const input = e.currentTarget;
+  if (document.activeElement !== input || input.disabled) return;
+  e.preventDefault();
+  const step = e.shiftKey ? 5 : 1, delta = e.deltaY || e.deltaX; // Shift turns some wheels sideways
+  const now = +input.value.replace(/[+−-]/g, "").replace(",", ".").trim() || 0;
+  const v = delta < 0 ? now + step : Math.max(step, now - step);
+  const sign = input.id === "tkTpMove" ? "+" : "−";
+  input.value = sign + (+v.toFixed(2)).toLocaleString(undefined, { maximumFractionDigits: 2, useGrouping: false });
+  input.dispatchEvent(new Event("input", { bubbles: true }));
+}
+
 // the slider follows the size typed (as a share of the largest size the money available opens at this leverage)
 function syncSizeSlider(m, qty, ref) {
   const row = $("#tkPctRow");
@@ -4867,6 +4881,7 @@ function wire() {
   $("#tkSlip").value = load("slipBps", 50);
   $(".ticket").addEventListener("click", (e) => { const b = e.target.closest("[data-slip]"); if (b) editSlip(b); });
   ["#tkSl", "#tkTp"].forEach((s) => $(s).addEventListener("wheel", wheelStop, { passive: false }));
+  ["#tkSlMove", "#tkTpMove"].forEach((s) => $(s).addEventListener("wheel", wheelMove, { passive: false }));
   ["#tkReduce", "#tkPost"].forEach((s) => ($(s).onchange = updateTicketSummary));
   wireLevWheel();
   $("#limitsForm").oninput = renderLimitValues;
