@@ -1794,6 +1794,8 @@ function renderTicket() {
   if (pr) return renderPairTicket(pr);
   $('#sideSel [data-side="buy"]').textContent = "Buy / Long";
   $('#sideSel [data-side="sell"]').textContent = "Sell / Short";
+  $('#sideSel [data-side="buy"]').title = t("Buy / Long · B"); // a pair set its legs here
+  $('#sideSel [data-side="sell"]').title = t("Sell / Short · S");
   const m = activeMarket();
   if (!m) return;
   $("#tkSym").textContent = m.symbol;
@@ -1898,8 +1900,12 @@ function renderPairTicket([a, b]) {
   $("#tkSym").textContent = `${a.symbol}/${b.symbol}`;
   const held = (m) => { const p = account && account.positions.find((x) => x.market_id === m.id); return p ? `<span class="${p.size > 0 ? "up" : "down"}">${m.symbol} ${p.size > 0 ? "Long" : "Short"} ${fsize(p.size, m)}</span>` : ""; };
   setAccPos([held(a), held(b)].filter(Boolean).join(" · "));
-  $('#sideSel [data-side="buy"]').textContent = `Long ${a.symbol} / Short ${b.symbol}`;
-  $('#sideSel [data-side="sell"]').textContent = `Short ${a.symbol} / Long ${b.symbol}`;
+  // two lines, one per leg, so long names fit the button (each line ends in … if it still doesn't)
+  const legs = (x, y) => `<span>${x} ${esc(a.symbol)}</span><span>${y} ${esc(b.symbol)}</span>`;
+  $('#sideSel [data-side="buy"]').innerHTML = legs("Long", "Short");
+  $('#sideSel [data-side="sell"]').innerHTML = legs("Short", "Long");
+  $('#sideSel [data-side="buy"]').title = `Long ${a.symbol} / Short ${b.symbol}`;
+  $('#sideSel [data-side="sell"]').title = `Short ${a.symbol} / Long ${b.symbol}`;
   $$("#sideSel [data-side]").forEach((x) => x.classList.toggle("active", x.dataset.side === ticket.side));
   $("#tkSizeUnit").textContent = "USD";
   renderChips(quickChips("usd", a));

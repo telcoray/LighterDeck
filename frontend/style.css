@@ -1418,3 +1418,8 @@ option { background: var(--surface); color: var(--text); }
 .pk-resize { position: absolute; top: 0; right: 0; bottom: 0; width: 7px; z-index: 3; cursor: ew-resize; }
 .pk-resize:hover, .pk-resize:active { background: linear-gradient(to left, var(--line-3) 2px, transparent 2px); }
 @media (max-width: 860px) { .pk-resize { display: none; } }
+
+/* a pair's side buttons: the two legs on two lines, each cut with … when the names are long */
+.ticket.pair .sidesel { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.ticket.pair .sidesel button { flex-direction: column; gap: 1px; min-width: 0; padding: 4px 8px; white-space: nowrap; }
+.ticket.pair .sidesel button > span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
