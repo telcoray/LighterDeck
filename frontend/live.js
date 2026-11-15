@@ -504,6 +504,57 @@ const Live = (() => {
     return undefined; // market data: the server answers it
   }
 
+  // ---------- a new API key, made here and registered with one wallet signature ----------
+  // The key is generated in this browser by Lighter's signer and registered on the account with a ChangePubKey
+  // transaction signed by the new key itself and authorised by the account's wallet, which signs Lighter's
+  // message (personal_sign: no transaction, no gas). Nothing leaves the browser but the signed transaction.
+  // Returns { api_key_index, key } once Lighter lists the key; connecting it is the caller's job.
+  // A key registered but not yet connected (Lighter slow to list it, the first check refused) stays pending in
+  // this page: the next try picks it up instead of registering yet another one.
+  let pendingKey = null;
+  async function waitListed(p) {
+    for (let i = 0; i < 60; i++) { // into a block, then listed on the account: usually seconds, up to a minute or so
+      const list = await get("apikeys", { account_index: p.account_index, api_key_index: p.api_key_index }).catch(() => null);
+      if (list && (list.api_keys || []).some((x) => x.api_key_index === p.api_key_index && String(x.public_key).toLowerCase() === p.pub)) {
+        await new Promise((ok) => setTimeout(ok, 2000)); // a moment more before the first signed request
+        return { api_key_index: p.api_key_index, key: p.key };
+      }
+      await new Promise((ok) => setTimeout(ok, 1500));
+    }
+    err(t("Lighter non ha ancora registrato la chiave: riprova tra poco"));
+  }
+
+  async function createKey({ account_index, api_key_index, provider, address, step = () => {} }) {
+    await loadSigner();
+    if (pendingKey && pendingKey.account_index === account_index) { step("register"); return waitListed(pendingKey); }
+    const k = window.GenerateAPIKey();
+    if (!k || k.error) err(k ? k.error : t("Impossibile generare la chiave"));
+    const hex0x = (s) => (s.startsWith("0x") ? s : "0x" + s);
+    const made = window.CreateClient(net.url, k.privateKey, net.chain, api_key_index, account_index);
+    if (made && made.error) err(made.error);
+    const { nonce: n } = await get("nextNonce", { account_index, api_key_index });
+    const tx = window.SignChangePubKey(hex0x(k.publicKey), 0, n, api_key_index, account_index);
+    if (!tx || tx.error) err(tx ? tx.error : t("Firma non riuscita"));
+    if (!tx.messageToSign) err(t("Firma non riuscita"));
+    step("sign");
+    const msg = "0x" + [...new TextEncoder().encode(tx.messageToSign)].map((b) => b.toString(16).padStart(2, "0")).join("");
+    let sig;
+    try {
+      sig = await provider.request({ method: "personal_sign", params: [msg, address] });
+    } catch (e) {
+      err(e && e.code === 4001 ? t("Firma rifiutata nel wallet") : (e && e.message) || String(e));
+    }
+    step("register");
+    const txInfo = JSON.parse(tx.txInfo);
+    txInfo.L1Sig = sig;
+    const r = await fetch(`${net.url}/api/v1/sendTx`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ tx_type: tx.txType, tx_info: JSON.stringify(txInfo) }) });
+    const body = await r.json().catch(() => ({}));
+    if (!r.ok || body.code !== 200) err(body.message || `sendTx: ${r.status}`);
+    pendingKey = { account_index, api_key_index, key: k.privateKey, pub: hex0x(k.publicKey).slice(2).toLowerCase() };
+    return waitListed(pendingKey);
+  }
+
   // ---------- connecting a key ----------
   // checked with Lighter before it is kept: the key index must be registered on the account and an
   // auth token signed with this key must be accepted
@@ -524,6 +575,7 @@ const Live = (() => {
       throw e;
     }
     nonce = null;
+    if (pendingKey && pendingKey.key === cred.key) pendingKey = null;
     try {
       localStorage.removeItem(STORE);
       sessionStorage.removeItem(STORE);
@@ -588,7 +640,7 @@ const Live = (() => {
 
   return {
     on: false,
-    route, connect, restore, disconnect, autoOn, autoOff,
+    route, connect, restore, disconnect, autoOn, autoOff, createKey,
     auto: () => auto,
     saved: () => { try { return !!(sessionStorage.getItem(STORE) || localStorage.getItem(STORE)); } catch { return false; } },
     info: () => (cred ? { account_index: cred.account_index, api_key_index: cred.api_key_index } : null),

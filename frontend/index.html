@@ -40,7 +40,7 @@
 </script>
 <style>html.i18n-pending body { visibility: hidden; }</style>
 <link rel="icon" href="favicon.svg?v=1" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=269">
+<link rel="stylesheet" href="style.css?v=272">
 <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
 </head>
 <body>
@@ -668,6 +668,12 @@
     </div>
   </div>
   <form id="keyForm" autocomplete="off">
+    <div class="key-create hidden" id="keyCreate">
+      <button type="button" class="primary" id="keyCreateBtn">Crea una chiave con il wallet</button>
+      <p class="key-note">Una firma nel wallet, senza transazioni né gas: LighterDeck genera la chiave in questo browser e la registra sul tuo account Lighter.</p>
+      <div class="key-wallets hidden" id="keyCreateWallets"></div>
+      <div class="key-or"><span>oppure incolla una chiave che hai già</span></div>
+    </div>
     <ol class="key-steps">
       <li><a href="https://app.lighter.xyz/apikeys" target="_blank" rel="noopener">Apri la pagina API keys di Lighter</a> e crea una nuova chiave.</li>
       <li>Copia la chiave privata. L'indice della chiave non serve: lo trovo io.</li>
@@ -752,13 +758,13 @@
 </div>
 
 <div class="toast hidden" id="toast" role="status" aria-live="polite"></div>
-<script src="i18n.js?v=269"></script>
-<script src="i18n-zh.js?v=269"></script>
-<script src="i18n-ko.js?v=269"></script>
-<script src="formulas.js?v=269"></script>
-<script src="paper.js?v=269"></script>
-<script src="live.js?v=269"></script>
-<script src="app.js?v=269"></script>
-<script src="picker.js?v=269"></script>
+<script src="i18n.js?v=272"></script>
+<script src="i18n-zh.js?v=272"></script>
+<script src="i18n-ko.js?v=272"></script>
+<script src="formulas.js?v=272"></script>
+<script src="paper.js?v=272"></script>
+<script src="live.js?v=272"></script>
+<script src="app.js?v=272"></script>
+<script src="picker.js?v=272"></script>
 </body>
 </html>

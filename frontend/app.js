@@ -5363,14 +5363,51 @@ const walletProviders = new Map(); // uuid -> { info, provider }
 window.addEventListener("eip6963:announceProvider", (e) => {
   walletProviders.set(e.detail.info.uuid, e.detail);
   $("#keyWallet").classList.remove("hidden");
+  $("#keyCreate").classList.remove("hidden");
 });
 window.dispatchEvent(new Event("eip6963:requestProvider"));
 setTimeout(() => { // older wallets only inject window.ethereum
   if (!walletProviders.size && window.ethereum) {
     walletProviders.set("injected", { info: { name: "Browser wallet" }, provider: window.ethereum });
     $("#keyWallet").classList.remove("hidden");
+    $("#keyCreate").classList.remove("hidden");
   }
 }, 500);
+
+// "Create a key with my wallet": the wallet's account, a free key index (3 and up: 0-2 belong to Lighter's
+// app), a key made in this browser and registered with one signature, then connected like a pasted one
+async function createWithWallet(provider) {
+  keyError("");
+  if (info.public && !$("#keyTerms").checked) return keyError(t("Spunta i Termini d'uso qui sotto per continuare"));
+  const btn = $("#keyCreateBtn"), label = btn.textContent;
+  btn.disabled = true;
+  try {
+    btn.textContent = t("Collegamento al wallet…");
+    const [address] = await provider.request({ method: "eth_requestAccounts" });
+    if (!address) throw new Error(t("Il wallet non ha condiviso nessun indirizzo"));
+    $("#keyAddress").value = address;
+    $("#keyAccount").value = "";
+    await $("#keyFind").onclick();
+    if ($("#keyAccount").value === "") throw new Error(t("Nessun account Lighter per questo wallet"));
+    const account_index = +$("#keyAccount").value;
+    const used = await api("/api_keys?account_index=" + account_index).catch(() => []);
+    let api_key_index = 3;
+    while (used.includes(api_key_index)) api_key_index++;
+    if (api_key_index > 254) throw new Error(t("Nessun indice libero per una nuova chiave"));
+    btn.textContent = t("Preparazione…");
+    const made = await Live.createKey({ account_index, api_key_index, provider, address,
+      step: (s) => { btn.textContent = s === "sign" ? t("Firma nel wallet…") : t("Registrazione su Lighter…"); } });
+    btn.textContent = t("Collegamento…");
+    $("#keyIndex").value = made.api_key_index;
+    $("#keyPrivate").value = made.key;
+    $("#keyForm").requestSubmit(); // checked and kept like a pasted key
+  } catch (e) {
+    keyError(e && e.code === 4001 ? t("Richiesta rifiutata nel wallet") : (e && e.message) || String(e));
+  } finally {
+    btn.disabled = false;
+    btn.textContent = label;
+  }
+}
 
 async function useWallet(provider) {
   keyError("");
@@ -5394,6 +5431,7 @@ function openKeyDialog(justConnected = false) {
   $("#keyTitle").textContent = on ? t("API key collegata") : t("Collega un'API key");
   if (on) {
     $("#keyOk").classList.toggle("hidden", justConnected !== true);
+    $("#keyDone").classList.toggle("go", justConnected === true); // just connected: Done is the way on, in green
     const k = browser ? Live.info() : info;
     $("#keyFactAcc").textContent = "#" + k.account_index;
     $("#keyFactIdx").textContent = k.api_key_index == null ? "—" : "#" + k.api_key_index;
@@ -5749,6 +5787,19 @@ function wireKeyDialog() {
     $("#keyWallets").innerHTML = list.map((w, i) =>
       `<button type="button" class="chip" data-wallet="${i}">${w.info.icon ? `<img src="${esc(w.info.icon)}" alt="">` : ""}${esc(w.info.name)}</button>`).join("");
     $("#keyWallets").classList.toggle("hidden");
+  };
+  $("#keyCreateBtn").onclick = () => {
+    const list = [...walletProviders.values()];
+    if (list.length === 1) return createWithWallet(list[0].provider);
+    $("#keyCreateWallets").innerHTML = list.map((w, i) =>
+      `<button type="button" class="chip" data-wallet="${i}">${w.info.icon ? `<img src="${esc(w.info.icon)}" alt="">` : ""}${esc(w.info.name)}</button>`).join("");
+    $("#keyCreateWallets").classList.toggle("hidden");
+  };
+  $("#keyCreateWallets").onclick = (e) => {
+    const b = e.target.closest("[data-wallet]");
+    if (!b) return;
+    $("#keyCreateWallets").classList.add("hidden");
+    createWithWallet([...walletProviders.values()][+b.dataset.wallet].provider);
   };
   $("#keyWallets").onclick = (e) => {
     const b = e.target.closest("[data-wallet]");

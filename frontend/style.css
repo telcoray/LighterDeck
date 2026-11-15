@@ -1458,3 +1458,15 @@ option { background: var(--surface); color: var(--text); }
 .tk-arrow:hover { color: var(--text); }
 .tk-arrow:hover svg { border-color: var(--line-3); }
 @media (hover: none) { .tk-arrow { display: none; } } /* a phone: the finger scrolls it */
+
+/* "Create a key with my wallet" above the paste steps, then a divider */
+.key-create { margin-bottom: 14px; }
+.key-create .primary { width: 100%; }
+.key-create .key-note { margin: 8px 0 0; }
+.key-create .key-wallets { margin: 8px 0 0; }
+.key-or { display: flex; align-items: center; gap: 10px; margin: 14px 0 0; color: var(--muted); font-size: 11px; }
+.key-or::before, .key-or::after { content: ""; flex: 1; height: 1px; background: var(--line-2); }
+
+/* the key dialog's Done right after a key is connected: solid green, the obvious next click */
+#keyDone.go { padding: 0 18px; border-color: var(--green); background: var(--green); color: var(--green-ink); font-weight: 600; }
+#keyDone.go:hover { filter: brightness(1.08); }
