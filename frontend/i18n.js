@@ -249,6 +249,9 @@ const EN = {
   "prev. {f} · prec. {p}": "fcst. {f} · prev. {p}",
   // ---- order book ----
   "Prezzo": "Price",
+  "Rete di prova di Lighter: niente soldi veri": "Lighter's test network: no real money",
+  "Rete vera di Lighter: gli ordini sono reali": "Lighter's real network: orders are real",
+  "Prezzi dalla rete vera di Lighter; qui non si muovono soldi veri": "Prices from Lighter's real network; no real money moves here",
   "Crea una chiave con il wallet": "Create a key with my wallet",
   "Una firma nel wallet, senza transazioni né gas: LighterDeck genera la chiave in questo browser e la registra sul tuo account Lighter.": "One signature in your wallet, no transaction and no gas: LighterDeck makes the key in this browser and registers it on your Lighter account.",
   "oppure incolla una chiave che hai già": "or paste a key you already have",

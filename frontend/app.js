@@ -3270,6 +3270,7 @@ function setTicketMargin(change) {
 
 // ================= account / bottom tables =================
 function renderAccount() {
+  renderNetBadge();
   renderAccountHead();
   const has = !!account;
   $("#accIdx").textContent = has ? (Paper.on ? "Paper" : "#" + account.index) : "";
@@ -5499,6 +5500,17 @@ function credentialsChanged(newInfo) {
   renderArmed(info.armed);
   renderAccount();
   loadOrders(true);
+}
+
+// the network badge: blue on the testnet; on the mainnet green when orders are real (a connected account,
+// not paper), neutral grey when nothing real is at stake (paper, read-only: it only says where prices come from)
+function renderNetBadge() {
+  if (!info) return;
+  const real = !Paper.on && (Live.on || (!info.public && liveTrading));
+  const cls = info.network === "testnet" ? "testnet" : real ? "real" : "";
+  for (const el of [$("#netBadge")]) el.className = "net" + (cls ? " " + cls : "");
+  $("#netBadge").title = info.network === "testnet" ? t("Rete di prova di Lighter: niente soldi veri")
+    : real ? t("Rete vera di Lighter: gli ordini sono reali") : t("Prezzi dalla rete vera di Lighter; qui non si muovono soldi veri");
 }
 
 // ================= paper trading =================

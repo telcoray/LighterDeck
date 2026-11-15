@@ -204,7 +204,9 @@ body.paper [data-view="auto"], body.paper [data-view="activity"], body.paper [da
 .kill { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border: 1px solid var(--line-2); border-radius: 13px; font-size: 11px; color: var(--text-2); }
 .kill:hover { border-color: var(--line-3); color: var(--text); }
 .kill.on { border-color: rgba(242,84,109,.5); color: var(--red); background: var(--red-soft); }
-.net { height: 26px; display: inline-flex; align-items: center; padding: 0 12px; border-radius: 13px; font-size: 11px; color: var(--amber); border: 1px solid rgba(232,177,74,.35); background: rgba(232,177,74,.06); }
+.net { height: 26px; display: inline-flex; align-items: center; padding: 0 12px; border-radius: 13px; font-size: 11px; color: var(--muted); border: 1px solid var(--line-2); background: transparent; }
+.net.real { color: var(--green); border-color: color-mix(in srgb, var(--green) 45%, transparent); background: var(--green-soft); } /* orders are real */
+.net.testnet { color: var(--blue); border-color: color-mix(in srgb, var(--blue) 45%, transparent); background: color-mix(in srgb, var(--blue) 8%, transparent); }
 
 /* ---------- ticker ---------- */
 .ticker { height: 32px; flex: none; display: flex; align-items: center; gap: 4px; padding: 0 10px 0 6px; border-bottom: 1px solid var(--line); }
