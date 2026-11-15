@@ -2381,7 +2381,7 @@ function syncExitEditor(id, m, ref, qty, write = false) {
   const factor = usd ? qty : 100 * leverage / ref;
   const ready = ref > 0 && Number.isFinite(factor) && factor > 0 && !(usd && $("#tkUnit").value === "risk_usd");
   el("Options").classList.toggle("hidden", trigger.disabled);
-  el("LimitRow").classList.toggle("hidden", el("Exec").value !== "limit");
+  el("Limit").classList.toggle("hidden", el("Exec").value !== "limit"); // the limit price sits in the execution row, before its menu
   move.disabled = !ready;
   move.title = usd && !ready ? t("Per usare USD, imposta la size in USD, quantità o % capitale")
     : usd ? t("Stima lorda sulla quantità dell’ordine al prezzo di trigger") : t("Perdita o guadagno in % del margine, con la leva ({lev}x)", { lev: +(+leverage).toFixed(1) });
