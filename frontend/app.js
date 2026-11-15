@@ -2451,7 +2451,7 @@ function syncExitEditor(id, m, ref, qty, write = false) {
     if (ready && !move.validity.valid) return;
     move.setCustomValidity("");
     const value = (+trigger.value - ref) * direction * factor; // > 0: the exit's own way (a loss for the SL)
-    const gain = value ? (id === "Tp" ? value > 0 : value < 0) : id === "Tp";
+    const gain = +trigger.value > 0 && value ? (id === "Tp" ? value > 0 : value < 0) : id === "Tp"; // empty: the exit's own colour
     show(ready && +trigger.value > 0 ? value : 0, gain);
   }
 }
