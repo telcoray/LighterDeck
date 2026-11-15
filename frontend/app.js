@@ -57,7 +57,7 @@ function applyTheme(id) {
     p.drawLines();
     p.drawMarkers();
   });
-  $("#themeName").textContent = t(theme.name);
+  $("#themeBtn").title = `${t("Cambia tema")} · ${t(theme.name)}`;
   $("#themeSwatch").innerHTML = swatch();
   $("#themeMenu").innerHTML = THEMES.map((th) => `<button data-theme="${th.id}" class="${th.id === theme.id ? "active" : ""}">
       <span class="swatch" data-preview="${th.id}"></span><span>${t(th.name)}<small>${t(th.note)}</small></span><span class="check">✓</span></button>`).join("");
@@ -5722,7 +5722,7 @@ const TRANSLATE_ICON = '<svg class="lang-ico" viewBox="0 0 24 24" width="15" hei
 
 function renderLangBtn() {
   const cur = LANGS.find((l) => l.id === LANG) || LANGS[0];
-  $("#langBtn").innerHTML = TRANSLATE_ICON + cur.short;
+  $("#langBtn").innerHTML = TRANSLATE_ICON;
   $("#langBtn").title = t("Lingua") + " · " + cur.name;
   $("#langMenu").innerHTML = LANGS.map((l) => `<button data-lang="${l.id}" class="${l.id === LANG ? "active" : ""}">
       <span class="lang-code">${l.short}</span><span>${l.name}${l.english !== l.name ? `<small>${l.english}</small>` : ""}</span><span class="check">✓</span></button>`).join("");

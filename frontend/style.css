@@ -915,10 +915,8 @@ button.pill:hover { border-color: var(--line-3); color: var(--text); }
   .views { display: flex; order: 10; width: calc(100% + 24px); margin: 0 -12px; padding: 4px 8px; border-top: 1px solid var(--line); overflow-x: auto; scrollbar-width: none; }
   .views button { flex: none; }
   .kill, .theme-btn, .lang-btn { white-space: nowrap; flex: none; }
-  #themeName { display: none; }
   #accountPill:not(.muted) { display: none; }
   #accountPill.muted { display: inline-flex; }
-  .theme-btn { padding: 0 7px; }
 
   /* favourites strip and market stats scroll sideways */
 
@@ -1405,3 +1403,6 @@ option { background: var(--surface); color: var(--text); }
 .ticket .tk-mode button:last-child { margin-left: calc(var(--tk-slant) * -1); clip-path: polygon(var(--tk-slant) 0, 100% 0, 100% 100%, 0 100%); padding-left: calc(8px + var(--tk-slant) / 2); }
 .ticket .tk-mode::after { content: ""; position: absolute; top: 2px; bottom: 2px; left: 50%; width: 1px; background: var(--line-2);
   transform: skewX(calc(atan2(var(--tk-slant), calc(var(--tk-h) - 6px)) * -1)); pointer-events: none; }
+
+/* theme and language: just their icons, in round buttons of the same size (the name is in the tooltip) */
+.theme-btn, .lang-btn { justify-content: center; width: 26px; min-width: 0; height: 26px; padding: 0; border-radius: 50%; }
