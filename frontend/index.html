@@ -40,7 +40,7 @@
 </script>
 <style>html.i18n-pending body { visibility: hidden; }</style>
 <link rel="icon" href="favicon.svg?v=1" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=259">
+<link rel="stylesheet" href="style.css?v=260">
 <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
 </head>
 <body>
@@ -285,11 +285,11 @@
         </div>
         <div class="tk-protection solo-only basic-only hidden" id="tkProtection">
           <div class="sltp-rows">
-            <div class="field"><label for="tkSl">Stop-loss</label><input id="tkSl" autocomplete="off" type="number" step="any" placeholder="—"><input id="tkSlMove" class="sltp-move down" type="text" inputmode="decimal" autocomplete="off" placeholder="—" aria-label="Perdita"><select id="tkSlUnit" aria-label="Unità del risultato"><option value="pct">%</option><option value="usd">USD</option></select><span class="sltp-out" id="tkSlOut"></span></div>
+            <div class="field"><label for="tkSl">Stop-loss</label><input id="tkSl" autocomplete="off" type="number" step="any" placeholder="—"><input id="tkSlMove" class="sltp-move down" type="text" inputmode="decimal" autocomplete="off" placeholder="—" aria-label="Perdita"><select id="tkSlUnit" class="hidden" aria-hidden="true" tabindex="-1"><option value="pct">%</option><option value="usd">$</option></select><span class="unit-seg" data-unit-for="tkSlUnit" role="radiogroup" aria-label="Unità del risultato"><button type="button" data-u="pct" role="radio">%</button><button type="button" data-u="usd" role="radio">$</button></span><span class="sltp-out" id="tkSlOut"></span></div>
             <div class="tk-exit-options" id="tkSlOptions">
               <div class="field"><label for="tkSlExec">Esecuzione SL</label><input id="tkSlLimit" class="hidden" type="number" min="0" step="any" placeholder="Prezzo" aria-label="Prezzo limite SL"><select id="tkSlExec"><option value="market">Market</option><option value="limit">Limit</option></select></div>
             </div>
-            <div class="field" id="tkTpField"><label for="tkTp">Take-profit</label><input id="tkTp" autocomplete="off" type="number" step="any" placeholder="—"><input id="tkTpMove" class="sltp-move up" type="text" inputmode="decimal" autocomplete="off" placeholder="—" aria-label="Guadagno"><select id="tkTpUnit" aria-label="Unità del risultato"><option value="pct">%</option><option value="usd">USD</option></select><span class="sltp-out" id="tkTpOut"></span></div>
+            <div class="field" id="tkTpField"><label for="tkTp">Take-profit</label><input id="tkTp" autocomplete="off" type="number" step="any" placeholder="—"><input id="tkTpMove" class="sltp-move up" type="text" inputmode="decimal" autocomplete="off" placeholder="—" aria-label="Guadagno"><select id="tkTpUnit" class="hidden" aria-hidden="true" tabindex="-1"><option value="pct">%</option><option value="usd">$</option></select><span class="unit-seg" data-unit-for="tkTpUnit" role="radiogroup" aria-label="Unità del risultato"><button type="button" data-u="pct" role="radio">%</button><button type="button" data-u="usd" role="radio">$</button></span><span class="sltp-out" id="tkTpOut"></span></div>
             <div class="tk-exit-options" id="tkTpOptions">
               <div class="field"><label for="tkTpExec">Esecuzione TP</label><input id="tkTpLimit" class="hidden" type="number" min="0" step="any" placeholder="Prezzo" aria-label="Prezzo limite TP"><select id="tkTpExec"><option value="market">Market</option><option value="limit">Limit</option></select></div>
             </div>
@@ -728,13 +728,13 @@
 </div>
 
 <div class="toast hidden" id="toast" role="status" aria-live="polite"></div>
-<script src="i18n.js?v=259"></script>
-<script src="i18n-zh.js?v=259"></script>
-<script src="i18n-ko.js?v=259"></script>
-<script src="formulas.js?v=259"></script>
-<script src="paper.js?v=259"></script>
-<script src="live.js?v=259"></script>
-<script src="app.js?v=259"></script>
-<script src="picker.js?v=259"></script>
+<script src="i18n.js?v=260"></script>
+<script src="i18n-zh.js?v=260"></script>
+<script src="i18n-ko.js?v=260"></script>
+<script src="formulas.js?v=260"></script>
+<script src="paper.js?v=260"></script>
+<script src="live.js?v=260"></script>
+<script src="app.js?v=260"></script>
+<script src="picker.js?v=260"></script>
 </body>
 </html>

@@ -4734,6 +4734,21 @@ function wire() {
   };
   $("#tkMid").onclick = fillMid;
   $("#tkProtectionToggle").onclick = toggleTicketProtection;
+  // % / $ beside the SL and TP distances: a click picks one (the hidden select keeps the value the code reads)
+  const syncUnitSeg = (seg) => {
+    const v = $("#" + seg.dataset.unitFor).value;
+    seg.querySelectorAll("[data-u]").forEach((b) => { b.classList.toggle("active", b.dataset.u === v); b.setAttribute("aria-checked", String(b.dataset.u === v)); });
+  };
+  $$(".unit-seg").forEach((seg) => {
+    syncUnitSeg(seg);
+    seg.onclick = (e) => {
+      const b = e.target.closest("[data-u]"), sel = $("#" + seg.dataset.unitFor);
+      if (!b || sel.value === b.dataset.u) return;
+      sel.value = b.dataset.u;
+      sel.dispatchEvent(new Event("change"));
+      syncUnitSeg(seg);
+    };
+  });
   for (const id of ["Sl", "Tp"]) {
     const move = $(`#tk${id}Move`);
     move.oninput = () => {
