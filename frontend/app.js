@@ -1495,6 +1495,29 @@ function renderTicker() {
       ${ico(s, "xs")}<b>${s}</b><span class="num">${p ? fp(p.last || p.mark, m) : "—"}</span>
       <span class="chg ${p ? cls(p.change) : ""}">${p ? fpct(p.change) : ""}</span></button>`;
   }).join("");
+  updateTickerArrows();
+}
+
+// favourites row wider than the screen: the mouse wheel scrolls it sideways, and an arrow shows on each side
+// that has favourites out of view (a click moves it by most of its width)
+function updateTickerArrows() {
+  const box = $("#ticker"), end = box.scrollWidth - box.clientWidth;
+  $("#tickerLeft").classList.toggle("hidden", box.scrollLeft <= 2);
+  $("#tickerRight").classList.toggle("hidden", end <= 2 || box.scrollLeft >= end - 2);
+}
+
+function wireTickerScroll() {
+  const box = $("#ticker");
+  box.addEventListener("wheel", (e) => {
+    if (box.scrollWidth <= box.clientWidth || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return; // a sideways swipe scrolls by itself
+    e.preventDefault();
+    box.scrollLeft += e.deltaY;
+  }, { passive: false });
+  box.addEventListener("scroll", updateTickerArrows, { passive: true });
+  const step = (dir) => box.scrollBy({ left: dir * box.clientWidth * 0.7, behavior: "smooth" });
+  $("#tickerLeft").onclick = () => step(-1);
+  $("#tickerRight").onclick = () => step(1);
+  addEventListener("resize", updateTickerArrows);
 }
 
 // favourites row: drag an item sideways to reorder (a plain click still selects the market)
@@ -4752,6 +4775,7 @@ function wire() {
   $("#obToggle").onclick = () => toggleBook(!showBook);
   $("#mktSelect").onclick = () => ($("#picker").classList.contains("hidden") ? openPalette() : closePalette());
   wireTickerDrag();
+  wireTickerScroll();
   $("#ticker").onclick = (e) => { // from Markets or Calendar too: it opens Trade on that chart
     if (Date.now() - tickerDragEnd < 300) return;
     const b = e.target.closest("[data-sym]");

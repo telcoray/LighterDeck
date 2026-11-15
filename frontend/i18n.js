@@ -249,6 +249,8 @@ const EN = {
   "prev. {f} · prec. {p}": "fcst. {f} · prev. {p}",
   // ---- order book ----
   "Prezzo": "Price",
+  "Preferiti precedenti": "Previous favourites",
+  "Altri preferiti": "More favourites",
   "Mercati con un funding oltre lo 0,01% all'ora, in un senso o nell'altro. Chi sta dal lato che incassa riceve il funding ogni ora. Il prezzo però continua a muoversi: è un rendimento che può sparire o girare, non un guadagno garantito.": "Markets with a funding above 0.01% an hour, either way. Whoever holds the side that collects receives the funding every hour. The price still moves, though: it is a yield that can fade or flip, not a guaranteed gain.",
   "Annualizzato": "Annualized",
   "Lato che incassa": "Side that collects",

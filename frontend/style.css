@@ -1447,3 +1447,14 @@ option { background: var(--surface); color: var(--text); }
 .toast { background: var(--surface); color: var(--text-2); }
 .toast.ok .toast-ico { color: var(--green); }
 .toast.err .toast-ico { color: var(--red); }
+
+/* the favourites strip: arrows over its ends when favourites are out of view, with a fade so the cut item reads as "more" */
+.ticker { position: relative; }
+.ticker-items { min-width: 0; }
+.tk-arrow { position: absolute; top: 0; bottom: 1px; width: 40px; display: flex; align-items: center; color: var(--text-2); z-index: 2; }
+.tk-arrow.left { left: 0; justify-content: flex-start; padding-left: 6px; background: linear-gradient(90deg, var(--bg) 55%, transparent); }
+.tk-arrow.right { right: 0; justify-content: flex-end; padding-right: 6px; background: linear-gradient(270deg, var(--bg) 55%, transparent); }
+.tk-arrow svg { box-sizing: content-box; padding: 4px; border: 1px solid var(--line-2); border-radius: 4px; background: var(--raised); }
+.tk-arrow:hover { color: var(--text); }
+.tk-arrow:hover svg { border-color: var(--line-3); }
+@media (hover: none) { .tk-arrow { display: none; } } /* a phone: the finger scrolls it */
