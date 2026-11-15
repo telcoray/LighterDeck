@@ -4658,7 +4658,9 @@ function connect() {
 let feedOk = false;
 function setStatus(ok) {
   feedOk = ok;
-  $("#statusPill").innerHTML = ok ? `<i class="dot"></i><span>${t("Pronto")}</span>` : `<i class="dot warn"></i><span>${t("Riconnessione…")}</span>`;
+  // shown only while the live prices are cut off (the footer already says they're live)
+  $("#statusPill").innerHTML = `<i class="dot warn"></i><span>${t("Riconnessione…")}</span>`;
+  $("#statusPill").classList.toggle("hidden", ok);
 }
 
 // ================= ui wiring =================
