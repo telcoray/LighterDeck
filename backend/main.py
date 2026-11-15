@@ -1054,6 +1054,17 @@ async def accounts_for_address(address: str):
         raise HTTPException(404, L("Nessun account Lighter per questo indirizzo", "No Lighter account for this address"))
 
 
+@app.get("/api/api_keys")
+async def api_keys(account_index: int):
+    """The key indexes registered on an account, newest first: the key dialog finds which one a private key is."""
+    if account_index < 0:
+        raise HTTPException(400, L("Indice account non valido", "Invalid account index"))
+    try:
+        return await api.api_keys(account_index)
+    except RuntimeError:
+        raise HTTPException(404, L("Nessuna API key su questo account", "No API key on this account"))
+
+
 @app.post("/api/credentials")
 async def set_credentials(req: CredentialsReq):
     if config.CREDENTIALS_SOURCE == "env":

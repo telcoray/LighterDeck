@@ -40,7 +40,7 @@
 </script>
 <style>html.i18n-pending body { visibility: hidden; }</style>
 <link rel="icon" href="favicon.svg?v=1" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=268">
+<link rel="stylesheet" href="style.css?v=269">
 <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
 </head>
 <body>
@@ -670,17 +670,17 @@
   <form id="keyForm" autocomplete="off">
     <ol class="key-steps">
       <li><a href="https://app.lighter.xyz/apikeys" target="_blank" rel="noopener">Apri la pagina API keys di Lighter</a> e crea una nuova chiave.</li>
-      <li>Copia la chiave privata e il suo indice (da 3 in su: 0–2 sono riservati all'app di Lighter).</li>
-      <li>Incollali qui: LighterDeck controlla la chiave con Lighter prima di salvarla.</li>
+      <li>Copia la chiave privata. L'indice della chiave non serve: lo trovo io.</li>
+      <li>Incollala qui, con il tuo wallet o il suo indirizzo per trovare l'account: LighterDeck controlla la chiave con Lighter prima di salvarla.</li>
     </ol>
-    <div class="field sm"><label>Indirizzo del wallet (facoltativo, per trovare l'account)</label>
+    <div class="field sm"><label>Indirizzo del wallet (per trovare l'account)</label>
       <div class="key-find"><input id="keyAddress" placeholder="0x…" spellcheck="false"><button type="button" class="ghost hidden" id="keyWallet" title="Prendi l'indirizzo dal wallet del browser (solo lettura, nessuna firma)">Wallet</button><button type="button" class="ghost" id="keyFind">Trova</button></div>
       <div class="key-wallets hidden" id="keyWallets"></div>
     </div>
     <div class="key-accounts" id="keyAccounts"></div>
     <div class="key-row">
       <div class="field sm"><label>Indice account</label><input id="keyAccount" type="number" min="0" step="1" required></div>
-      <div class="field sm"><label>Indice API key</label><input id="keyIndex" type="number" min="0" max="254" step="1" placeholder="es. 4" required></div>
+      <div class="field sm"><label>Indice API key</label><input id="keyIndex" type="number" min="0" max="254" step="1" placeholder="automatico"></div>
     </div>
     <div class="field sm"><label>Chiave privata dell'API key</label><input id="keyPrivate" class="secret" type="text" name="ld-signing-key" autocomplete="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore data-bwignore required></div>
     <p class="key-note server-key">La chiave resta solo sul server, in data/credentials.json, e non viene mai rimandata al browser. Un'API key firma ordini e può prelevare solo verso il tuo wallet: non può mandare fondi ad altri indirizzi.</p>
@@ -752,13 +752,13 @@
 </div>
 
 <div class="toast hidden" id="toast" role="status" aria-live="polite"></div>
-<script src="i18n.js?v=268"></script>
-<script src="i18n-zh.js?v=268"></script>
-<script src="i18n-ko.js?v=268"></script>
-<script src="formulas.js?v=268"></script>
-<script src="paper.js?v=268"></script>
-<script src="live.js?v=268"></script>
-<script src="app.js?v=268"></script>
-<script src="picker.js?v=268"></script>
+<script src="i18n.js?v=269"></script>
+<script src="i18n-zh.js?v=269"></script>
+<script src="i18n-ko.js?v=269"></script>
+<script src="formulas.js?v=269"></script>
+<script src="paper.js?v=269"></script>
+<script src="live.js?v=269"></script>
+<script src="app.js?v=269"></script>
+<script src="picker.js?v=269"></script>
 </body>
 </html>

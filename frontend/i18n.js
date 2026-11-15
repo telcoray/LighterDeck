@@ -450,11 +450,12 @@ const EN = {
     "The key is set in the server env file: edit that file to change it.",
   "Apri la pagina API keys di Lighter": "Open Lighter's API keys page",
   "e crea una nuova chiave.": "and create a new key.",
-  "Copia la chiave privata e il suo indice (da 3 in su: 0–2 sono riservati all'app di Lighter).":
-    "Copy the private key and its index (3 or higher: 0–2 are reserved for the Lighter app).",
-  "Incollali qui: LighterDeck controlla la chiave con Lighter prima di salvarla.":
-    "Paste them here: LighterDeck checks the key with Lighter before saving it.",
-  "Indirizzo del wallet (facoltativo, per trovare l'account)": "Wallet address (optional, to find the account)",
+  "Copia la chiave privata. L'indice della chiave non serve: lo trovo io.": "Copy the private key. You don't need the key's index: LighterDeck finds it.",
+  "Incollala qui, con il tuo wallet o il suo indirizzo per trovare l'account: LighterDeck controlla la chiave con Lighter prima di salvarla.": "Paste it here, with your wallet or its address to find the account: LighterDeck checks the key with Lighter before saving it.",
+  "Indirizzo del wallet (per trovare l'account)": "Wallet address (to find the account)",
+  "automatico": "automatic",
+  "Cerco l'indice della chiave…": "Finding the key's index…",
+  "Nessuna API key dell'account #{acc} accetta questa chiave privata: controlla di averla copiata per intero": "No API key of account #{acc} accepts this private key: check you copied all of it",
   "Trova": "Find",
   "Indice account": "Account index",
   "Indice API key": "API key index",

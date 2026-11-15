@@ -5358,6 +5358,7 @@ function wireBottomSplit() {
 }
 
 // ================= API key dialog =================
+let keyFindTimer = 0;
 const walletProviders = new Map(); // uuid -> { info, provider }
 window.addEventListener("eip6963:announceProvider", (e) => {
   walletProviders.set(e.detail.info.uuid, e.detail);
@@ -5775,25 +5776,41 @@ function wireKeyDialog() {
     $$("#keyAccounts [data-acc]").forEach((x) => x.classList.toggle("active", x === b));
   };
   $("#keyAccount").addEventListener("input", () => $$("#keyAccounts [data-acc]").forEach((x) => x.classList.toggle("active", x.dataset.acc === $("#keyAccount").value)));
+  // a pasted (or typed) wallet address looks for its accounts by itself
+  $("#keyAddress").addEventListener("input", () => {
+    clearTimeout(keyFindTimer);
+    if (/^0x[0-9a-fA-F]{40}$/.test($("#keyAddress").value.trim())) keyFindTimer = setTimeout(() => $("#keyFind").click(), 300);
+  });
   $("#keyForm").onsubmit = async (e) => {
     e.preventDefault();
     keyError("");
     const btn = $("#keySubmit");
     btn.disabled = true;
     btn.textContent = t("Verifica in corso…");
-    try {
-      const cred = { account_index: +$("#keyAccount").value, api_key_index: +$("#keyIndex").value };
-      if (info.public) { // the key stays here: checked with Lighter from this browser
+    // one try: the key stays in this browser (checked with Lighter from here) or goes to this deck's server
+    const tryKey = async (cred) => {
+      if (info.public) {
         await Live.connect({ ...cred, key: $("#keyPrivate").value }, $("#keyRemember").checked);
         store("termsAccepted", TERMS_VERSION);
-        $("#keyPrivate").value = "";
         browserKeyChanged();
-        openKeyDialog(true);
         return;
       }
-      const res = await api("/credentials", { method: "POST", body: JSON.stringify({ ...cred, private_key: $("#keyPrivate").value }) });
+      credentialsChanged(await api("/credentials", { method: "POST", body: JSON.stringify({ ...cred, private_key: $("#keyPrivate").value }) }));
+    };
+    try {
+      const account_index = +$("#keyAccount").value;
+      if ($("#keyIndex").value !== "") await tryKey({ account_index, api_key_index: +$("#keyIndex").value });
+      else { // no index given: the account's keys, newest first, until one takes this private key
+        btn.textContent = t("Cerco l'indice della chiave…");
+        const indexes = await api("/api_keys?account_index=" + account_index);
+        let found = null;
+        for (const api_key_index of indexes) {
+          try { await tryKey({ account_index, api_key_index }); found = api_key_index; break; } catch {}
+        }
+        if (found === null) throw new Error(t("Nessuna API key dell'account #{acc} accetta questa chiave privata: controlla di averla copiata per intero", { acc: account_index }));
+        $("#keyIndex").value = found;
+      }
       $("#keyPrivate").value = "";
-      credentialsChanged(res);
       openKeyDialog(true);
     } catch (err) {
       keyError(err.message);

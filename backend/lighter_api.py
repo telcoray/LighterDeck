@@ -208,6 +208,12 @@ class LighterAPI:
         data = await self._get("/api/v1/accountsByL1Address", {"l1_address": address})
         return [{"index": a["index"], "collateral": float(a.get("collateral") or 0)} for a in data.get("sub_accounts", [])]
 
+    async def api_keys(self, account_index):
+        """API key indexes registered on an account, the most recently registered first."""
+        data = await self._get("/api/v1/apikeys", {"account_index": account_index, "api_key_index": 255})
+        keys = sorted(data.get("api_keys", []), key=lambda k: -(k.get("transaction_time") or 0))
+        return [k["api_key_index"] for k in keys]
+
     async def close(self):
         if self.signer:
             await self.signer.close()
