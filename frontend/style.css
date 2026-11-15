@@ -687,7 +687,7 @@ tr:hover .open-btn { color: var(--green); }
 .pk-cats button:hover { color: var(--text); }
 .pk-cats button.active { background: var(--raised); color: var(--text); box-shadow: inset 0 0 0 1px var(--line-2); }
 .pk-list { flex: 1; min-height: 120px; overflow-y: auto; outline: none; }
-.pk-row { display: grid; grid-template-columns: 28px minmax(170px, 2fr) repeat(5, minmax(78px, 1fr)); align-items: center; gap: 8px; padding: 0 14px 0 8px; height: 34px; cursor: pointer; border-bottom: 1px solid #121418; }
+.pk-row { display: grid; grid-template-columns: 28px minmax(170px, 1fr) repeat(5, minmax(78px, 120px)); align-items: center; gap: 8px; padding: 0 14px 0 8px; height: 34px; cursor: pointer; border-bottom: 1px solid #121418; }
 .pk-row:hover, .pk-row.sel { background: var(--raised); }
 .pk-row.current .sym b { color: var(--green); }
 .pk-row .num { font-size: 11.5px; color: var(--text-2); }
@@ -1406,3 +1406,8 @@ option { background: var(--surface); color: var(--text); }
 
 /* theme and language: just their icons, in round buttons of the same size (the name is in the tooltip) */
 .theme-btn, .lang-btn { justify-content: center; width: 26px; min-width: 0; height: 26px; padding: 0; border-radius: 50%; }
+
+/* the picker's right edge: drag to widen it, double-click for the usual width (not on narrow screens) */
+.pk-resize { position: absolute; top: 0; right: 0; bottom: 0; width: 7px; z-index: 3; cursor: ew-resize; }
+.pk-resize:hover, .pk-resize:active { background: linear-gradient(to left, var(--line-3) 2px, transparent 2px); }
+@media (max-width: 860px) { .pk-resize { display: none; } }

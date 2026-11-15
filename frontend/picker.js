@@ -189,13 +189,32 @@ function fillPickerSorts() {
   $("#pkSort").value = pk.sort.key;
 }
 
+// on a wide screen the picker can be dragged wider from its right edge (the names and descriptions get the room); the width is remembered
+const pickerWidth = (w, left) => Math.round(Math.max(560, Math.min(w, innerWidth - Math.max(8, left) - 16)));
+
+function wirePickerResize() {
+  const grip = $("#pkResize"), box = $("#picker");
+  grip.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    grip.setPointerCapture(e.pointerId);
+    const x0 = e.clientX, w0 = box.getBoundingClientRect().width, left = box.getBoundingClientRect().left;
+    grip.onpointermove = (ev) => { box.style.width = pickerWidth(w0 + ev.clientX - x0, left) + "px"; };
+    grip.onpointerup = grip.onpointercancel = () => {
+      grip.onpointermove = grip.onpointerup = grip.onpointercancel = null;
+      store("pickerW", Math.round(box.getBoundingClientRect().width));
+      updateCatArrows();
+    };
+  });
+  grip.addEventListener("dblclick", () => { store("pickerW", 940); placePicker(); updateCatArrows(); }); // back to the usual width
+}
+
 function placePicker() {
   const anchor = $("#mktSelect").getBoundingClientRect();
   const box = $("#picker");
   const narrow = innerWidth < 860;
   box.style.left = narrow ? "8px" : Math.max(8, anchor.left) + "px";
   box.style.top = anchor.bottom + 6 + "px";
-  box.style.width = narrow ? `calc(100vw - 16px)` : Math.min(940, innerWidth - anchor.left - 16) + "px";
+  box.style.width = narrow ? `calc(100vw - 16px)` : pickerWidth(load("pickerW", 940), anchor.left) + "px";
   box.style.maxHeight = innerHeight - anchor.bottom - 20 + "px";
 }
 
@@ -300,6 +319,7 @@ function moveSel(d) {
   $("#pickerShade").addEventListener("mousedown", closePalette);
   $("#pkBase").addEventListener("click", (e) => { if (e.target.closest("#pkBaseOff")) { pk.base = null; $("#pkBase").classList.add("hidden"); if (!touchUI()) $("#pkSearch").focus(); } });
   $("#pkClose").addEventListener("click", closePalette);
+  wirePickerResize();
   $("#picker").addEventListener("click", (e) => {
     const t = e.target;
     const star = t.closest("[data-star]");
