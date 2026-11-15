@@ -2393,8 +2393,19 @@ function syncExitEditor(id, m, ref, qty, write = false) {
     : usd ? t("Stima lorda sulla quantità dell’ordine al prezzo di trigger") : t("Perdita o guadagno in % del margine, con la leva ({lev}x)", { lev: +(+leverage).toFixed(1) });
   // the distance is shown signed (− a loss, + a gain); typed, its sign is ignored: an SL's distance goes the losing way, a TP's the winning way
   const typed = +move.value.replace(/[+−-]/g, "").replace(",", ".").trim();
-  if (write && ready) {
-    if (!move.value.trim()) trigger.value = "";
+  const show = (value, gain) => { // value: the distance's size; red or green, also while it is being typed
+    if (value !== undefined) move.value = value ? `${gain ? "+" : "−"}${Math.abs(value).toLocaleString(undefined, { maximumFractionDigits: 2, useGrouping: false })}` : "";
+    move.classList.toggle("up", gain);
+    move.classList.toggle("down", !gain);
+  };
+  // a typed distance holds while the entry moves (the price follows it); a typed or dragged price holds the other way.
+  // The price we wrote is remembered: if it is no longer in the field, the price was changed by hand
+  const anchor = exitAnchor[id];
+  if (anchor.on === "move" && !write && trigger.value !== anchor.price) anchor.on = "price";
+  if ((write || anchor.on === "move") && ready) {
+    if (write) anchor.on = "move";
+    show(undefined, id === "Tp");
+    if (!move.value.trim()) { trigger.value = ""; anchor.price = ""; }
     else {
       const price = +(ref + direction * typed / factor).toFixed(decimals(m));
       if (!(typed > 0 && price > 0 && (price - ref) * direction > 0)) {
@@ -2402,18 +2413,21 @@ function syncExitEditor(id, m, ref, qty, write = false) {
         return;
       }
       trigger.value = price;
+      anchor.price = trigger.value;
+      if (!write && document.activeElement !== move) show(typed, id === "Tp");
     }
     move.setCustomValidity("");
   } else if (document.activeElement !== move) {
     if (ready && !move.validity.valid) return;
     move.setCustomValidity("");
     const value = (+trigger.value - ref) * direction * factor; // > 0: the exit's own way (a loss for the SL)
-    const gain = id === "Tp" ? value > 0 : value < 0;
-    move.value = ready && +trigger.value > 0 && value ? `${gain ? "+" : "−"}${Math.abs(value).toLocaleString(undefined, { maximumFractionDigits: 2, useGrouping: false })}` : "";
-    move.classList.toggle("up", !!move.value && gain);
-    move.classList.toggle("down", !!move.value && !gain);
+    const gain = value ? (id === "Tp" ? value > 0 : value < 0) : id === "Tp";
+    show(ready && +trigger.value > 0 ? value : 0, gain);
   }
 }
+
+// which of an exit's two numbers the trader set: "move" (the distance) or "price"
+const exitAnchor = { Sl: { on: "price", price: "" }, Tp: { on: "price", price: "" } };
 
 function ticketQuantity(ref) {
   const size = +$("#tkSize").value, unit = $("#tkUnit").value, sl = +$("#tkSl").value;
@@ -4761,12 +4775,14 @@ function wire() {
     move.onblur = updateTicketSummary;
     $(`#tk${id}Unit`).onchange = () => {
       move.setCustomValidity("");
+      exitAnchor[id].on = "price"; // the old number means something else in the new unit: keep the price, show its distance
       updateTicketSummary();
     };
     $(`#tk${id}Exec`).onchange = updateTicketSummary;
     $(`#tk${id}Limit`).oninput = updateTicketSummary;
     $(`#tk${id}`).oninput = () => {
       move.setCustomValidity("");
+      exitAnchor[id].on = "price";
       updateTicketSummary();
     };
   }
