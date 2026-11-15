@@ -249,7 +249,7 @@ const EN = {
   "prev. {f} · prec. {p}": "fcst. {f} · prev. {p}",
   // ---- order book ----
   "Prezzo": "Price",
-  "Trascina per allargare": "Drag to widen",
+  "Trascina per allargare la colonna": "Drag to resize the column",
   "Totale": "Total",
   "spread {bps} bps · live": "spread {bps} bps · live",
   // ---- bottom tables ----

@@ -121,7 +121,7 @@ function renderPickerList() {
     }).join("");
   } else {
     const head = SORTS.slice(0, 5).reduce((o, [k]) => ({ ...o, [k]: pk.sort.key === k ? (pk.sort.dir < 0 ? " ↓" : " ↑") : "" }), {});
-    box.innerHTML = `<div class="pk-row pk-head"><span></span><span data-sort="symbol">${t("Mercato")}</span><span class="r" data-sort="price">${t("Prezzo")}${head.price}</span>
+    box.innerHTML = `<div class="pk-row pk-head"><span></span><span class="pk-name-h" data-sort="symbol">${t("Mercato")}<i class="pk-col-grip" title="${t("Trascina per allargare la colonna")}"></i></span><span class="r" data-sort="price">${t("Prezzo")}${head.price}</span>
         <span class="r" data-sort="change">24h${head.change}</span><span class="r" data-sort="volume">Volume${head.volume}</span>
         <span class="r" data-sort="oi">Open interest${head.oi}</span><span class="r" data-sort="funding">Funding${head.funding}</span></div>` +
       pk.rows.map((m, i) => {
@@ -139,7 +139,7 @@ function renderPickerList() {
 function renderSpreadRows(box) {
   box.className = "pk-list list";
   const star = (s) => `<button class="star${favPairs.includes(s) ? " on" : ""}" data-star="${s}" title="${t("Preferito")}">★</button>`;
-  box.innerHTML = `<div class="pk-row pk-head"><span></span><span>Spread</span><span class="r">${t("Rapporto")}</span><span class="r">24h</span>
+  box.innerHTML = `<div class="pk-row pk-head"><span></span><span class="pk-name-h">Spread<i class="pk-col-grip" title="${t("Trascina per allargare la colonna")}"></i></span><span class="r">${t("Rapporto")}</span><span class="r">24h</span>
       <span class="r" title="${t("Distanza dalla media delle ultime {n} candele, in deviazioni standard", { n: Z_LEN })}">z (1h)</span><span></span><span></span></div>` +
     pk.rows.map((row, i) => {
       const [a, b] = row.pair, pa = prices[a.id] || {}, pb = prices[b.id] || {};
@@ -189,23 +189,45 @@ function fillPickerSorts() {
   $("#pkSort").value = pk.sort.key;
 }
 
-// on a wide screen the picker can be dragged wider from its right edge (the names and descriptions get the room); the width is remembered
-const pickerWidth = (w, left) => Math.round(Math.max(560, Math.min(w, innerWidth - Math.max(8, left) - 16)));
+// the market column can be dragged wider (or narrower) from its header's right edge; the other columns share
+// what is left, never under their minimum. Double-click the edge for the usual width. Remembered.
+function setPickerNameWidth(w) {
+  $("#picker").style.setProperty("--pk-name", w ? `${Math.round(w)}px` : "");
+}
 
-function wirePickerResize() {
-  const grip = $("#pkResize"), box = $("#picker");
-  grip.addEventListener("pointerdown", (e) => {
-    e.preventDefault();
-    grip.setPointerCapture(e.pointerId);
-    const x0 = e.clientX, w0 = box.getBoundingClientRect().width, left = box.getBoundingClientRect().left;
-    grip.onpointermove = (ev) => { box.style.width = pickerWidth(w0 + ev.clientX - x0, left) + "px"; };
-    grip.onpointerup = grip.onpointercancel = () => {
-      grip.onpointermove = grip.onpointerup = grip.onpointercancel = null;
-      store("pickerW", Math.round(box.getBoundingClientRect().width));
-      updateCatArrows();
-    };
+function wirePickerColumn() {
+  const box = $("#picker");
+  box.addEventListener("click", (e) => { if (e.target.closest(".pk-col-grip")) e.stopPropagation(); }, true); // not a sort
+  box.addEventListener("dblclick", (e) => {
+    if (!e.target.closest(".pk-col-grip")) return;
+    store("pkNameW", null);
+    setPickerNameWidth(null);
   });
-  grip.addEventListener("dblclick", () => { store("pickerW", 940); placePicker(); updateCatArrows(); }); // back to the usual width
+  box.addEventListener("pointerdown", (e) => {
+    const grip = e.target.closest(".pk-col-grip");
+    if (!grip) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const head = grip.closest(".pk-row"), name = grip.parentElement;
+    const cs = getComputedStyle(head), gap = parseFloat(cs.columnGap) || 0;
+    const others = [...head.children].filter((c) => c !== name && c !== head.firstElementChild && c.offsetWidth);
+    const min = (parseFloat(getComputedStyle(head).getPropertyValue("--pk-col-min")) || 78);
+    const room = head.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)
+      - head.firstElementChild.offsetWidth - gap * (head.children.length - 1);
+    const max = room - others.length * min, x0 = e.clientX, w0 = name.getBoundingClientRect().width;
+    grip.setPointerCapture(e.pointerId);
+    let w = w0;
+    const move = (ev) => { w = Math.max(120, Math.min(max, w0 + ev.clientX - x0)); setPickerNameWidth(w); };
+    const up = () => {
+      grip.removeEventListener("pointermove", move);
+      grip.removeEventListener("pointerup", up);
+      grip.removeEventListener("pointercancel", up);
+      store("pkNameW", Math.round(w));
+    };
+    grip.addEventListener("pointermove", move);
+    grip.addEventListener("pointerup", up);
+    grip.addEventListener("pointercancel", up);
+  });
 }
 
 function placePicker() {
@@ -214,8 +236,9 @@ function placePicker() {
   const narrow = innerWidth < 860;
   box.style.left = narrow ? "8px" : Math.max(8, anchor.left) + "px";
   box.style.top = anchor.bottom + 6 + "px";
-  box.style.width = narrow ? `calc(100vw - 16px)` : pickerWidth(load("pickerW", 940), anchor.left) + "px";
+  box.style.width = narrow ? `calc(100vw - 16px)` : Math.min(940, innerWidth - anchor.left - 16) + "px";
   box.style.maxHeight = innerHeight - anchor.bottom - 20 + "px";
+  setPickerNameWidth(narrow ? null : load("pkNameW", null)); // on a phone the columns keep their own widths
 }
 
 // arrows appear only on the side that has hidden categories
@@ -319,7 +342,7 @@ function moveSel(d) {
   $("#pickerShade").addEventListener("mousedown", closePalette);
   $("#pkBase").addEventListener("click", (e) => { if (e.target.closest("#pkBaseOff")) { pk.base = null; $("#pkBase").classList.add("hidden"); if (!touchUI()) $("#pkSearch").focus(); } });
   $("#pkClose").addEventListener("click", closePalette);
-  wirePickerResize();
+  wirePickerColumn();
   $("#picker").addEventListener("click", (e) => {
     const t = e.target;
     const star = t.closest("[data-star]");
