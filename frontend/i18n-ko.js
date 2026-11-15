@@ -713,7 +713,7 @@ Object.assign(DICTS.ko, {
 });
 Object.assign(DICTS.ko, { "Adds {v} to the size: click several times to add up": "수량에 {v}를 더합니다: 여러 번 눌러 합산" });
 Object.assign(DICTS.ko, { "Leverage: scroll or drag \u00b7 click for cross / isolated": "레버리지: 스크롤 또는 드래그 · 클릭하면 교차 / 격리" });
-Object.assign(DICTS.ko, { "Share of what the available margin can open, at this leverage": "사용 가능 증거금으로 현재 레버리지에서 열 수 있는 비중", "Position margin": "포지션 증거금", "Est. price": "예상 가격", "TP/SL slippage": "TP/SL 슬리피지", "est. {e}%": "예상 {e}%", "max {m}%": "최대 {m}%", "Drag to resize": "드래그하여 크기 조절", "Drag to resize the column": "드래그하여 열 너비 조절", "Loss or gain as a % of the margin, with the leverage ({lev}x)": "증거금 대비 손익 %, 레버리지 포함 ({lev}x)", "Max slippage: click to change": "최대 슬리피지: 클릭하여 변경", "Slippage": "슬리피지" });
+Object.assign(DICTS.ko, { "Share of what the available margin can open, at this leverage": "사용 가능 증거금으로 현재 레버리지에서 열 수 있는 비중", "Position margin": "포지션 증거금", "Est. price": "예상 가격", "TP/SL slippage": "TP/SL 슬리피지", "est. {e}%": "예상 {e}%", "At take-profit": "익절 시", "At stop-loss": "손절 시", "max {m}%": "최대 {m}%", "Drag to resize": "드래그하여 크기 조절", "Drag to resize the column": "드래그하여 열 너비 조절", "Loss or gain as a % of the margin, with the leverage ({lev}x)": "증거금 대비 손익 %, 레버리지 포함 ({lev}x)", "Max slippage: click to change": "최대 슬리피지: 클릭하여 변경", "Slippage": "슬리피지" });
 Object.assign(DICTS.ko, { "Entry price": "진입 가격", "Set the stop-loss: the risk is worked out from it": "손절을 설정하세요: 리스크는 거기서 계산됩니다" });
 Object.assign(DICTS.ko, {
   "Advanced": "고급",

@@ -713,7 +713,7 @@ Object.assign(DICTS.zh, {
 });
 Object.assign(DICTS.zh, { "Adds {v} to the size: click several times to add up": "在数量上加 {v}：多次点击可累加" });
 Object.assign(DICTS.zh, { "Leverage: scroll or drag \u00b7 click for cross / isolated": "杠杆：滚动或拖动 · 点击切换全仓 / 逐仓" });
-Object.assign(DICTS.zh, { "Share of what the available margin can open, at this leverage": "可用保证金在当前杠杆下可开仓位的比例", "Position margin": "仓位保证金", "Est. price": "预估价格", "TP/SL slippage": "止盈/止损滑点", "est. {e}%": "预估 {e}%", "max {m}%": "最大 {m}%", "Drag to resize": "拖动以调整大小", "Drag to resize the column": "拖动以调整列宽", "Loss or gain as a % of the margin, with the leverage ({lev}x)": "占保证金的盈亏百分比，含杠杆（{lev}x）", "Max slippage: click to change": "最大滑点：点击修改", "Slippage": "滑点" });
+Object.assign(DICTS.zh, { "Share of what the available margin can open, at this leverage": "可用保证金在当前杠杆下可开仓位的比例", "Position margin": "仓位保证金", "Est. price": "预估价格", "TP/SL slippage": "止盈/止损滑点", "est. {e}%": "预估 {e}%", "At take-profit": "止盈时", "At stop-loss": "止损时", "max {m}%": "最大 {m}%", "Drag to resize": "拖动以调整大小", "Drag to resize the column": "拖动以调整列宽", "Loss or gain as a % of the margin, with the leverage ({lev}x)": "占保证金的盈亏百分比，含杠杆（{lev}x）", "Max slippage: click to change": "最大滑点：点击修改", "Slippage": "滑点" });
 Object.assign(DICTS.zh, { "Entry price": "入场价", "Set the stop-loss: the risk is worked out from it": "请设置止损：风险由此计算" });
 Object.assign(DICTS.zh, {
   "Advanced": "高级",

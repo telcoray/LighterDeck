@@ -249,6 +249,8 @@ const EN = {
   "prev. {f} · prec. {p}": "fcst. {f} · prev. {p}",
   // ---- order book ----
   "Prezzo": "Price",
+  "Al take-profit": "At take-profit",
+  "Allo stop-loss": "At stop-loss",
   "Trascina per allargare": "Drag to resize",
   "Trascina per allargare la colonna": "Drag to resize the column",
   "Totale": "Total",

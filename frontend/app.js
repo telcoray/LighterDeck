@@ -2719,9 +2719,16 @@ function renderTicketEstimates(m, p, qty, entry) {
   const totQty = (qty || 0) + held;
   const avgEntry = totQty ? ((qty || 0) * entry + (held ? held * pos.entry : 0)) / totQty : entry;
   const levels = isBasicKind() ? readTpLevels() : null;
+  for (const id of ["Sl", "Tp"]) for (const x of [`#tk${id}PnlDt`, `#tk${id}Pnl`]) $(x).classList.add("hidden"); // shown again below when set
   for (const [id, isSL] of !isBasicKind() ? [] : levels ? [["Sl", true]] : [["Sl", true], ["Tp", false]]) {
     const trigger = +$("#tk" + id).value;
     const out = $(`#tk${id}Out`);
+    const pnlRow = (text, c) => { // the summary's "At take-profit" / "At stop-loss": the result in dollars
+      for (const x of [`#tk${id}PnlDt`, `#tk${id}Pnl`]) $(x).classList.toggle("hidden", !text);
+      $(`#tk${id}Pnl`).textContent = text || "—";
+      $(`#tk${id}Pnl`).className = text ? c : "hidden";
+    };
+    pnlRow("");
     const check = Formulas.sltpOutcome({ isSL, side, entry, trigger, qty: qty || 1, leverage });
     const res = Formulas.sltpOutcome({ isSL, side, entry: avgEntry, trigger, qty: totQty || null, leverage });
     if (trigger > 0) draft.lines.push({ kind: isSL ? "sl" : "tp", price: trigger, title: isSL ? "SL" : "TP" });
@@ -2736,6 +2743,7 @@ function renderTicketEstimates(m, p, qty, entry) {
     out.className = "sltp-out" + (beyondLiq ? " warn" : "");
     draft.lines[draft.lines.length - 1].title += " " + (beyondLiq ? out.textContent
       : `PnL ${sign(pnl)}${fusd(Math.abs(pnl))} (${sign(roe)}${Math.abs(roe).toFixed(1)}%)`);
+    if (totQty && Number.isFinite(pnl)) pnlRow(beyondLiq ? t("oltre la liquidazione") : `${sign(pnl)}${fusd(Math.abs(pnl))}`, beyondLiq ? "warn" : pnl >= 0 ? "up" : "down");
   }
   if (levels) {
     const inputs = $$("#tkTpBox [data-tp-price]");

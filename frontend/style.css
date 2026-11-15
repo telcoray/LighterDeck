@@ -1429,3 +1429,8 @@ option { background: var(--surface); color: var(--text); }
 .ticket .unit-seg button { width: 22px; height: 22px; border-radius: 4px; color: var(--muted); font-family: var(--mono); font-size: 12px; }
 .ticket .unit-seg button:hover { color: var(--text); }
 .ticket .unit-seg button.active { background: var(--raised); color: var(--text); box-shadow: inset 0 0 0 1px var(--line-2); }
+
+/* the summary's dollar result at the SL and TP */
+.ticket .kv dd.up { color: var(--green); }
+.ticket .kv dd.down { color: var(--red); }
+.ticket .kv dd.warn { color: var(--amber); }
