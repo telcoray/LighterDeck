@@ -249,6 +249,12 @@ const EN = {
   "prev. {f} · prec. {p}": "fcst. {f} · prev. {p}",
   // ---- order book ----
   "Prezzo": "Price",
+  "Mercati con un funding oltre lo 0,01% all'ora, in un senso o nell'altro. Chi sta dal lato che incassa riceve il funding ogni ora. Il prezzo però continua a muoversi: è un rendimento che può sparire o girare, non un guadagno garantito.": "Markets with a funding above 0.01% an hour, either way. Whoever holds the side that collects receives the funding every hour. The price still moves, though: it is a yield that can fade or flip, not a guaranteed gain.",
+  "Annualizzato": "Annualized",
+  "Lato che incassa": "Side that collects",
+  "Al giorno su $1.000": "Per day on $1,000",
+  "Nessun mercato oltre lo 0,01% all'ora in questo momento.": "No market above 0.01% an hour right now.",
+  "Apri {sym} con il lato che incassa già scelto": "Open {sym} with the collecting side already chosen",
   "Al take-profit": "At take-profit",
   "Allo stop-loss": "At stop-loss",
   "Trascina per allargare": "Drag to resize",

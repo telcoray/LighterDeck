@@ -40,7 +40,7 @@
 </script>
 <style>html.i18n-pending body { visibility: hidden; }</style>
 <link rel="icon" href="favicon.svg?v=1" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=262">
+<link rel="stylesheet" href="style.css?v=263">
 <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
 </head>
 <body>
@@ -63,6 +63,7 @@
     <button data-view="trade" class="active">Trade</button>
     <button data-view="markets">Mercati</button>
     <button data-view="cal">Calendario</button>
+    <button data-view="farm">Farming</button>
     <button data-view="account">Account</button>
     <button data-view="auto">Automazioni</button>
     <button data-view="activity">Attività</button>
@@ -420,6 +421,25 @@
   </div>
 </section>
 
+<!-- ============ FARMING VIEW: markets paying a high funding ============ -->
+<section class="view hidden" id="view-farm">
+  <div class="page farm-page">
+    <div class="page-head">
+      <h1>Farming</h1>
+      <span class="muted" id="farmCount"></span>
+    </div>
+    <p class="farm-intro">Mercati con un funding oltre lo 0,01% all'ora, in un senso o nell'altro. Chi sta dal lato che incassa riceve il funding ogni ora. Il prezzo però continua a muoversi: è un rendimento che può sparire o girare, non un guadagno garantito.</p>
+    <table class="table" id="farmTable">
+      <thead><tr>
+        <th></th><th data-sort="symbol">Mercato</th><th data-sort="rate" class="r">Funding 1h</th><th data-sort="rate" class="r">Annualizzato</th>
+        <th class="r">Lato che incassa</th><th data-sort="rate" class="r">Al giorno su $1.000</th><th data-sort="oi" class="r">Open interest</th><th data-sort="volume" class="r">Volume 24h</th><th></th>
+      </tr></thead>
+      <tbody></tbody>
+    </table>
+    <p class="muted farm-empty hidden" id="farmEmpty">Nessun mercato oltre lo 0,01% all'ora in questo momento.</p>
+  </div>
+</section>
+
 <!-- ============ AUTOMATION VIEW ============ -->
 <section class="view hidden" id="view-auto">
   <div class="page">
@@ -730,13 +750,13 @@
 </div>
 
 <div class="toast hidden" id="toast" role="status" aria-live="polite"></div>
-<script src="i18n.js?v=262"></script>
-<script src="i18n-zh.js?v=262"></script>
-<script src="i18n-ko.js?v=262"></script>
-<script src="formulas.js?v=262"></script>
-<script src="paper.js?v=262"></script>
-<script src="live.js?v=262"></script>
-<script src="app.js?v=262"></script>
-<script src="picker.js?v=262"></script>
+<script src="i18n.js?v=263"></script>
+<script src="i18n-zh.js?v=263"></script>
+<script src="i18n-ko.js?v=263"></script>
+<script src="formulas.js?v=263"></script>
+<script src="paper.js?v=263"></script>
+<script src="live.js?v=263"></script>
+<script src="app.js?v=263"></script>
+<script src="picker.js?v=263"></script>
 </body>
 </html>

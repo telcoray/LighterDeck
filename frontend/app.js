@@ -4189,6 +4189,36 @@ function renderMarkets() {
       <td class="r"><span class="open-btn">${t("Apri nel grafico →")}</span></td></tr>`).join("");
 }
 
+// ================= farming: markets whose funding is worth collecting =================
+// Lighter's funding is a % per hour, paid every hour: positive, longs pay shorts; negative, shorts pay longs.
+// The page lists the markets past FARM_MIN either way, the side that collects it and what it adds up to.
+const FARM_MIN = 0.01; // % per hour
+let farmSort = { key: "rate", dir: -1 };
+
+function renderFarm() {
+  const rows = markets.map((m) => {
+    const p = prices[m.id] || {}, f = p.funding || 0;
+    return { m, symbol: m.symbol, f, rate: Math.abs(f), oi: p.oi || 0, volume: p.volume || m.volume_usd || 0 };
+  }).filter((r) => r.rate >= FARM_MIN);
+  rows.sort((a, b) => (a[farmSort.key] > b[farmSort.key] ? 1 : -1) * farmSort.dir);
+  $("#farmCount").textContent = rows.length ? t("{n} mercati", { n: rows.length }) : "";
+  $("#farmEmpty").classList.toggle("hidden", rows.length > 0);
+  $("#farmTable").classList.toggle("hidden", !rows.length);
+  $("#farmTable tbody").innerHTML = rows.map((r) => {
+    const earn = r.f > 0 ? "sell" : "buy"; // positive: the shorts collect
+    const apr = r.rate * 24 * 365, day = 1000 * r.rate / 100 * 24;
+    return `<tr data-sym="${esc(r.symbol)}" data-side="${earn}" title="${t("Apri {sym} con il lato che incassa già scelto", { sym: r.symbol })}">
+      <td><button class="star${favs.includes(r.symbol) ? " on" : ""}" data-star="${esc(r.symbol)}">★</button></td>
+      <td class="mk"><span class="sym">${ico(r.symbol)}${esc(r.symbol)}</span></td>
+      <td class="r ${r.f < 0 ? "down" : "up"}">${r.f > 0 ? "+" : "−"}${r.rate.toFixed(4)}%</td>
+      <td class="r main">${apr.toFixed(apr < 100 ? 1 : 0)}%</td>
+      <td class="r"><span class="farm-side ${earn === "buy" ? "up" : "down"}">${earn === "buy" ? "Long" : "Short"}</span></td>
+      <td class="r up">+${fusd(day)}</td>
+      <td class="r">${fcompact(r.oi)}</td><td class="r">${fcompact(r.volume)}</td>
+      <td class="r"><span class="open-btn">${t("Apri nel grafico →")}</span></td></tr>`;
+  }).join("");
+}
+
 // ================= automations =================
 // events of the market chosen in the event-trade form, high impact for it first among those of the same day
 function renderEventSelect() {
@@ -4617,6 +4647,10 @@ function connect() {
       renderMarkets.at = Date.now();
       renderMarkets();
     }
+    if (!$("#view-farm").classList.contains("hidden") && Date.now() - (renderFarm.at || 0) > 2000) {
+      renderFarm.at = Date.now();
+      renderFarm();
+    }
   };
   ws.onclose = () => { setStatus(false); setTimeout(connect, 2000); };
 }
@@ -4631,7 +4665,7 @@ function setStatus(ok) {
 // ---------- addresses ----------
 // every page has its own path and the trade page names its market (/trade/WTI), so a link opens the
 // same view, the browser's back button walks between pages, and a market can be shared directly
-const ROUTES = { trade: "trade", markets: "markets", calendar: "cal", account: "account", automations: "auto", activity: "activity" };
+const ROUTES = { trade: "trade", markets: "markets", calendar: "cal", farming: "farm", account: "account", automations: "auto", activity: "activity" };
 const PATH_OF = Object.fromEntries(Object.entries(ROUTES).map(([path, view]) => [view, path]));
 let curView = "trade";
 function routeFromUrl() {
@@ -4653,6 +4687,7 @@ function switchView(v, opts = {}) {
   $$(".view").forEach((s) => s.classList.toggle("hidden", s.id !== "view-" + v));
   if (v === "markets") renderMarkets();
   if (v === "cal") renderCalPage();
+  if (v === "farm") renderFarm();
   if (v === "account") loadAccountPage();
   if (v === "auto") { loadRules(); loadLimits(); }
   store("view", v);
@@ -4953,6 +4988,28 @@ function wire() {
 
   // markets page
   $("#mktSearch").oninput = renderMarkets;
+  $$("#farmTable th[data-sort]").forEach((th) => (th.onclick = () => {
+    const k = th.dataset.sort;
+    farmSort = { key: k, dir: farmSort.key === k ? -farmSort.dir : k === "symbol" ? 1 : -1 };
+    renderFarm();
+  }));
+  $("#farmTable tbody").onclick = (e) => {
+    const star = e.target.closest("[data-star]");
+    if (star) {
+      const s = star.dataset.star;
+      favs = favs.includes(s) ? favs.filter((x) => x !== s) : [...favs, s];
+      store("favs", favs);
+      renderFarm();
+      renderTicker();
+      return;
+    }
+    const tr = e.target.closest("tr[data-sym]");
+    if (!tr) return;
+    setSymbol(tr.dataset.sym);
+    switchView("trade");
+    ticket.side = tr.dataset.side; // the side that collects the funding
+    renderTicket();
+  };
   $$("#mktTable th[data-sort]").forEach((th) => (th.onclick = () => {
     const k = th.dataset.sort;
     mktSort = { key: k, dir: mktSort.key === k ? -mktSort.dir : k === "symbol" ? 1 : -1 };

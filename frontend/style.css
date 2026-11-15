@@ -1434,3 +1434,11 @@ option { background: var(--surface); color: var(--text); }
 .ticket .kv dd.up { color: var(--green); }
 .ticket .kv dd.down { color: var(--red); }
 .ticket .kv dd.warn { color: var(--amber); }
+
+/* the Farming page */
+.farm-intro { max-width: 720px; margin: -6px 0 16px; color: var(--text-2); font-size: 12px; line-height: 1.55; }
+.farm-empty { margin: 24px 0; }
+.farm-page tbody tr { cursor: pointer; }
+.farm-page tbody tr:hover { background: var(--raised); }
+.farm-side { font-family: var(--ui); font-weight: 500; }
+.farm-side.up { color: var(--green); } .farm-side.down { color: var(--red); }

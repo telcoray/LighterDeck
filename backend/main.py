@@ -1534,7 +1534,7 @@ async def terms():
 
 # Pages have their own addresses (lighterdeck.xyz/trade/WTI, /calendar, /account…): they all load the
 # same page, which reads the path and opens that view and market.
-PAGES = ("trade", "markets", "calendar", "account", "automations", "activity")
+PAGES = ("trade", "markets", "calendar", "farming", "account", "automations", "activity")
 
 
 def _market_by_symbol(symbol):
