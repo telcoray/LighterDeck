@@ -4257,7 +4257,8 @@ function renderFarm() {
     const p = prices[m.id] || {}, f = p.funding || 0, past = farmRecent.rates[m.id] || [];
     const hot = past.filter((x) => Math.abs(x) >= FARM_MIN).length;
     const avg = past.length ? past.reduce((s, x) => s + x, 0) / past.length : f;
-    const short = f ? f > 0 : avg > 0; // positive funding: the shorts collect
+    // positive funding: the shorts collect. Below FARM_MIN now, the rate now is too small to tell: the hours' average says
+    const short = Math.abs(f) >= FARM_MIN || !past.length ? f > 0 : avg > 0;
     return { m, symbol: m.symbol, f, rate: Math.abs(f), past, hot, now: Math.abs(f) >= FARM_MIN, short,
       earn: short ? avg : -avg, // % per hour the collecting side got on average
       oi: p.oi || 0, volume: p.volume || m.volume_usd || 0 };
