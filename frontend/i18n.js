@@ -276,6 +276,8 @@ const EN = {
   "Annualizzato": "Annualized",
   "Lato che incassa": "Side that collects",
   "Al giorno su $1.000": "Per day on $1,000",
+  "Media delle ultime 6 ore per il lato che incassa, su un anno": "The last 6 hours' average for the side that collects, over a year",
+  "Media delle ultime 6 ore per il lato che incassa, su una posizione da $1.000 (senza commissioni)": "The last 6 hours' average for the side that collects, on a $1,000 position (before fees)",
   "Apri {sym} con il lato che incassa già scelto": "Open {sym} with the collecting side already chosen",
   "Al take-profit": "At take-profit",
   "Allo stop-loss": "At stop-loss",
