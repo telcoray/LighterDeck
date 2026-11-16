@@ -4237,25 +4237,41 @@ function renderMarkets() {
 // ================= farming: markets whose funding is worth collecting =================
 // Lighter's funding is a % per hour, paid every hour: positive, longs pay shorts; negative, shorts pay longs.
 // The page lists the markets past FARM_MIN either way, the side that collects it and what it adds up to.
+// Besides the rate now, the page shows the last 6 hours (from the server, read once an hour): how many of them
+// were past FARM_MIN, and markets below it now that were past it in one of those hours.
 const FARM_MIN = 0.01; // % per hour
 let farmSort = { key: "rate", dir: -1 };
+let farmRecent = { at: 0, hours: 6, rates: {} }, farmRecentAt = 0;
+
+function loadFarmRecent() {
+  if (Date.now() - farmRecentAt < 5 * 60000) return;
+  farmRecentAt = Date.now();
+  api("/funding_recent").then((r) => { farmRecent = r; if (curView === "farm") renderFarm(); }).catch(() => { farmRecentAt = 0; });
+}
 
 function renderFarm() {
+  loadFarmRecent();
   const rows = markets.map((m) => {
-    const p = prices[m.id] || {}, f = p.funding || 0;
-    return { m, symbol: m.symbol, f, rate: Math.abs(f), oi: p.oi || 0, volume: p.volume || m.volume_usd || 0 };
-  }).filter((r) => r.rate >= FARM_MIN);
+    const p = prices[m.id] || {}, f = p.funding || 0, past = farmRecent.rates[m.id] || [];
+    const hot = past.filter((x) => Math.abs(x) >= FARM_MIN).length;
+    return { m, symbol: m.symbol, f, rate: Math.abs(f), past, hot, now: Math.abs(f) >= FARM_MIN,
+      oi: p.oi || 0, volume: p.volume || m.volume_usd || 0 };
+  }).filter((r) => r.now || r.hot);
   rows.sort((a, b) => (a[farmSort.key] > b[farmSort.key] ? 1 : -1) * farmSort.dir);
-  $("#farmCount").textContent = rows.length ? t("{n} mercati", { n: rows.length }) : "";
+  const loading = Object.keys(farmRecent.rates).length < markets.length * 0.9; // the server reads them slowly after a restart
+  $("#farmCount").textContent = [rows.length ? t("{n} mercati", { n: rows.length }) : "", loading ? t("storico delle 6 ore in caricamento") : ""].filter(Boolean).join(" · ");
   $("#farmEmpty").classList.toggle("hidden", rows.length > 0);
   $("#farmTable").classList.toggle("hidden", !rows.length);
   $("#farmTable tbody").innerHTML = rows.map((r) => {
     const earn = r.f > 0 ? "sell" : "buy"; // positive: the shorts collect
     const apr = r.rate * 24 * 365, day = 1000 * r.rate / 100 * 24;
-    return `<tr data-sym="${esc(r.symbol)}" data-side="${earn}" title="${t("Apri {sym} con il lato che incassa già scelto", { sym: r.symbol })}">
+    // one mark per past hour, oldest first: filled when past FARM_MIN, in the colour of who collected it
+    const hours = r.past.map((x) => `<i class="${Math.abs(x) >= FARM_MIN ? (x > 0 ? "hot dn" : "hot up") : ""}" title="${x >= 0 ? "+" : "−"}${Math.abs(x).toFixed(4)}%"></i>`).join("");
+    return `<tr class="${r.now ? "" : "farm-past"}" data-sym="${esc(r.symbol)}" data-side="${earn}" title="${t("Apri {sym} con il lato che incassa già scelto", { sym: r.symbol })}">
       <td><button class="star${favs.includes(r.symbol) ? " on" : ""}" data-star="${esc(r.symbol)}">★</button></td>
       <td class="mk"><span class="sym">${ico(r.symbol)}${esc(r.symbol)}</span></td>
-      <td class="r ${r.f < 0 ? "down" : "up"}">${r.f > 0 ? "+" : "−"}${r.rate.toFixed(4)}%</td>
+      <td class="r ${r.now ? (r.f < 0 ? "down" : "up") : ""}">${r.f > 0 ? "+" : r.f < 0 ? "−" : ""}${r.rate.toFixed(4)}%</td>
+      <td class="r"><span class="farm-hours">${hours}</span><span class="farm-hot">${r.past.length ? `${r.hot}/${r.past.length}` : "—"}</span></td>
       <td class="r main">${apr.toFixed(apr < 100 ? 1 : 0)}%</td>
       <td class="r"><span class="farm-side ${earn === "buy" ? "up" : "down"}">${earn === "buy" ? "Long" : "Short"}</span></td>
       <td class="r up">+${fusd(day)}</td>

@@ -65,7 +65,7 @@ async def lifespan(app):
     await api.start()
     feed.multipliers = {mid: m.multiplier for mid, m in api.markets.items()}
     calendar.stock_symbols = lambda: {m.symbol for m in api.markets.values() if "STOCK" in m.categories}
-    tasks = [asyncio.create_task(t) for t in (feed.run(), calendar.run(), engine.run(), broadcast_loop(), pair_watch_loop())]
+    tasks = [asyncio.create_task(t) for t in (feed.run(), calendar.run(), engine.run(), broadcast_loop(), pair_watch_loop(), recent_funding_loop())]
     await users.start()
     yield
     for t in tasks:
@@ -285,6 +285,39 @@ async def fills_between(start: int, end: int):
 
 
 _funding_cache = {}  # (market, days) -> (fetched at, rows); funding changes once an hour
+
+# The Farming page's history: the last RECENT_HOURS hourly fundings of every market (% per hour, positive when
+# longs pay), oldest first. Funding changes once an hour, so a new round starts a few minutes past each hour and
+# reads the markets one at a time, one every RECENT_PACE seconds (about half an hour for all of them): a burst of
+# a couple of hundred requests gets the server's IP challenged by the firewall in front of Lighter's API. A market
+# that fails is tried again on the next pass, a minute later; old values stay until replaced.
+RECENT_HOURS = 6
+RECENT_PACE = 10  # seconds between two requests
+_recent_funding = {"hour": None, "at": 0, "rates": {}, "done": set()}
+
+
+async def recent_funding_loop():
+    while True:
+        hour = int(time.time() // 3600)
+        if _recent_funding["hour"] is None or (_recent_funding["hour"] != hour and time.time() % 3600 > 120):
+            _recent_funding.update(hour=hour, done=set())
+        for mid in [m for m in list(api.markets) if m not in _recent_funding["done"]]:
+            try:
+                rows = await api.fundings(mid, RECENT_HOURS + 1)
+                if rows:
+                    _recent_funding["rates"][mid] = [r["rate"] for r in rows][-RECENT_HOURS:]
+                    _recent_funding["at"] = time.time()
+                _recent_funding["done"].add(mid)
+            except Exception:
+                pass
+            await asyncio.sleep(RECENT_PACE)
+        await asyncio.sleep(60)
+
+
+@app.get("/api/funding_recent")
+async def funding_recent():
+    """The last hourly fundings of every market, for the Farming page: {at, hours, rates: {market id: [% per hour]}}."""
+    return {"at": _recent_funding["at"], "hours": RECENT_HOURS, "rates": _recent_funding["rates"]}
 
 
 @app.get("/api/funding")

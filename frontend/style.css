@@ -1472,3 +1472,13 @@ option { background: var(--surface); color: var(--text); }
 /* the key dialog's Done right after a key is connected: solid green, the obvious next click */
 #keyDone.go { padding: 0 18px; border-color: var(--green); background: var(--green); color: var(--green-ink); font-weight: 600; }
 #keyDone.go:hover { filter: brightness(1.08); }
+
+/* Farming: the last 6 hours as six marks (filled past 0.01%, green when longs collected, red when shorts did),
+   then how many; markets below the line now are greyed */
+.farm-hours { display: inline-flex; gap: 2px; margin-right: 8px; vertical-align: -1px; }
+.farm-hours i { width: 6px; height: 10px; border-radius: 1.5px; background: var(--line-2); }
+.farm-hours i.hot.up { background: var(--green); }
+.farm-hours i.hot.dn { background: var(--red); }
+.farm-hot { display: inline-block; min-width: 26px; text-align: right; }
+.farm-page tr.farm-past td { color: var(--muted); }
+.farm-page tr.farm-past .sym { opacity: .75; }
