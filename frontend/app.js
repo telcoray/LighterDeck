@@ -5955,7 +5955,7 @@ function renderLangBtn() {
   $("#langBtn").innerHTML = TRANSLATE_ICON;
   $("#langBtn").title = t("Lingua") + " · " + cur.name;
   $("#langMenu").innerHTML = LANGS.map((l) => `<button data-lang="${l.id}" class="${l.id === LANG ? "active" : ""}">
-      <span class="lang-code">${l.short}</span><span>${l.name}${l.english !== l.name ? `<small>${l.english}</small>` : ""}</span><span class="check">✓</span></button>`).join("");
+      <span class="lang-code">${l.short}</span><span>${l.name}</span><span class="check">✓</span></button>`).join("");
 }
 
 // redraw every piece of text built in JavaScript; charts, prices and the book keep running
