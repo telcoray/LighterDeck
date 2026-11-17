@@ -1281,8 +1281,9 @@ option { background: var(--surface); color: var(--text); }
 .ticket.pair .sidesel { grid-template-columns: 1fr 1fr; height: auto; min-height: var(--tk-h); }
 .ticket .sidesel button[data-side=buy].active { background: var(--green); color: var(--green-ink); }
 .ticket .sidesel button[data-side=sell].active { background: var(--red); color: #fff; }
-.ticket .sidesel .tk-lev { margin: 0 2px; padding: 0 8px 0 10px; border: 1px solid var(--line-2); background: var(--surface); color: var(--text); font-family: var(--mono); font-weight: 400; }
-.ticket .sidesel .tk-lev:hover { border-color: var(--line-3); }
+/* the leverage is a part of the bar like Long and Short, not a box inside it */
+.ticket .sidesel .tk-lev { margin: 0 2px; padding: 0 10px 0 12px; border: 0; background: none; color: var(--text); font-family: var(--mono); font-weight: 400; }
+.ticket .sidesel .tk-lev:hover { background: var(--raised); }
 .ticket .kindsel { border-bottom: 1px solid var(--line-2); }
 .ticket .kindsel > button { padding: 0 8px; margin: 0; border-bottom: 0; }
 .ticket .kindsel .adv-pick { flex: 1.3; display: flex; margin: 0; }
