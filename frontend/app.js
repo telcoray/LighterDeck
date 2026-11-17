@@ -1520,6 +1520,24 @@ function wireTickerScroll() {
   addEventListener("resize", updateTickerArrows);
 }
 
+// the chart toolbar on a narrow column: icons only when it doesn't fit, a second line when even that doesn't
+function fitToolbar() {
+  const tb = document.querySelector(".toolbar");
+  if (!tb || !tb.offsetWidth) return;
+  tb.classList.remove("tb-icons", "tb-tight", "tb-wrap");
+  const over = () => tb.scrollWidth > tb.clientWidth + 1;
+  if (over()) tb.classList.add("tb-icons");
+  if (over()) tb.classList.add("tb-tight");
+  if (over()) tb.classList.add("tb-wrap");
+}
+function wireToolbarFit() {
+  const tb = document.querySelector(".toolbar");
+  if (!tb) return;
+  let raf = 0;
+  new ResizeObserver(() => { cancelAnimationFrame(raf); raf = requestAnimationFrame(fitToolbar); }).observe(tb.parentElement);
+  new MutationObserver(() => { cancelAnimationFrame(raf); raf = requestAnimationFrame(fitToolbar); }).observe($("#tfs"), { childList: true });
+}
+
 // favourites row: drag an item sideways to reorder (a plain click still selects the market)
 let tickerDrag = null, tickerDragEnd = 0;
 function wireTickerDrag() {
@@ -4813,6 +4831,7 @@ function wire() {
   $("#mktSelect").onclick = () => ($("#picker").classList.contains("hidden") ? openPalette() : closePalette());
   wireTickerDrag();
   wireTickerScroll();
+  wireToolbarFit();
   $("#ticker").onclick = (e) => { // from Markets or Calendar too: it opens Trade on that chart
     if (Date.now() - tickerDragEnd < 300) return;
     const b = e.target.closest("[data-sym]");

@@ -285,6 +285,12 @@ body.reordering { cursor: grabbing; user-select: none; }
 .tool:hover, .tool.active { color: var(--text); background: var(--raised); }
 .live { display: inline-flex; align-items: center; gap: 7px; color: var(--green); font-size: 11px; }
 .live .dot { width: 5px; height: 5px; box-shadow: none; }
+/* a narrow chart column (a computer window just above the phone layout): icons only, then a second line */
+.toolbar.tb-icons .sep, .toolbar.tb-icons #elBtn > span, .toolbar.tb-icons #obToggle > span, .toolbar.tb-icons .live > span { display: none; }
+.toolbar.tb-icons .live { padding: 0 4px; }
+.toolbar.tb-tight > .live { display: none; } /* the status bar still says Live */
+.toolbar.tb-wrap { height: auto; flex-wrap: wrap; row-gap: 4px; padding: 6px 10px; }
+.toolbar.tb-wrap .tfs { flex-wrap: wrap; }
 
 /* ---------- charts ---------- */
 .stage { flex: 1; min-height: 0; display: flex; }
