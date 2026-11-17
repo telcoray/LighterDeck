@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sicurezza · LighterDeck</title>
+<meta name="description" content="Come LighterDeck tratta la tua API key di Lighter: dove resta, come firma gli ordini e cosa puoi fare per proteggerla.">
+<meta name="theme-color" content="#07090c">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script>
+  // the app's theme and language, so the page looks and reads like the rest of LighterDeck
+  try { document.documentElement.dataset.theme = JSON.parse(localStorage.getItem("ld.theme")) || "ghiaccio"; }
+  catch (e) { document.documentElement.dataset.theme = "ghiaccio"; }
+  var LANG = "it";
+  try { LANG = new URLSearchParams(location.search).get("lang") || JSON.parse(localStorage.getItem("ld.lang")) || (navigator.language || "").slice(0, 2); } catch (e) {}
+  if (LANG !== "it") LANG = "en";
+  document.documentElement.lang = LANG;
+</script>
+<link rel="stylesheet" href="style.css?v=160">
+<style>
+  html, body { height: auto; overflow: auto; }
+  body { display: block; font-family: var(--ui); line-height: 1.6; }
+  .terms { max-width: 760px; margin: 0 auto; padding: 28px 16px 64px; }
+  .terms-top { display: flex; align-items: center; gap: 10px; margin-bottom: 28px; }
+  .terms-top a.home { display: inline-flex; align-items: center; gap: 8px; color: var(--text); text-decoration: none; font-weight: 600; }
+  .terms-top .grow { flex: 1; }
+  .terms-top .seg button { padding: 4px 10px; }
+  .terms h1 { font-size: 24px; margin: 0 0 4px; font-weight: 600; }
+  .terms .date { color: var(--muted); font-size: 12px; margin: 0 0 22px; }
+  .terms h2 { font-size: 15px; margin: 28px 0 8px; font-weight: 600; }
+  .terms p, .terms li { color: var(--text-2); font-size: 14px; }
+  .terms ul { padding-left: 20px; margin: 8px 0; }
+  .terms li { margin: 4px 0; }
+  .terms a { color: var(--green); }
+  .terms code { font-family: var(--mono); font-size: 12.5px; color: var(--text); }
+  .terms .box { margin: 18px 0; padding: 12px 14px; border: 1px solid var(--line-2); border-radius: var(--r); background: var(--surface); }
+  .terms .can { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; margin: 12px 0; }
+  .terms .can > div { padding: 10px 14px; border: 1px solid var(--line-2); border-radius: var(--r); }
+  .terms .can h3 { margin: 0 0 4px; font-size: 13px; font-weight: 600; }
+  .terms .can .yes h3 { color: var(--red); }
+  .terms .can .no h3 { color: var(--green); }
+  .terms .can ul { margin: 0; }
+  @media (max-width: 640px) { .terms .can { grid-template-columns: minmax(0, 1fr); } }
+  [data-l]:not([data-l="it"]) { display: none; }
+  html[lang="en"] [data-l="it"] { display: none; }
+  html[lang="en"] [data-l="en"] { display: block; }
+</style>
+</head>
+<body>
+<main class="terms">
+  <div class="terms-top">
+    <a class="home" href="/"><img src="logo.svg?v=1" alt="" width="22" height="22">LighterDeck</a>
+    <div class="grow"></div>
+    <div class="seg" id="langSeg"><button data-set="it">IT</button><button data-set="en">EN</button></div>
+  </div>
+
+  <!-- ================= italiano ================= -->
+  <article data-l="it">
+    <h1>Sicurezza</h1>
+    <p class="date">Ultimo aggiornamento: 17 novembre 2026</p>
+
+    <div class="box">In breve: su lighterdeck.xyz la tua API key resta nel tuo browser. Gli ordini vengono firmati lì con il firmatario ufficiale di Lighter e vanno direttamente a Lighter. Il server di LighterDeck non riceve mai la chiave e non tocca mai i tuoi fondi.</div>
+
+    <h2>1. Dove resta la chiave</h2>
+    <ul>
+      <li><b>Solo nel tuo browser.</b> Quando colleghi una API key, LighterDeck la verifica con Lighter direttamente dal browser e la tiene lì. Non viene inviata al server di LighterDeck né a nessun altro.</li>
+      <li><b>"Ricorda la chiave su questo browser".</b> Se la casella è spuntata, la chiave è salvata nella memoria del browser per questo sito e ritrovi il collegamento quando torni. Se non è spuntata, resta solo finché la scheda è aperta. La memoria del browser non è cifrata: su un computer condiviso, o se non ti fidi del dispositivo, togli la spunta.</li>
+      <li><b>Scollegare</b> la chiave da LighterDeck la cancella dal browser. Per renderla inutilizzabile ovunque, revocala dalla <a href="https://app.lighter.xyz/apikeys" target="_blank" rel="noopener">pagina API keys di Lighter</a>.</li>
+    </ul>
+
+    <h2>2. Come vengono firmati gli ordini</h2>
+    <ul>
+      <li>LighterDeck usa il <b>firmatario ufficiale di Lighter</b>, <a href="https://github.com/elliottech/lighter-go" target="_blank" rel="noopener">lighter-go</a>, compilato in WebAssembly senza modifiche. Gli ordini firmati vanno dal tuo browser all'API di Lighter.</li>
+      <li>Ogni firma usa un valore casuale nuovo (il <i>nonce</i>), generato con il generatore sicuro del browser. Se lo stesso ordine viene firmato due volte, le firme sono diverse.</li>
+      <li>Il codice di LighterDeck è <a href="https://github.com/telcoray/LighterDeck" target="_blank" rel="noopener">open source</a>: chiunque può controllare cosa fa con la chiave. Il firmatario è nella cartella <code>frontend/signer/</code>, con il commit di lighter-go da cui è compilato.</li>
+    </ul>
+
+    <div class="box"><b>L'incidente del 16 novembre 2026.</b> Le chiavi di un trader sono state ricavate dalle sue firme, perché il suo codice di firma, non ufficiale, riutilizzava i nonce. LighterDeck firma solo con il firmatario ufficiale, che genera ogni nonce in modo casuale e sicuro, e non era esposto a questo problema.</div>
+
+    <h2>3. Creare una chiave con il wallet</h2>
+    <ul>
+      <li>Con "Crea una chiave con il wallet" la nuova chiave viene generata nel tuo browser. Il wallet firma soltanto il messaggio di Lighter che registra quella chiave sul tuo account ("Register Lighter Account").</li>
+      <li>LighterDeck legge l'indirizzo del wallet per trovare l'account, ma non vede mai la chiave privata o la frase di recupero del wallet. <b>Non chiederà mai</b> né l'una né l'altra: se qualcuno te le chiede a nome di LighterDeck, è una truffa.</li>
+      <li>Firma nel wallet solo messaggi che riconosci. Quello di Lighter termina con "Only sign this message for a trusted client!".</li>
+    </ul>
+
+    <h2>4. Cosa può fare una API key</h2>
+    <div class="can">
+      <div class="yes"><h3>Chi la ottiene può</h3>
+        <ul>
+          <li>fare trading sul tuo account, anche contro di te a prezzi sfavorevoli, soprattutto nei mercati poco liquidi;</li>
+          <li>aprire posizioni grandi o con leva alta, fino alla liquidazione.</li>
+        </ul>
+      </div>
+      <div class="no"><h3>Non può</h3>
+        <ul>
+          <li>prelevare verso un wallet diverso dal tuo: i prelievi vanno solo al wallet del proprietario dell'account;</li>
+          <li>spostare fondi in un pool pubblico senza la firma del tuo wallet (regola introdotta da Lighter dopo l'incidente).</li>
+        </ul>
+      </div>
+    </div>
+
+    <h2>5. La chiave per le automazioni</h2>
+    <p>Le automazioni che girano a pagina chiusa (trailing, breakeven, take-profit multipli, trade sugli eventi) hanno bisogno di una chiave sul server. Solo se le attivi, affidi al server una <b>seconda chiave dedicata</b>, diversa da quella del browser. È conservata cifrata (AES-256-GCM, con una chiave principale che sta solo nella configurazione del server), è usata solo per le regole che imposti e viene cancellata quando disattivi le automazioni.</p>
+
+    <h2>6. Consigli</h2>
+    <ul>
+      <li><b>Una chiave dedicata</b> a LighterDeck, che non usi altrove: se un'app ha un problema, revochi solo quella.</li>
+      <li><b>Un sub-account</b> con il solo capitale che vuoi usare, se possibile.</li>
+      <li><b>Permessi e limiti per chiave</b>: quando Lighter li renderà disponibili, limita la chiave di LighterDeck alle azioni e ai mercati che usi. L'elenco di IP consentiti va bene per una chiave che lavora su un server con IP fisso. Non usarlo per la chiave nel browser: l'IP di casa o del telefono cambia e la chiave smetterebbe di funzionare.</li>
+      <li><b>Revoca le chiavi</b> che non usi più e <b>ruota</b> quelle di cui non sei sicuro: ne crei una nuova e revochi la vecchia.</li>
+      <li>Tieni aggiornati browser e sistema, e non installare estensioni di cui non ti fidi: possono leggere le pagine che apri.</li>
+      <li>Apri LighterDeck solo da <b>lighterdeck.xyz</b>, o da un'istanza che gestisci tu.</li>
+    </ul>
+
+    <h2>7. Segnalare un problema</h2>
+    <p>Se trovi una vulnerabilità, apri una issue su <a href="https://github.com/telcoray/LighterDeck/issues" target="_blank" rel="noopener">GitHub</a> senza dettagli che permettano di sfruttarla, e chiedi un contatto privato. Non pubblicare mai chiavi, nemmeno di test.</p>
+    <p>Vedi anche i <a href="/terms">Termini d'uso</a>.</p>
+  </article>
+
+  <!-- ================= English ================= -->
+  <article data-l="en">
+    <h1>Security</h1>
+    <p class="date">Last updated: 17 November 2026</p>
+
+    <div class="box">In short: on lighterdeck.xyz your API key stays in your browser. Orders are signed there with Lighter's official signer and go straight to Lighter. LighterDeck's server never receives the key and never touches your funds.</div>
+
+    <h2>1. Where the key stays</h2>
+    <ul>
+      <li><b>Only in your browser.</b> When you connect an API key, LighterDeck checks it with Lighter directly from the browser and keeps it there. It is not sent to LighterDeck's server or to anyone else.</li>
+      <li><b>"Remember the key in this browser".</b> When ticked, the key is saved in the browser's storage for this site and you are connected again when you come back. When not ticked, it lasts only while the tab is open. The browser's storage is not encrypted: on a shared computer, or a device you don't trust, leave it unticked.</li>
+      <li><b>Disconnecting</b> the key in LighterDeck deletes it from the browser. To make it unusable everywhere, revoke it on <a href="https://app.lighter.xyz/apikeys" target="_blank" rel="noopener">Lighter's API keys page</a>.</li>
+    </ul>
+
+    <h2>2. How orders are signed</h2>
+    <ul>
+      <li>LighterDeck uses <b>Lighter's official signer</b>, <a href="https://github.com/elliottech/lighter-go" target="_blank" rel="noopener">lighter-go</a>, compiled to WebAssembly without changes. Signed orders go from your browser to Lighter's API.</li>
+      <li>Every signature uses a new random value (the <i>nonce</i>), drawn from the browser's secure random generator. Sign the same order twice and you get two different signatures.</li>
+      <li>LighterDeck's code is <a href="https://github.com/telcoray/LighterDeck" target="_blank" rel="noopener">open source</a>: anyone can check what it does with the key. The signer is in <code>frontend/signer/</code>, with the lighter-go commit it was built from.</li>
+    </ul>
+
+    <div class="box"><b>The November 16, 2026 incident.</b> A trader's keys were worked out from their signatures, because their own, unofficial signing code reused nonces. LighterDeck signs only with the official signer, which draws every nonce securely at random, and was not exposed to this problem.</div>
+
+    <h2>3. Creating a key with your wallet</h2>
+    <ul>
+      <li>With "Create a key with my wallet" the new key is generated in your browser. The wallet only signs Lighter's message that registers that key on your account ("Register Lighter Account").</li>
+      <li>LighterDeck reads the wallet's address to find the account, but never sees the wallet's private key or recovery phrase. It <b>will never ask</b> for either: if someone asks for them in LighterDeck's name, it's a scam.</li>
+      <li>Only sign messages you recognise in your wallet. Lighter's ends with "Only sign this message for a trusted client!".</li>
+    </ul>
+
+    <h2>4. What an API key can do</h2>
+    <div class="can">
+      <div class="yes"><h3>Whoever holds it can</h3>
+        <ul>
+          <li>trade on your account, even against you at bad prices, especially in thin markets;</li>
+          <li>open large or highly leveraged positions, up to liquidation.</li>
+        </ul>
+      </div>
+      <div class="no"><h3>It can't</h3>
+        <ul>
+          <li>withdraw to a wallet other than yours: withdrawals only go to the account owner's wallet;</li>
+          <li>move funds into a public pool without your wallet's signature (a rule Lighter added after the incident).</li>
+        </ul>
+      </div>
+    </div>
+
+    <h2>5. The key for automations</h2>
+    <p>Automations that run with the page closed (trailing, breakeven, scaled take-profits, event trades) need a key on the server. Only if you turn them on, you hand the server a <b>second, dedicated key</b>, separate from the browser's. It is kept encrypted (AES-256-GCM, with a master key held only in the server's configuration), used only for the rules you set, and deleted when you turn automations off.</p>
+
+    <h2>6. Advice</h2>
+    <ul>
+      <li><b>A dedicated key</b> for LighterDeck that you use nowhere else: if one app has a problem, you revoke only that key.</li>
+      <li><b>A sub-account</b> holding only the capital you want to use, where possible.</li>
+      <li><b>Per-key permissions and limits</b>: when Lighter makes them available, limit LighterDeck's key to the actions and markets you use. An IP allowlist suits a key working from a server with a fixed IP. Don't use it for the browser's key: your home or phone IP changes and the key would stop working.</li>
+      <li><b>Revoke keys</b> you no longer use and <b>rotate</b> any you're unsure about: create a new one and revoke the old.</li>
+      <li>Keep your browser and system up to date, and don't install extensions you don't trust: they can read the pages you open.</li>
+      <li>Open LighterDeck only at <b>lighterdeck.xyz</b>, or on an instance you run yourself.</li>
+    </ul>
+
+    <h2>7. Reporting a problem</h2>
+    <p>If you find a vulnerability, open an issue on <a href="https://github.com/telcoray/LighterDeck/issues" target="_blank" rel="noopener">GitHub</a> without the details needed to exploit it, and ask for a private contact. Never post keys, not even test ones.</p>
+    <p>See also the <a href="/terms">Terms of use</a>.</p>
+  </article>
+</main>
+<script>
+  // IT / EN, remembered like the app's language
+  var seg = document.getElementById("langSeg");
+  function title() { document.title = document.documentElement.lang === "it" ? "Sicurezza · LighterDeck" : "Security · LighterDeck"; }
+  function mark() { [].forEach.call(seg.children, function (b) { b.classList.toggle("active", b.dataset.set === document.documentElement.lang); }); }
+  seg.onclick = function (e) {
+    var b = e.target.closest("[data-set]");
+    if (!b) return;
+    document.documentElement.lang = b.dataset.set;
+    try { localStorage.setItem("ld.lang", JSON.stringify(b.dataset.set)); } catch (x) {}
+    title();
+    mark();
+  };
+  title();
+  mark();
+</script>
+</body>
+</html>
