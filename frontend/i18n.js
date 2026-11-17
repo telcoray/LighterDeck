@@ -480,6 +480,8 @@ const EN = {
   "Nessuna API key dell'account #{acc} accetta questa chiave privata: controlla di averla copiata per intero": "No API key of account #{acc} accepts this private key: check you copied all of it",
   "Trova": "Find",
   "Indice account": "Account index",
+  "dal wallet": "from the wallet",
+  "Inserisci l'indirizzo del wallet o l'indice dell'account": "Enter the wallet address or the account index",
   "Indice API key": "API key index",
   "Chiave privata dell'API key": "API key private key",
   "La chiave resta solo sul server, in data/credentials.json, e non viene mai rimandata al browser. Un'API key firma ordini e può prelevare solo verso il tuo wallet: non può mandare fondi ad altri indirizzi.":

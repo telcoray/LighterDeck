@@ -5472,7 +5472,7 @@ async function useWallet(provider) {
     const [address] = await provider.request({ method: "eth_requestAccounts" });
     if (!address) return keyError(t("Il wallet non ha condiviso nessun indirizzo"));
     $("#keyAddress").value = address;
-    $("#keyFind").click();
+    $("#keyFind").onclick().catch(() => {}); // shown in the dialog already
   } catch (e) {
     keyError(e.code === 4001 ? t("Richiesta rifiutata nel wallet") : e.message);
   }
@@ -5886,7 +5886,7 @@ function wireKeyDialog() {
       const main = Math.min(...list.map((a) => a.index));
       $("#keyAccounts").innerHTML = list.length < 2 ? "" : list.map((a) =>
         `<button type="button" class="chip${a === pick ? " active" : ""}" data-acc="${a.index}">#${a.index} · ${fusd(a.collateral, 0)}${a.index === main ? "" : " · " + t("subaccount")}</button>`).join("");
-    } catch (e) { keyError(e.message); }
+    } catch (e) { keyError(e.message); throw e; }
   };
   $("#keyAccounts").onclick = (e) => {
     const b = e.target.closest("[data-acc]");
@@ -5898,7 +5898,7 @@ function wireKeyDialog() {
   // a pasted (or typed) wallet address looks for its accounts by itself
   $("#keyAddress").addEventListener("input", () => {
     clearTimeout(keyFindTimer);
-    if (/^0x[0-9a-fA-F]{40}$/.test($("#keyAddress").value.trim())) keyFindTimer = setTimeout(() => $("#keyFind").click(), 300);
+    if (/^0x[0-9a-fA-F]{40}$/.test($("#keyAddress").value.trim())) keyFindTimer = setTimeout(() => $("#keyFind").onclick().catch(() => {}), 300);
   });
   $("#keyForm").onsubmit = async (e) => {
     e.preventDefault();
@@ -5917,6 +5917,12 @@ function wireKeyDialog() {
       credentialsChanged(await api("/credentials", { method: "POST", body: JSON.stringify({ ...cred, private_key: $("#keyPrivate").value }) }));
     };
     try {
+      if ($("#keyAccount").value === "") { // the account from the wallet address, if it wasn't looked up yet
+        if (!/^0x[0-9a-fA-F]{40}$/.test($("#keyAddress").value.trim())) throw new Error(t("Inserisci l'indirizzo del wallet o l'indice dell'account"));
+        clearTimeout(keyFindTimer);
+        await $("#keyFind").onclick();
+        if ($("#keyAccount").value === "") throw new Error(t("Nessun account Lighter per questo wallet"));
+      }
       const account_index = +$("#keyAccount").value;
       if ($("#keyIndex").value !== "") await tryKey({ account_index, api_key_index: +$("#keyIndex").value });
       else { // no index given: the account's keys, newest first, until one takes this private key

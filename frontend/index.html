@@ -40,7 +40,7 @@
 </script>
 <style>html.i18n-pending body { visibility: hidden; }</style>
 <link rel="icon" href="favicon.svg?v=1" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=281">
+<link rel="stylesheet" href="style.css?v=282">
 <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
 </head>
 <body>
@@ -680,12 +680,12 @@
       <li>Incollala qui, con il tuo wallet o il suo indirizzo per trovare l'account: LighterDeck controlla la chiave con Lighter prima di salvarla.</li>
     </ol>
     <div class="field sm"><label>Indirizzo del wallet (per trovare l'account)</label>
-      <div class="key-find"><input id="keyAddress" placeholder="0x…" spellcheck="false"><button type="button" class="ghost hidden" id="keyWallet" title="Prendi l'indirizzo dal wallet del browser (solo lettura, nessuna firma)">Wallet</button><button type="button" class="ghost" id="keyFind">Trova</button></div>
+      <div class="key-find"><input id="keyAddress" placeholder="0x…" spellcheck="false"><button type="button" class="ghost hidden" id="keyWallet" title="Prendi l'indirizzo dal wallet del browser (solo lettura, nessuna firma)">Wallet</button><button type="button" class="hidden" id="keyFind" tabindex="-1" aria-hidden="true"></button></div>
       <div class="key-wallets hidden" id="keyWallets"></div>
     </div>
     <div class="key-accounts" id="keyAccounts"></div>
     <div class="key-row">
-      <div class="field sm"><label>Indice account</label><input id="keyAccount" type="number" min="0" step="1" required></div>
+      <div class="field sm"><label>Indice account</label><input id="keyAccount" type="number" min="0" step="1" placeholder="dal wallet"></div>
       <div class="field sm"><label>Indice API key</label><input id="keyIndex" type="number" min="0" max="254" step="1" placeholder="automatico"></div>
     </div>
     <div class="field sm"><label>Chiave privata dell'API key</label><input id="keyPrivate" class="secret" type="text" name="ld-signing-key" autocomplete="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore data-bwignore required></div>
@@ -758,13 +758,13 @@
 </div>
 
 <div class="toast hidden" id="toast" role="status" aria-live="polite"></div>
-<script src="i18n.js?v=281"></script>
-<script src="i18n-zh.js?v=281"></script>
-<script src="i18n-ko.js?v=281"></script>
-<script src="formulas.js?v=281"></script>
-<script src="paper.js?v=281"></script>
-<script src="live.js?v=281"></script>
-<script src="app.js?v=281"></script>
-<script src="picker.js?v=281"></script>
+<script src="i18n.js?v=282"></script>
+<script src="i18n-zh.js?v=282"></script>
+<script src="i18n-ko.js?v=282"></script>
+<script src="formulas.js?v=282"></script>
+<script src="paper.js?v=282"></script>
+<script src="live.js?v=282"></script>
+<script src="app.js?v=282"></script>
+<script src="picker.js?v=282"></script>
 </body>
 </html>
