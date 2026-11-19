@@ -5517,9 +5517,20 @@ function openKeyDialog(justConnected = false) {
   }
   $("#keyError").classList.add("hidden");
   $("#keyAccounts").innerHTML = "";
+  $("#keyAdv").open = !browser || $("#keyIndex").value !== "";
+  $("#keyMobileHint").classList.toggle("hidden", !browser || walletProviders.size > 0 || !matchMedia("(pointer: coarse)").matches);
+  keyReady();
   $("#keyShade").classList.remove("hidden");
   $("#keyModal").classList.remove("hidden");
   if (!on) $(browser || info.account_index == null ? "#keyAddress" : "#keyIndex").focus();
+}
+
+// Verify and connect lights up once it has what it needs: the key, an account (or an address to find it) and,
+// on the public site, the terms ticked
+function keyReady() {
+  const addr = /^0x[0-9a-fA-F]{40}$/.test($("#keyAddress").value.trim()), acc = $("#keyAccount").value !== "";
+  const ready = $("#keyPrivate").value.trim().length > 20 && (addr || acc) && (!info.public || $("#keyTerms").checked);
+  $("#keySubmit").classList.toggle("ready", ready);
 }
 
 // the terms accepted when a key was connected (terms.html); a new date asks again
@@ -5916,6 +5927,7 @@ function wireKeyDialog() {
     clearTimeout(keyFindTimer);
     if (/^0x[0-9a-fA-F]{40}$/.test($("#keyAddress").value.trim())) keyFindTimer = setTimeout(() => $("#keyFind").onclick().catch(() => {}), 300);
   });
+  for (const ev of ["input", "change"]) $("#keyForm").addEventListener(ev, keyReady);
   $("#keyForm").onsubmit = async (e) => {
     e.preventDefault();
     keyError("");
@@ -5934,12 +5946,17 @@ function wireKeyDialog() {
     };
     try {
       if ($("#keyAccount").value === "") { // the account from the wallet address, if it wasn't looked up yet
-        if (!/^0x[0-9a-fA-F]{40}$/.test($("#keyAddress").value.trim())) throw new Error(t("Inserisci l'indirizzo del wallet o l'indice dell'account"));
+        if (!/^0x[0-9a-fA-F]{40}$/.test($("#keyAddress").value.trim())) {
+          $("#keyAdv").open = true; // the account index is the other way in
+          throw new Error(t("Inserisci l'indirizzo del wallet o l'indice dell'account"));
+        }
         clearTimeout(keyFindTimer);
+        btn.textContent = t("Cerco l'account…");
         await $("#keyFind").onclick();
         if ($("#keyAccount").value === "") throw new Error(t("Nessun account Lighter per questo wallet"));
       }
       const account_index = +$("#keyAccount").value;
+      btn.textContent = t("Controllo la chiave con Lighter…");
       if ($("#keyIndex").value !== "") await tryKey({ account_index, api_key_index: +$("#keyIndex").value });
       else { // no index given: the account's keys, newest first, until one takes this private key
         btn.textContent = t("Cerco l'indice della chiave…");
