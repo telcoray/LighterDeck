@@ -1223,7 +1223,6 @@ dd.warn { color: var(--amber); }
 /* ================= live site: the visitor's Lighter account first, paper a choice ================= */
 .tk-switch { display: block; width: 100%; margin-top: 6px; padding: 4px 0; background: none; border: 0; color: var(--muted); font-family: var(--ui); font-size: 11.5px; text-align: center; cursor: pointer; }
 .tk-switch:hover { color: var(--text); text-decoration: underline; text-underline-offset: 3px; }
-body.live-first.paper .tk-switch { color: var(--amber); }
 body.live-first.paper #accountPill { border-color: color-mix(in srgb, var(--amber) 45%, transparent); }
 body.live-first:not(.paper):not(.browser-key) #accountPill { color: var(--green); border-color: color-mix(in srgb, var(--green) 40%, transparent); }
 /* the accounts a wallet owns: the one in the form stands out */
