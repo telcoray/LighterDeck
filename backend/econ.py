@@ -358,6 +358,36 @@ MARKET_ASSETS = {"WTI": ["oil"], "BRENTOIL": ["oil"], "NATGAS": ["natgas"],
 IMPACT_RANK = {"Low": 0, "Medium": 1, "High": 2}
 
 
+# One-off events with no feed (a listing, a big IPO), added by hand to the shared calendar: (title, day,
+# New York time, when, the markets they move with their impact). A listing's first trade comes some time
+# after the open, with no fixed time: the event sits at the open, marked approximate.
+NOTABLE = [
+    ("Anthropic IPO: first day of trading on Nasdaq (ANT)", "2026-11-19", (9, 30), "",
+     {"sym:ANTHROPIC": "High"}),
+]
+
+
+def merge_notable(events):
+    """Put the hand-added events in, replacing any older copy of one (an edited time or source)."""
+    fresh = {e["id"]: e for e in notable_events()}
+    titles = {e["title"] for e in fresh.values()}
+    for k in [k for k, e in events.items() if e["title"] in titles and k not in fresh]:
+        del events[k]
+    events.update(fresh)
+
+
+def notable_events():
+    out = []
+    for title, day, hm, when, moves in NOTABLE:
+        e = _make(title, "USD", _at(datetime.fromisoformat(day).date(), hm), "Medium", "Nasdaq IPO")  # high on the markets it moves
+        e["assets"], e["impact_by"] = list(moves), dict(moves)
+        e["approx"] = True
+        if when:
+            e["when"] = when
+        out.append(e)
+    return out
+
+
 def market_focus(symbol, categories):
     fx = len(symbol) == 6 and symbol[:3] in CURRENCIES and symbol[3:] in CURRENCIES
     assets = [f"sym:{symbol}", *MARKET_ASSETS.get(symbol, []),
@@ -384,6 +414,7 @@ class Calendar:
                 self.events = {e["id"]: e for e in json.loads(CACHE.read_text())}
             except Exception:
                 log.warning("calendar cache unreadable, starting empty")
+        merge_notable(self.events)  # at once, not only after the first refresh (which takes a while)
         if CUSTOM_FILE.exists() and not config.PUBLIC_MODE:  # the public site keeps visitors' events in their browser
             try:
                 self.custom = {e["id"]: e for e in json.loads(CUSTOM_FILE.read_text())}
@@ -499,6 +530,7 @@ class Calendar:
                         self.events[e["id"]] = e
                 log.info("official calendar: %d events", len(found))
 
+        merge_notable(self.events)
         cutoff = time.time() - 35 * 86400  # keep ~5 weeks of history
         self.events = {k: v for k, v in self.events.items() if v["ts"] >= cutoff}
         CACHE.write_text(json.dumps(list(self.events.values())))
