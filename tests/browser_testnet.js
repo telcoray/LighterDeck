@@ -12,8 +12,8 @@
 // Trailing, scaled exits, Chase and Iceberg run on the server with a second key: hand one over in the page
 // (account pill, Automations) and they are tested too; without it those scenarios are skipped.
 const AUTO = ["trailing", "scaled_exits", "chase", "iceberg"];
-const SCENARIOS = ["account", "leverage", "margin_mode", "limit", "entry", "limit_exits", "conditional", "twap", "scale", "basket", "reverse", "rfq", "history", ...AUTO];
-const READS = new Set(["history"]);
+const SCENARIOS = ["page", "account", "leverage", "margin_mode", "limit", "entry", "limit_exits", "limit_entry_exits", "slippage", "conditional", "twap", "scale", "basket", "reverse", "rfq", "history", ...AUTO];
+const READS = new Set(["history", "page"]);
 
 export async function run(...names) {
   if (typeof info === "undefined" || !info || info.network !== "testnet" || !/testnet/.test(info.lighter_url || "")) throw new Error("Refusing to run: this instance is not on a testnet.");
@@ -117,6 +117,20 @@ export async function run(...names) {
       await sleep(4000);
       check("and no further slice is sent", !(await orders(A)).length, await orders(A));
     },
+    async page() {
+      // the security headers the public site sends, and that they leave room for Lighter
+      const h = (await fetch("/")).headers, csp = h.get("content-security-policy") || "";
+      check("the page has a Content-Security-Policy", csp.includes("default-src 'self'"), csp);
+      check("scripts only from this site (and the signer's WebAssembly)", /script-src 'self' 'wasm-unsafe-eval'/.test(csp) && !/unpkg|cdn/.test(csp), csp);
+      const lighter = (info.lighter_url || "").replace(/\/$/, "");
+      check("connections allowed to this network's Lighter, https and wss", csp.includes(lighter) && csp.includes(lighter.replace("https://", "wss://")), [lighter, csp]);
+      check("no framing", csp.includes("frame-ancestors 'none'") && h.get("x-frame-options") === "DENY", h.get("x-frame-options"));
+      check("the charts library comes from this site", [...document.scripts].some((x) => /\/vendor\/lightweight-charts/.test(x.src)) && ![...document.scripts].some((x) => x.src && new URL(x.src).origin !== location.origin), [...document.scripts].map((x) => x.src));
+      let outside = "sent";
+      try { await fetch("https://example.com/"); } catch { outside = "blocked"; }
+      check("a request to another site is blocked by the page", outside === "blocked", outside);
+      check("'Remember the key' starts unticked", !document.querySelector("#keyRemember").defaultChecked, document.querySelector("#keyRemember").outerHTML);
+    },
     async account() {
       const a = await fresh();
       check("account read, with Lighter's cross margin figures", a && a.cross_value !== null && a.initial !== null && a.maintenance !== null, a);
@@ -200,6 +214,31 @@ export async function run(...names) {
       await post(`/close?market_id=${A}&fraction=1`);
       if (await until(async () => !(await position(A)) && !(await orders(A)).length, 20000)) check("closing the position takes the stop-limits away too", true);
       else note(`stop-limits still listed 20s after the close: ${JSON.stringify((await orders(A)).map((x) => [x.type, x.status]))}`);
+    },
+    async limit_entry_exits() {
+      // a resting limit entry with stop-limit SL and TP attached: three orders, nothing filled
+      const q = size(A), price = round(mA, px(A).bid * 0.96), sl = round(mA, price * 0.95), tp = round(mA, price * 1.1);
+      try { await post("/order", { market_id: A, side: "buy", kind: "limit", size: q, unit: "base", price, post_only: true, sl_price: sl, tp_price: tp, sl_limit_price: round(mA, sl * 0.995), tp_limit_price: round(mA, tp * 0.995) }); }
+      catch (e) { return check("Lighter accepts a limit entry with stop-limit SL and TP", false, e.message); }
+      const entry = await until(async () => (await orders(A)).find((x) => !x.trigger_price && Math.abs(x.price - price) < 1e-9), 15000);
+      if (!check("the limit entry rests on the book", entry, await orders(A))) return;
+      check("no position yet", !(await position(A)), await position(A));
+      const all = await orders(A);
+      note(`listed with the entry: ${JSON.stringify(all.filter((x) => x.trigger_price).map((x) => [x.type, x.trigger_price, x.status]))}`);
+      await post("/cancel_all");
+      check("cancelling clears the entry and whatever hangs on it", await until(async () => !(await orders(A)).length, 20000), await orders(A));
+    },
+    async slippage() {
+      // the ticket's max slippage, as the visitor edits it: tight, then the default
+      const q = size(A);
+      let tight = null;
+      try { await post("/order", { market_id: A, side: "buy", kind: "market", size: q, unit: "base", slippage_bps: 5 }); tight = "sent"; }
+      catch (e) { tight = e.message; }
+      const filled = await until(() => position(A), 10000);
+      note(`market buy with 0.05% max slippage: ${tight === "sent" ? (filled ? "filled" : "sent, not filled (the book moved past 0.05%)") : "refused: " + tight}`);
+      if (filled) { await post(`/close?market_id=${A}&fraction=1`); await until(async () => !(await position(A)), 20000); }
+      await post("/order", { market_id: A, side: "buy", kind: "market", size: q, unit: "base", slippage_bps: 100 });
+      check("with 1% max slippage it fills", Math.abs((await until(() => position(A), 20000)) - q) < 1e-9, await position(A));
     },
     async conditional() {
       const q = size(A), up = round(mA, px(A).mark * 1.05), down = round(mA, px(A).mark * 0.95);

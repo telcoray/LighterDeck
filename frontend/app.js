@@ -2863,10 +2863,18 @@ async function previewTicket() {
   }
 }
 
+// the ticket's answer under the button: an error stays until the ticket is changed, a success fades by itself
+let ticketMsgTimer = 0;
 function ticketMsg(text, kind) {
   const el = $("#tkMsg");
+  clearTimeout(ticketMsgTimer);
   el.textContent = text;
   el.className = "ticket-msg " + kind;
+  if (kind === "ok") ticketMsgTimer = setTimeout(hideTicketMsg, 6000);
+}
+function hideTicketMsg() {
+  clearTimeout(ticketMsgTimer);
+  $("#tkMsg").className = "ticket-msg hidden";
 }
 
 async function executeTicket(byMouse = false) {
@@ -5127,6 +5135,12 @@ function wire() {
     if (pendingConfirm && !e.target.closest(`[data-ck="${pendingConfirm.key}"], #armedBtn`)) cancelConfirm();
   });
   for (const ev of ["input", "change"]) $(".ticket").addEventListener(ev, () => { if (pendingConfirm && pendingConfirm.key === "order") cancelConfirm(); });
+  // changing the ticket (size, slider, price, side, type…) makes the last answer stale
+  for (const ev of ["input", "change"]) $(".ticket").addEventListener(ev, (e) => { if (!e.target.closest("#tkMsg")) hideTicketMsg(); });
+  $(".ticket").addEventListener("click", (e) => {
+    const b = e.target.closest("button");
+    if (b && !b.closest("#tkMsg") && b.id !== "tkExec" && !b.classList.contains("execute")) hideTicketMsg();
+  });
 
   // automations
   $("#armedBtn").onclick = async () => {
