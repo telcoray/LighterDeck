@@ -363,7 +363,7 @@ IMPACT_RANK = {"Low": 0, "Medium": 1, "High": 2}
 # after the open, with no fixed time: the event sits at the open, marked approximate.
 NOTABLE = [
     ("Anthropic IPO: first day of trading on Nasdaq (ANT)", "2026-11-19", (9, 30), "",
-     {"sym:ANTHROPIC": "High"}),
+     {"sym:ANTHROPIC": "High", "sym:ANT": "High"}),  # the pre-IPO market and the stock's own (listed on the day)
 ]
 
 

@@ -251,6 +251,8 @@ const EN = {
   "prev. {f} · prec. {p}": "fcst. {f} · prev. {p}",
   // ---- order book ----
   "Prezzo": "Price",
+  "Settimana, mese e anno: il tasso attuale ripetuto, una stima. Quello pagato davvero è nello storico qui sotto.": "Week, month and year: the current rate repeated, an estimate. What was actually paid is in the history below.",
+  "Positivo: i long pagano gli short · negativo: gli short pagano i long": "Positive: longs pay shorts · negative: shorts pay longs",
   "Dal telefono: apri lighterdeck.xyz nel browser dell'app del tuo wallet (MetaMask, Rabby…) per creare la chiave con un tocco, senza copiare nulla.": "On a phone: open lighterdeck.xyz in your wallet app's browser (MetaMask, Rabby…) to create the key in one tap, with nothing to copy.",
   "Copia la chiave privata.": "Copy the private key.",
   "Incollala qui sotto con l'indirizzo del wallet: LighterDeck trova l'account e la chiave da solo, e la controlla con Lighter prima di salvarla.": "Paste it below with your wallet address: LighterDeck finds the account and the key by itself, and checks it with Lighter before saving it.",
