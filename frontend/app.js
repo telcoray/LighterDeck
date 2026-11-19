@@ -156,10 +156,12 @@ function fcompact(v) {
 }
 const fpct = (v, d = 2) => (v >= 0 ? "+" : "") + v.toFixed(d) + "%";
 const cls = (v) => (v >= 0 ? "up" : "down");
-// market logo (cached by the backend) with the initial underneath as fallback
+// market logo (cached by the backend) with the initial underneath as fallback; one that fails to load goes
+// (a listener, not an onerror attribute: the page's CSP runs no inline handlers)
+document.addEventListener("error", (e) => { if (e.target.matches && e.target.matches("img[data-logo]")) e.target.remove(); }, true);
 function ico(sym, size = "") {
   const m = bySymbol[sym];
-  const img = m && m.has_logo ? `<img src="/logo/${encodeURIComponent(sym)}" alt="" loading="lazy" onerror="this.remove()">` : "";
+  const img = m && m.has_logo ? `<img src="/logo/${encodeURIComponent(sym)}" alt="" loading="lazy" data-logo>` : "";
   return `<i class="mk-ico${size ? " " + size : ""}">${esc(sym[0])}${img}</i>`;
 }
 const fsize = (v, m) => Math.abs(v).toLocaleString("en-US", { maximumFractionDigits: m ? m.size_decimals : 4 });

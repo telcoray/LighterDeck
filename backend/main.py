@@ -1,5 +1,7 @@
 """LighterDeck backend: serves the UI, market data, calendar, trading and automations."""
 import asyncio
+import base64
+import hashlib
 import json
 import logging
 import math
@@ -82,6 +84,50 @@ def check_token(token):
         raise HTTPException(401, "bad token")
 
 
+def _inline_script_hashes():
+    """sha256 of every inline <script> in the pages, for the CSP: only these and the site's own files run."""
+    found = set()
+    for page in FRONTEND.glob("*.html"):
+        for body in re.findall(r"<script>(.*?)</script>", page.read_text(encoding="utf-8"), re.S):
+            found.add("'sha256-" + base64.b64encode(hashlib.sha256(body.encode("utf-8")).digest()).decode() + "'")
+    return " ".join(sorted(found))
+
+
+def _security_headers():
+    lighter = config.LIGHTER_URL.rstrip("/")
+    csp = "; ".join((
+        "default-src 'self'",
+        # the site's own scripts, its inline bootstrap scripts by hash, and the WebAssembly signer
+        f"script-src 'self' 'wasm-unsafe-eval' {_inline_script_hashes()}",
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+        "font-src 'self' https://fonts.gstatic.com data:",
+        "img-src 'self' data: blob:",
+        # this site (API, price websocket) and Lighter, where the browser's signed orders go
+        f"connect-src 'self' {lighter} {lighter.replace('https://', 'wss://')}",
+        "worker-src 'self'",
+        "manifest-src 'self'",
+        "object-src 'none'",
+        "base-uri 'none'",
+        "form-action 'self'",
+        "frame-ancestors 'none'",
+    ))
+    headers = {
+        "Content-Security-Policy": csp,
+        "X-Content-Type-Options": "nosniff",
+        "X-Frame-Options": "DENY",
+        "Referrer-Policy": "strict-origin-when-cross-origin",
+        "Permissions-Policy": "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
+        # wallets may open their own pop-ups
+        "Cross-Origin-Opener-Policy": "same-origin-allow-popups",
+    }
+    if config.SITE_URL.startswith("https://"):
+        headers["Strict-Transport-Security"] = "max-age=31536000"
+    return headers
+
+
+SECURITY_HEADERS = _security_headers()
+
+
 @app.middleware("http")
 async def auth(request: Request, call_next):
     if request.headers.get("x-lang"):
@@ -98,6 +144,8 @@ async def auth(request: Request, call_next):
     response = await call_next(request)
     # always revalidate the UI files, so an update shows up on the next reload
     response.headers.setdefault("Cache-Control", "no-cache")
+    for k, v in SECURITY_HEADERS.items():  # a response that sets its own (the logos) keeps it
+        response.headers.setdefault(k, v)
     return response
 
 

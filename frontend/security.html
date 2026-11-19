@@ -75,6 +75,7 @@
     <ul>
       <li>LighterDeck usa il <b>firmatario ufficiale di Lighter</b>, <a href="https://github.com/elliottech/lighter-go" target="_blank" rel="noopener">lighter-go</a>, compilato in WebAssembly senza modifiche. Gli ordini firmati vanno dal tuo browser all'API di Lighter.</li>
       <li>Ogni firma usa un valore casuale nuovo (il <i>nonce</i>), generato con il generatore sicuro del browser. Se lo stesso ordine viene firmato due volte, le firme sono diverse.</li>
+      <li>La pagina esegue solo il codice di LighterDeck, servito da lighterdeck.xyz: una <b>Content-Security-Policy</b> blocca gli script di altri siti e permette collegamenti solo a LighterDeck e a Lighter. Anche se qualcuno riuscisse a inserire del codice nella pagina, non potrebbe mandare la chiave altrove.</li>
       <li>Il codice di LighterDeck è <a href="https://github.com/telcoray/LighterDeck" target="_blank" rel="noopener">open source</a>: chiunque può controllare cosa fa con la chiave. Il firmatario è nella cartella <code>frontend/signer/</code>, con il commit di lighter-go da cui è compilato.</li>
     </ul>
 
@@ -139,6 +140,7 @@
     <ul>
       <li>LighterDeck uses <b>Lighter's official signer</b>, <a href="https://github.com/elliottech/lighter-go" target="_blank" rel="noopener">lighter-go</a>, compiled to WebAssembly without changes. Signed orders go from your browser to Lighter's API.</li>
       <li>Every signature uses a new random value (the <i>nonce</i>), drawn from the browser's secure random generator. Sign the same order twice and you get two different signatures.</li>
+      <li>The page runs only LighterDeck's own code, served from lighterdeck.xyz: a <b>Content-Security-Policy</b> blocks scripts from other sites and allows connections only to LighterDeck and Lighter. Even if someone managed to inject code into the page, it couldn't send the key anywhere else.</li>
       <li>LighterDeck's code is <a href="https://github.com/telcoray/LighterDeck" target="_blank" rel="noopener">open source</a>: anyone can check what it does with the key. The signer is in <code>frontend/signer/</code>, with the lighter-go commit it was built from.</li>
     </ul>
 
