@@ -1411,8 +1411,6 @@ function renderFundingStats() {
   const r = p ? p.funding : null;
   const show = (id, v) => { const el = $(id); el.textContent = r === null ? "—" : fpctf(v); el.className = r === null ? "" : v >= 0 ? "up" : "down"; };
   show("#fdNow", r); show("#fdWeek", r * 24 * 7); show("#fdMonth", r * 24 * 30); show("#fdYear", r * 24 * 365);
-  // who pays at this rate, so the sign doesn't need the legend
-  $("#fdWho").textContent = !r ? "" : r > 0 ? t("i long pagano gli short") : t("gli short pagano i long");
   // what the open position pays (−) or receives (+) at the next funding, at the current estimate
   const pos = account && account.positions.find((x) => x.market_id === m.id);
   $("#fdPosRow").classList.toggle("hidden", !pos || r === null);
