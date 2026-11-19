@@ -107,7 +107,7 @@ def _security_headers():
         "worker-src 'self'",
         "manifest-src 'self'",
         "object-src 'none'",
-        "base-uri 'none'",
+        "base-uri 'self'",  # index.html has <base href="/">: pages like /trade/BTC load the same relative files
         "form-action 'self'",
         "frame-ancestors 'none'",
     ))
