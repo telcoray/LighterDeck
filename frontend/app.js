@@ -5589,6 +5589,33 @@ function credentialsChanged(newInfo) {
 
 // the network badge: blue on the testnet; on the mainnet green when orders are real (a connected account,
 // not paper), neutral grey when nothing real is at stake (paper, read-only: it only says where prices come from)
+// the same LighterDeck on Lighter's other networks: the badge opens them, on the same page and market
+const NETWORKS = { mainnet: ["Mainnet", "Rete vera di Lighter, soldi veri"], testnet: ["Testnet", "Rete di prova di Lighter, soldi finti"] };
+function renderNetMenu() {
+  const sites = (info && info.network_sites) || {};
+  const ids = Object.keys(NETWORKS).filter((id) => sites[id]);
+  const on = ids.length > 1;
+  $(".net-pick").classList.toggle("switch", on);
+  if (!on) return;
+  $("#netMenu").innerHTML = ids.map((id) => `<button type="button" data-net="${id}" class="${id === info.network ? "active" : ""}">
+      <i class="net-dot ${id}"></i><span>${NETWORKS[id][0]}<small>${t(NETWORKS[id][1])}</small></span><span class="check">✓</span></button>`).join("");
+  $("#netBadge").onclick = (e) => {
+    e.stopPropagation();
+    $("#themeMenu").classList.add("hidden"); $("#langMenu").classList.add("hidden");
+    $("#netMenu").classList.toggle("hidden");
+    fitInView($("#netMenu"));
+  };
+  $("#netMenu").onclick = (e) => {
+    e.stopPropagation();
+    const b = e.target.closest("[data-net]");
+    if (!b) return;
+    $("#netMenu").classList.add("hidden");
+    if (b.dataset.net !== info.network) location.href = sites[b.dataset.net] + location.pathname + location.search;
+  };
+  if (!renderNetMenu.wired) document.addEventListener("click", () => $("#netMenu").classList.add("hidden"));
+  renderNetMenu.wired = true;
+}
+
 function renderNetBadge() {
   if (!info) return;
   const real = !Paper.on && (Live.on || (!info.public && liveTrading));
@@ -6043,6 +6070,7 @@ function renderLangBtn() {
 // redraw every piece of text built in JavaScript; charts, prices and the book keep running
 function rerenderLanguage() {
   renderLangBtn();
+  renderNetMenu();
   applyTheme(document.documentElement.dataset.theme);
   setStatus(feedOk);
   renderArmed(info.armed);
@@ -6107,6 +6135,7 @@ async function init() {
   const net = info.network === "testnet" ? "Testnet" : "Mainnet";
   $("#netBadge").textContent = net;
   $("#sbNet").textContent = net;
+  renderNetMenu();
   renderArmed(info.armed);
 
   try { localStorage.removeItem("ld.mode"); } catch {} // left by the old Simple / Pro switch

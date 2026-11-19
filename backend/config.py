@@ -44,7 +44,11 @@ BROWSER_TRADING = _env("BROWSER_TRADING", "").lower() in ("1", "true", "yes")
 VAULT_KEY = _env("LD_VAULT_KEY", None)
 REFERRAL_URL = _env("REFERRAL_URL", "https://app.lighter.xyz/?referral=7658993U&source=none")  # "open a Lighter account": the project's referral
 GITHUB_URL = "https://github.com/telcoray/LighterDeck"
-SITE_URL = _env("SITE_URL", "https://lighterdeck.xyz").rstrip("/")  # absolute links in link previews
+SITE_URL = _env("SITE_URL", "https://lighterdeck.xyz").rstrip("/")
+# the same LighterDeck on Lighter's other networks, one site each (the badge at the top right switches between
+# them): "mainnet=https://lighterdeck.xyz,testnet=https://testnet.lighterdeck.xyz". Empty: no switch.
+NETWORK_SITES = {k.strip(): v.strip().rstrip("/") for k, v in
+                 (x.split("=", 1) for x in _env("NETWORK_SITES", "").split(",") if "=" in x)}  # absolute links in link previews
 BLOCKED_COUNTRIES = {"US", "GB", "CA"}  # where Lighter isn't available
 if PUBLIC_MODE:
     ACCOUNT_INDEX = API_KEY_INDEX = API_PRIVATE_KEY = CREDENTIALS_SOURCE = None

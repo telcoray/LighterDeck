@@ -251,6 +251,8 @@ const EN = {
   "prev. {f} · prec. {p}": "fcst. {f} · prev. {p}",
   // ---- order book ----
   "Prezzo": "Price",
+  "Rete vera di Lighter, soldi veri": "Lighter's real network, real money",
+  "Rete di prova di Lighter, soldi finti": "Lighter's test network, play money",
   "Settimana, mese e anno: il tasso attuale ripetuto, una stima. Quello pagato davvero è nello storico qui sotto.": "Week, month and year: the current rate repeated, an estimate. What was actually paid is in the history below.",
   "Dal telefono: apri lighterdeck.xyz nel browser dell'app del tuo wallet (MetaMask, Rabby…) per creare la chiave con un tocco, senza copiare nulla.": "On a phone: open lighterdeck.xyz in your wallet app's browser (MetaMask, Rabby…) to create the key in one tap, with nothing to copy.",
   "Copia la chiave privata.": "Copy the private key.",
