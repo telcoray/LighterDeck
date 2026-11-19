@@ -281,10 +281,12 @@ body.reordering { cursor: grabbing; user-select: none; }
 .fund-hist-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
 .fund-hist-head .seg button.active { color: var(--text); background: var(--raised); }
 .fund-chart { height: 220px; }
-.fund-legend { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 6px 18px; margin-top: 10px; font-size: 10.5px; color: var(--text-2); text-align: center; }
-.fund-legend .sw { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+/* one line: the keys on the left, the sign rule on the right, on the same baseline */
+.fund-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; margin-top: 10px; font-size: 10.5px; line-height: 14px; color: var(--text-2); }
+.fund-legend > span { display: inline-flex; align-items: center; }
+.fund-legend .sw { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 5px; }
 .fund-legend .sw.rate { background: var(--green); } .fund-legend .sw.cum { background: var(--muted); }
-.fund-legend .muted { flex-basis: 100%; }
+.fund-legend .muted { margin-left: auto; }
 @media (max-width: 640px) { .fund-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 
 .toolbar { height: 36px; flex: none; display: flex; align-items: center; gap: 8px; padding: 0 10px; border-bottom: 1px solid var(--line); }
