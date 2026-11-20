@@ -271,7 +271,7 @@ const EN = {
   "Cerco l'account…": "Finding the account…",
   "Controllo la chiave con Lighter…": "Checking the key with Lighter…",
   "storico delle 6 ore in caricamento": "6-hour history loading",
-  "Mercati con un funding di almeno 0,01% all'ora, in un senso o nell'altro, adesso o in una delle ultime 6 ore (quelli sotto la soglia adesso sono in grigio). Chi sta dal lato che incassa riceve il funding ogni ora. Il prezzo però continua a muoversi: è un rendimento che può sparire o girare, non un guadagno garantito.": "Markets with a funding of at least 0.01% an hour, either way, now or in one of the last 6 hours (those below it now are in grey). Whoever holds the side that collects receives the funding every hour. The price still moves, though: it is a yield that can fade or flip, not a guaranteed gain.",
+  "Mercati con un funding di almeno 0,01% all'ora, in un senso o nell'altro, in una delle ultime 6 ore.": "Markets with a funding of at least 0.01% an hour, either way, in one of the last 6 hours.",
   "Nessun mercato oltre lo 0,01% all'ora, adesso o nelle ultime 6 ore.": "No market above 0.01% an hour, now or in the last 6 hours.",
   "Ultime 6 ore": "Last 6 hours",
   "Ore delle ultime 6 con un funding di almeno 0,01%, dalla più vecchia": "Hours of the last 6 with a funding of at least 0.01%, oldest first",
