@@ -295,7 +295,6 @@ const EN = {
   "Release su GitHub →": "Releases on GitHub →",
   "Le note di versione sono in inglese.": "Release notes are in English.",
   "Versioni": "Releases",
-  "Dal primo commit, il {d}": "Since the first commit, on {d}",
   "Ultima versione": "Latest release",
   "In arrivo": "Coming next",
   "modifiche dopo la {v}": "changes since {v}",

@@ -4831,7 +4831,6 @@ function renderChangelog() {
   const rels = d.releases, shipped = rels.filter((r) => r.v), latest = shipped[0], next = rels.find((r) => !r.v);
   const count = (items) => items.reduce((n, it) => n + 1 + (typeof it === "object" && it.sub ? count(it.sub) : 0), 0);
   const nextCount = next ? next.groups.reduce((n, g) => n + count(g.items), 0) : 0;
-  $("#logSince").textContent = t("Dal primo commit, il {d}", { d: logDate(d.start, { day: "numeric", month: "long", year: "numeric" }) });
   $("#logLang").classList.toggle("hidden", LANG === "en");
   $("#logStats").innerHTML = [
     [t("Ultima versione"), "v" + latest.v, logDate(latest.date)],
