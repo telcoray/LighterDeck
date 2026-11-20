@@ -1081,6 +1081,9 @@ body.browser-key :is(.pair-add, #mktSpread) { display: none !important; }
 /* ================= terms ================= */
 .statusbar .sb-link { color: var(--muted); text-decoration: none; }
 .statusbar .sb-link:hover { color: var(--text); }
+.statusbar .sb-discord { display: inline-flex; color: var(--muted); }
+.statusbar .sb-discord:hover { color: #5865f2; }
+.statusbar .sb-discord svg { width: 13px; height: 13px; }
 .res-terms { font-size: 12px; color: var(--muted); }
 .res-terms a, .key-remember a { color: var(--green); }
 
