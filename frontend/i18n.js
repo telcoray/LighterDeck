@@ -292,6 +292,8 @@ const EN = {
   "Lighter non ha ancora registrato la chiave: riprova tra poco": "Lighter hasn't registered the key yet: try again shortly",
   "Preferiti precedenti": "Previous favourites",
   "Altri preferiti": "More favourites",
+  "Riduci a una riga": "Fold to one row",
+  "Mostra tutti i preferiti": "Show every favourite",
   "Annualizzato": "Annualized",
   "Lato che incassa": "Side that collects",
   "Al giorno su $1.000": "Per day on $1,000",

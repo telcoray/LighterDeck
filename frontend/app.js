@@ -1505,13 +1505,38 @@ function renderTicker() {
 // favourites row wider than the screen: the mouse wheel scrolls it sideways, and an arrow shows on each side
 // that has favourites out of view (a click moves it by most of its width)
 function updateTickerArrows() {
+  updateTickerFold();
   const box = $("#ticker"), end = box.scrollWidth - box.clientWidth;
   $("#tickerLeft").classList.toggle("hidden", box.scrollLeft <= 2);
   $("#tickerRight").classList.toggle("hidden", end <= 2 || box.scrollLeft >= end - 2);
 }
 
+// on a computer the favourites wrap onto as many rows as they need; the arrow at the end folds them to one
+// scrolling row (remembered) and back. It shows only when there is more than one row's worth.
+const tickerMouse = matchMedia("(hover: hover) and (pointer: fine)");
+let tickerOneRow = load("tickerOneRow", false);
+function updateTickerFold() {
+  const bar = $(".ticker"), box = $("#ticker"), fold = $("#tickerFold");
+  const wrap = tickerMouse.matches && !tickerOneRow;
+  bar.classList.toggle("wrap", wrap);
+  const items = box.children, last = items[items.length - 1];
+  const more = tickerMouse.matches && !!last && (wrap ? last.offsetTop > items[0].offsetTop : box.scrollWidth > box.clientWidth + 2);
+  fold.classList.toggle("hidden", !more);
+  bar.classList.toggle("has-fold", more);
+  const label = t(wrap ? "Riduci a una riga" : "Mostra tutti i preferiti");
+  fold.title = label;
+  fold.setAttribute("aria-label", label);
+}
+
 function wireTickerScroll() {
   const box = $("#ticker");
+  $("#tickerFold").onclick = () => {
+    tickerOneRow = !tickerOneRow;
+    store("tickerOneRow", tickerOneRow);
+    box.scrollLeft = 0;
+    updateTickerArrows();
+  };
+  tickerMouse.addEventListener("change", updateTickerArrows);
   box.addEventListener("wheel", (e) => {
     if (box.scrollWidth <= box.clientWidth || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return; // a sideways swipe scrolls by itself
     e.preventDefault();
@@ -1549,17 +1574,30 @@ function wireTickerDrag() {
   box.addEventListener("pointerdown", (e) => {
     const el = e.target.closest(".tk");
     if (!el || e.button !== 0) return;
-    tickerDrag = { el, x0: e.clientX, left0: el.offsetLeft, moved: false, id: e.pointerId };
+    tickerDrag = { el, x0: e.clientX, y0: e.clientY, left0: el.offsetLeft, top0: el.offsetTop, moved: false, id: e.pointerId };
   });
   box.addEventListener("pointermove", (e) => {
     const d = tickerDrag;
     if (!d || e.pointerId !== d.id) return;
     if (!d.moved) {
-      if (Math.abs(e.clientX - d.x0) < 5) return;
+      if (Math.hypot(e.clientX - d.x0, e.clientY - d.y0) < 5) return;
       d.moved = true;
       d.el.classList.add("dragging");
       document.body.classList.add("reordering");
       try { box.setPointerCapture(e.pointerId); } catch {}
+    }
+    if ($(".ticker").classList.contains("wrap")) { // rows: move it before or after the favourite under the pointer
+      const over = [...box.children].find((b) => {
+        if (b === d.el) return false;
+        const r = b.getBoundingClientRect();
+        return e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
+      });
+      if (over) {
+        const kids = [...box.children];
+        box.insertBefore(d.el, kids.indexOf(over) < kids.indexOf(d.el) ? over : over.nextSibling);
+      }
+      d.el.style.transform = `translate(${d.left0 + e.clientX - d.x0 - d.el.offsetLeft}px, ${d.top0 + e.clientY - d.y0 - d.el.offsetTop}px)`;
+      return;
     }
     // where the item's left edge would be, then swap with a neighbour once we pass its middle
     const left = d.left0 + e.clientX - d.x0;
