@@ -5544,12 +5544,24 @@ function openKeyDialog(justConnected = false) {
   $("#keyError").classList.add("hidden");
   $("#keyAccounts").innerHTML = "";
   $("#keyAdv").open = !browser || $("#keyIndex").value !== "";
+  pasteOpen($("#keyPrivate").value.trim() !== "" || $("#keyAddress").value.trim() !== "");
   $("#keyMobileHint").classList.toggle("hidden", !browser || walletProviders.size > 0 || !matchMedia("(pointer: coarse)").matches);
   keyReady();
   $("#keyShade").classList.remove("hidden");
   $("#keyModal").classList.remove("hidden");
   if (!on) $(browser || info.account_index == null ? "#keyAddress" : "#keyIndex").focus();
 }
+
+// with a wallet, "or paste a key you already have" opens the paste fields (folded until then)
+function pasteOpen(open) {
+  $("#keyForm").classList.toggle("paste-closed", !open);
+  $("#keyPasteBtn").setAttribute("aria-expanded", String(open));
+}
+$("#keyPasteBtn").onclick = () => {
+  const open = $("#keyForm").classList.contains("paste-closed");
+  pasteOpen(open);
+  if (open) $("#keyAddress").focus();
+};
 
 // Verify and connect lights up once it has what it needs: the key, an account (or an address to find it) and,
 // on the public site, the terms ticked

@@ -1511,6 +1511,14 @@ option { background: var(--surface); color: var(--text); }
 .key-create .key-wallets { margin: 8px 0 0; }
 .key-or { display: flex; align-items: center; gap: 10px; margin: 14px 0 0; color: var(--muted); font-size: 11px; }
 .key-or::before, .key-or::after { content: ""; flex: 1; height: 1px; background: var(--line-2); }
+.key-or button { display: inline-flex; align-items: center; gap: 7px; padding: 2px 4px; color: var(--muted); font-size: 11px; cursor: pointer; }
+.key-or button:hover { color: var(--text-2); }
+.key-or button::before { content: ""; width: 6px; height: 6px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(45deg) translateY(-2px); transition: transform .15s; }
+/* with a wallet to create the key, pasting one is folded under its own line until asked for */
+#keyForm.paste-closed #keyCreate:not(.hidden) .key-or button::before { transform: rotate(-45deg); }
+#keyForm.paste-closed #keyCreate:not(.hidden) ~ .key-paste,
+#keyForm.paste-closed #keyCreate:not(.hidden) ~ #keySubmit { display: none; }
+#keyCreate:not(.hidden) ~ .key-paste { margin-top: 14px; }
 
 /* the key dialog's Done right after a key is connected: solid green, the obvious next click */
 #keyDone.go { padding: 0 18px; border-color: var(--green); background: var(--green); color: var(--green-ink); font-weight: 600; }
