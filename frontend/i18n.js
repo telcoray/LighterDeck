@@ -261,7 +261,6 @@ const EN = {
   "Copia la chiave privata.": "Copy the private key.",
   "Incollala qui sotto con l'indirizzo del wallet: LighterDeck trova l'account e la chiave da solo, e la controlla con Lighter prima di salvarla.": "Paste it below with your wallet address: LighterDeck finds the account and the key by itself, and checks it with Lighter before saving it.",
   "Indirizzo del wallet": "Wallet address",
-  "Indici dell'account e della chiave (trovati da soli)": "Account and key indexes (found by themselves)",
   "Resta in questo browser:": "Stays in this browser:",
   "il server di LighterDeck non la riceve mai.": "LighterDeck's server never receives it.",
   "Firma qui, con il firmatario ufficiale di Lighter:": "Signs here, with Lighter's official signer:",

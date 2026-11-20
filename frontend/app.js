@@ -5543,7 +5543,6 @@ function openKeyDialog(justConnected = false) {
   }
   $("#keyError").classList.add("hidden");
   $("#keyAccounts").innerHTML = "";
-  $("#keyAdv").open = !browser || $("#keyIndex").value !== "";
   pasteOpen($("#keyPrivate").value.trim() !== "" || $("#keyAddress").value.trim() !== "");
   $("#keyMobileHint").classList.toggle("hidden", !browser || walletProviders.size > 0 || !matchMedia("(pointer: coarse)").matches);
   keyReady();
@@ -6012,7 +6011,6 @@ function wireKeyDialog() {
     try {
       if ($("#keyAccount").value === "") { // the account from the wallet address, if it wasn't looked up yet
         if (!/^0x[0-9a-fA-F]{40}$/.test($("#keyAddress").value.trim())) {
-          $("#keyAdv").open = true; // the account index is the other way in
           throw new Error(t("Inserisci l'indirizzo del wallet o l'indice dell'account"));
         }
         clearTimeout(keyFindTimer);

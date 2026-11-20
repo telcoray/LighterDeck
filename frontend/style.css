@@ -158,12 +158,6 @@ body.paper [data-view="auto"], body.paper [data-view="activity"], body.paper [da
 .key-paper-note { text-align: center; margin: 6px 0 0; }
 /* the indexes are found by themselves: tucked away for whoever wants to set them */
 .key-adv { margin: 0 0 12px; }
-.key-adv summary { cursor: pointer; color: var(--muted); font-size: 11.5px; list-style: none; display: inline-flex; align-items: center; gap: 6px; }
-.key-adv summary::-webkit-details-marker { display: none; }
-.key-adv summary::before { content: ""; width: 6px; height: 6px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(-45deg); transition: transform .15s; }
-.key-adv[open] summary::before { transform: rotate(45deg); }
-.key-adv summary:hover { color: var(--text-2); }
-.key-adv .key-row { margin-top: 8px; }
 /* what happens to the key, in three lines that read at a glance */
 .key-points { list-style: none; margin: 0 0 14px; padding: 10px 12px; border: 1px solid var(--line-2); border-radius: var(--r); background: var(--surface); display: grid; gap: 5px; }
 .key-points li { position: relative; padding-left: 18px; font-size: 11.5px; line-height: 1.45; color: var(--text-2); }
