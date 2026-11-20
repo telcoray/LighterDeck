@@ -4805,11 +4805,83 @@ function setStatus(ok) {
   $("#statusPill").classList.toggle("hidden", ok);
 }
 
+// ================= changelog page =================
+// The story so far, from changelog.json (written in English, newest first): a numbers strip, a timeline
+// of the releases with their groups of changes, and an index on the left that follows the scroll.
+let changelog = null;
+function loadChangelog() {
+  if (changelog) { renderChangelog(); return; }
+  fetch("changelog.json?v=1").then((r) => r.json()).then((d) => { changelog = d; renderChangelog(); }).catch(() => {});
+}
+// **bold**, *highlight*, `code`
+const logMd = (s) => esc(s).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>").replace(/\*(.+?)\*/g, "<i>$1</i>").replace(/`(.+?)`/g, "<code>$1</code>");
+const logDay = (d) => new Date(d + "T12:00:00Z");
+const logDate = (d, o = { day: "numeric", month: "short", year: "numeric" }) => logDay(d).toLocaleDateString(LOCALE, o);
+function logItems(items) {
+  return `<ul>${items.map((it) => {
+    if (typeof it === "string") return `<li>${logMd(it)}</li>`;
+    const table = it.table ? `<table class="log-table"><thead><tr>${it.table.head.map((h) => `<th>${esc(h)}</th>`).join("")}</tr></thead>
+      <tbody>${it.table.rows.map((r) => `<tr>${r.map((c) => `<td>${esc(c)}</td>`).join("")}</tr>`).join("")}</tbody></table>` : "";
+    return `<li>${logMd(it.t)}${it.sub ? logItems(it.sub) : ""}${table}</li>`;
+  }).join("")}</ul>`;
+}
+function renderChangelog() {
+  const d = changelog;
+  if (!d) return;
+  const rels = d.releases, shipped = rels.filter((r) => r.v), latest = shipped[0], next = rels.find((r) => !r.v);
+  const days = Math.floor((Date.now() - logDay(d.start)) / 86400000) + 1;
+  const count = (items) => items.reduce((n, it) => n + 1 + (typeof it === "object" && it.sub ? count(it.sub) : 0), 0);
+  const nextCount = next ? next.groups.reduce((n, g) => n + count(g.items), 0) : 0;
+  $("#logSince").textContent = t("Dal primo commit, il {d}", { d: logDate(d.start, { day: "numeric", month: "long", year: "numeric" }) });
+  $("#logLang").classList.toggle("hidden", LANG === "en");
+  $("#logStats").innerHTML = [
+    [t("Giorni"), days, t("dal primo commit")],
+    [t("Versioni"), shipped.length, `v${rels[rels.length - 1].v} → v${latest.v}`],
+    [t("Ultima versione"), "v" + latest.v, logDate(latest.date)],
+    [t("In arrivo"), nextCount, t("modifiche dopo la {v}", { v: latest.v })],
+  ].map(([k, v, s]) => `<div><span class="k">${esc(k)}</span><b>${esc(v)}</b><small>${esc(s)}</small></div>`).join("");
+  const id = (r) => "log-" + (r.v ? r.v.replace(/\./g, "-") : "next");
+  $("#logNav").innerHTML = rels.map((r) => `<a href="#${id(r)}" data-to="${id(r)}">${r.v ? "v" + esc(r.v) : esc(t("Prossima"))}<span>${esc(logDate(r.date, { day: "numeric", month: "short" }))}</span></a>`).join("")
+    + `<a href="#log-origin" data-to="log-origin">${esc(t("Giorno uno"))}<span>${esc(logDate(d.origin.date, { day: "numeric", month: "short" }))}</span></a>`;
+  $("#logList").innerHTML = rels.map((r, i) => {
+    const prev = rels[i + 1], gap = prev ? Math.round((logDay(r.date) - logDay(prev.date)) / 86400000) : 0;
+    const when = r.v
+      ? logDate(r.date) + (prev ? " · " + (gap === 0 ? t("lo stesso giorno della {v}", { v: prev.v }) : t(gap === 1 ? "1 giorno dopo la {v}" : "{n} giorni dopo la {v}", { n: gap, v: prev.v })) : "")
+      : t("dal {a} al {b}", { a: logDate(r.from, { day: "numeric", month: "short" }), b: logDate(r.date, { day: "numeric", month: "short" }) });
+    return `<section class="log-rel${r.v ? (r === latest ? " latest" : "") : " next"}" id="${id(r)}">
+      <header><span class="log-v">${r.v ? "v" + esc(r.v) : esc(t("Prossima versione"))}</span><h2>${esc(r.name)}</h2><span class="log-date">${esc(when)}</span></header>
+      <p class="log-intro">${logMd(r.intro)}</p>
+      <div class="log-tags">${r.tags.map((x) => `<span>${esc(x)}</span>`).join("")}</div>
+      <div class="log-groups">${r.groups.map((g) => `<div class="log-group"><h3>${esc(g.h)}</h3>${logItems(g.items)}</div>`).join("")}</div>
+    </section>`;
+  }).join("") + `<section class="log-origin" id="log-origin"><span class="log-date">${esc(logDate(d.origin.date))}</span>
+      <h2>${esc(d.origin.name)}</h2><p>${logMd(d.origin.text)}</p></section>`;
+  logSpy();
+}
+// the index marks the release at the top of the page
+function logSpy() {
+  const page = $("#logPage"), top = page.getBoundingClientRect().top + 60;
+  let on = null;
+  $$("#logList > section").forEach((s) => { if (s.getBoundingClientRect().top <= top) on = s.id; });
+  on = on || ($("#logList > section") || {}).id;
+  $$("#logNav a").forEach((a) => a.classList.toggle("on", a.dataset.to === on));
+}
+function wireChangelog() {
+  $("#logPage").addEventListener("scroll", logSpy, { passive: true });
+  $("#logNav").addEventListener("click", (e) => {
+    const a = e.target.closest("a[data-to]");
+    if (!a) return;
+    e.preventDefault();
+    const el = document.getElementById(a.dataset.to);
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+}
+
 // ================= ui wiring =================
 // ---------- addresses ----------
 // every page has its own path and the trade page names its market (/trade/WTI), so a link opens the
 // same view, the browser's back button walks between pages, and a market can be shared directly
-const ROUTES = { trade: "trade", markets: "markets", calendar: "cal", farming: "farm", account: "account", automations: "auto", activity: "activity" };
+const ROUTES = { trade: "trade", markets: "markets", calendar: "cal", farming: "farm", changelog: "log", account: "account", automations: "auto", activity: "activity" };
 const PATH_OF = Object.fromEntries(Object.entries(ROUTES).map(([path, view]) => [view, path]));
 let curView = "trade";
 function routeFromUrl() {
@@ -4832,6 +4904,7 @@ function switchView(v, opts = {}) {
   if (v === "markets") renderMarkets();
   if (v === "cal") renderCalPage();
   if (v === "farm") renderFarm();
+  if (v === "log") loadChangelog();
   if (v === "account") loadAccountPage();
   if (v === "auto") { loadRules(); loadLimits(); }
   store("view", v);
@@ -4888,6 +4961,7 @@ function wire() {
   $("#mktSelect").onclick = () => ($("#picker").classList.contains("hidden") ? openPalette() : closePalette());
   wireTickerDrag();
   wireTickerScroll();
+  wireChangelog();
   wireToolbarFit();
   $("#ticker").onclick = (e) => { // from Markets or Calendar too: it opens Trade on that chart
     if (Date.now() - tickerDragEnd < 300) return;
@@ -6156,6 +6230,7 @@ function rerenderLanguage() {
   applyKeyHints();
   renderSessions();
   renderEcon();
+  renderChangelog();
   renderEventSelect();
   loadRules();
   renderMarkets();

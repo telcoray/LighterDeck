@@ -1,0 +1,513 @@
+{
+ "start": "2026-10-30",
+ "origin": {
+  "date": "2026-10-30",
+  "name": "Day one",
+  "text": "The first commit: a personal trading terminal for Lighter perpetuals, with charts, a risk guard and automations on one screen. Everything above grew from here."
+ },
+ "releases": [
+  {
+   "v": null,
+   "date": "2026-11-20",
+   "from": "2026-11-15",
+   "name": "Your wallet, your key",
+   "intro": "Everything since 0.7.0, on its way to the next release. Connecting is now one signature in your wallet, the site starts in paper trading, the calendar learns South Korea, and there is a Discord.",
+   "tags": [
+    "Key from your wallet",
+    "Security page",
+    "South Korea",
+    "Favourites on rows",
+    "Discord"
+   ],
+   "groups": [
+    {
+     "h": "Connecting a key",
+     "items": [
+      {
+       "t": "**Create a key with your wallet.** One signature, no transaction and no gas: LighterDeck makes the API key in your browser and registers it on your Lighter account. Nothing to copy from Lighter's site.",
+       "sub": [
+        "LighterDeck picks a free key index by itself and finds your account from the wallet.",
+        "On a phone, opening lighterdeck.xyz in your wallet app's browser (MetaMask, Rabby…) does it in one tap."
+       ]
+      },
+      "**Pasting a key you already have** still works: the paste fields fold under *or paste a key you already have*, open with one click, and **Verify** finds the account and the key index on its own.",
+      "**A clearer dialog.** The three safety points come first, under the title: the key stays in this browser, it signs with Lighter's official signer, and it can't send funds to anyone else. *Connect wallet* says what the button does; the terms line is one short sentence.",
+      "The account and key index fields are always in view, with no fold to open."
+     ]
+    },
+    {
+     "h": "Paper first",
+     "items": [
+      "**The public site starts in paper trading.** Closing the key dialog with the X (or Esc) brings you back to paper, so a visitor who connects nothing trades simulated money.",
+      "The account pill reads just **Paper**, without a balance.",
+      "**Paper dialog:** *Start over* sits next to the $100K balance and *Switch to live* at the end of the row, green on hover, as *Start over* turns red.",
+      "The paper notice under the trade button is muted instead of amber.",
+      "The connected-key dialog keeps only *Disconnect*; the X closes it."
+     ]
+    },
+    {
+     "h": "Security",
+     "items": [
+      "**A Security page** (`/security`) explains how LighterDeck handles the API key, step by step.",
+      "**Private vulnerability reporting** through GitHub; `SECURITY.md` and the Security page point to it.",
+      "**Security headers:** a Content-Security-Policy on every page, the charts library served from LighterDeck itself instead of a CDN, and the key no longer remembered by default.",
+      "**Network badge:** green when orders are real, grey otherwise. Click it to switch between Mainnet and Testnet."
+     ]
+    },
+    {
+     "h": "Order ticket",
+     "items": [
+      "The mouse wheel steps the TP / SL distance as well as the price.",
+      "The leverage is part of the Long / Short bar instead of a box inside it.",
+      "An empty TP distance is green, its cursor too.",
+      "The ticket's answer goes away as soon as you change the ticket, and a success fades by itself.",
+      "**Margin bar:** the maintenance tick is amber like the liquidation price, and red when it gets close."
+     ]
+    },
+    {
+     "h": "Calendar",
+     "items": [
+      {
+       "t": "**South Korea.** Its releases are in the calendar, mostly medium and low importance:",
+       "sub": [
+        "CPI, unemployment and industrial production from the national statistics office;",
+        "the advance estimate of GDP from the Bank of Korea;",
+        "the trade balance on the 1st of the month, and exports for the first 20 days;",
+        "the Bank of Korea's rate decisions, high impact for Korean markets (Samsung, SK Hynix, Hyundai, EWY, USD/KRW)."
+       ]
+      },
+      "**Market hours:** South Korea (KRX) replaces Australia.",
+      "**Click a country** in the market hours to see only its events; a chip on top of the list clears it.",
+      "One-off events added by hand, such as a notable listing day.",
+      "An earnings report no longer shows twice when Nasdaq changes its time.",
+      "Thin lines under the title row and around the filters column."
+     ]
+    },
+    {
+     "h": "Farming and funding",
+     "items": [
+      "**Farming looks at the last 6 hours:** a market shows if its funding passed 0.01% an hour in any of them, with a dot for each hour. The annualized rate and the pay per day on $1,000 come from the 6 hours' average, and so does the side that collects when the rate is below the threshold right now.",
+      "A one-line intro: just the selection rule.",
+      "**Funding popover:** a tidier legend that shows only the sign the rate has now."
+     ]
+    },
+    {
+     "h": "Layout",
+     "items": [
+      "**Favourites on as many rows as needed** on a computer, so every favourite is in view. An arrow at the end folds the bar to one scrolling row and back, and the choice is remembered. Dragging to reorder works across rows.",
+      "The chart toolbar fits a narrow chart column instead of running under the ticket: icons first, then a second line.",
+      "The language menu names each language in its own language.",
+      "**Discord:** a link in the status bar, between the shortcuts key and the clock.",
+      "**This page.**"
+     ]
+    }
+   ]
+  },
+  {
+   "v": "0.7.0",
+   "date": "2026-11-15",
+   "name": "Your key, in your browser",
+   "intro": "Live trading with the key kept in the browser, a rebuilt order ticket with Lighter's advanced orders, and the Farming page. The biggest release so far: twelve days of work.",
+   "tags": [
+    "Browser trading",
+    "Advanced orders",
+    "New ticket",
+    "Farming",
+    "中文 · 한국어"
+   ],
+   "groups": [
+    {
+     "h": "Trading",
+     "items": [
+      {
+       "t": "**Live trading from the browser.** Each visitor connects their own Lighter API key. It stays in their browser; orders are signed there with Lighter's official signer (compiled to WebAssembly) and go straight to Lighter.",
+       "sub": [
+        "LighterDeck's server never sees the key.",
+        "Automations that must run with the page closed can use a second, dedicated key handed to the server encrypted.",
+        "Paper trading becomes a choice, one click under the ticket."
+       ]
+      },
+      {
+       "t": "**Advanced orders** under one menu:",
+       "sub": [
+        "**Conditional** orders that wait for a trigger price;",
+        "**TWAP**, Lighter's own, within its limits (24 hours, 3%);",
+        "**Scale**: a ladder of limit orders across a range;",
+        "**Chase Limit**, which follows the best price, and **Iceberg**, which shows only a slice; both worked by LighterDeck's engine;",
+        "**Basket**: market orders on several markets in one send;",
+        "**RFQ**, with a nudge when the book is thin."
+       ]
+      },
+      "**One mode only.** The Simple / Pro split is gone; phones open on a single chart."
+     ]
+    },
+    {
+     "h": "Order ticket",
+     "items": [
+      "**A new layout:** Cross / Isolated on top, split by a diagonal; the leverage on a wheel between Long and Short, with tenths; then the order type, the size with its unit and a slider, the available margin and the position beside it.",
+      {
+       "t": "**TP / SL panel:**",
+       "sub": [
+        "each exit set as a price, or as a distance in % of margin (leverage included) or in $, with % and $ side by side;",
+        "a typed distance holds while the price moves;",
+        "Market or Limit execution, the limit price inside its own row, sent as a stop-limit attached to the entry;",
+        "the wheel stops where the chart can still show the line."
+       ]
+      },
+      "**Summary:** fees at your account's own rates, entry and margin before → after, the result in $ at the TP and at the SL, and the max slippage edited in place (in %, remembered).",
+      "Trailing stop, scaled exits and protections as tidy sections of their own."
+     ]
+    },
+    {
+     "h": "Pages and screens",
+     "items": [
+      "**Farming:** the markets paying more than 0.01% an hour in funding, either way, with the side that collects it, the annualized rate and what it pays a day on $1,000. A click opens the market with that side already chosen.",
+      "**Funding history** tab next to Trade history; the funding chart shows the values of the hour under the pointer.",
+      "**Market picker:** categories in three groups, most traded first; drag its edge or its market column to widen it.",
+      "**Favourites strip:** scrolls with the mouse wheel, with arrows when it overflows; starred spreads show there too.",
+      "**Chinese (Simplified) and Korean**, next to English and Italian.",
+      "**Themes:** Ice becomes the default, and Amber joins as a pro-terminal look; drop-down lists and notices follow the theme.",
+      "Notices are confirmations, at the top right on a computer."
+     ]
+    },
+    {
+     "h": "Charts",
+     "items": [
+      "Price lines without text by default, the price on the axis (*Text on graph lines* in Elements brings it back).",
+      "The price scale follows the candles only: no more sideways jumps on short timeframes, and live candles match Lighter's.",
+      "Thin markets drawn like Lighter's, with the mark price in bars without trades.",
+      "The mouse wheel on the price scale zooms the prices."
+     ]
+    },
+    {
+     "h": "Keyboard and phones",
+     "items": [
+      "**U** opens the funding details, the **number keys** load your favourites into the selected chart, **Ctrl + arrows** step through the timeframes.",
+      "On phones: long press and finger drag on the charts, alert sound and notifications, a second tap for trading actions, a compact calendar and market bar."
+     ]
+    },
+    {
+     "h": "Tests and project",
+     "items": [
+      "An offline test suite, and a testnet runner that sends real orders on Lighter's testnet, plus scenarios for the browser-key path.",
+      "MIT license and terms of use.",
+      "Market hours refreshed for the year ahead."
+     ]
+    }
+   ]
+  },
+  {
+   "v": "0.6.0",
+   "date": "2026-11-02",
+   "name": "Pairs, chart trading and alerts",
+   "intro": "Pair trading, orders from a right-click on the chart, price alerts and context badges. All of it works in paper trading too.",
+   "tags": [
+    "Pair trading",
+    "Right-click orders",
+    "Alerts",
+    "Badges"
+   ],
+   "groups": [
+    {
+     "h": "Pair trading",
+     "items": [
+      "**Spread charts:** search *ETH/BTC* for candles of one market's price over another's, live, on every timeframe. Z-score bands show the mean and ±2 standard deviations of the last 50 bars.",
+      "**Spread tab** in the market search: classic pairs (ETH/BTC, SOL/ETH, XAU/XAG, WTI/BRENTOIL, US100/US500, NVDA/AMD…) plus the ones you star, ranked by how stretched they are. **÷ Spread** pairs the current market with another.",
+      {
+       "t": "**Pair ticket:** *Long ETH / Short BTC* splits one dollar value between the two legs.",
+       "sub": [
+        "Both legs are checked before either is sent, including the margin they need together.",
+        "If the second leg fails, the ticket says the pair isn't hedged and offers to close exactly what the first leg did."
+       ]
+      },
+      {
+       "t": "**One row per pair** in the positions table:",
+       "sub": [
+        "the pair's own quantities and entries, since a leg can be part of a bigger position;",
+        "entry and current ratio, combined PnL on the combined margin, hourly funding of both legs, and how far the nearer liquidation is;",
+        "close 50% or 100% of the pair, or ungroup it; **+ Pair** groups a position with one on the other side."
+       ]
+      },
+      "**SL / TP on the ratio**, from the pair row, a right-click on the spread chart or by dragging its lines. Lighter can't trigger on a ratio, so LighterDeck checks it every 2 seconds while Auto is on and closes both legs."
+     ]
+    },
+    {
+     "h": "Trading from the chart",
+     "items": [
+      "**Right-click a price** for a buy or sell limit (filled into the ticket), the ticket's SL / TP, the open position's SL / TP, or a price alert.",
+      "**Right-click a line** to cancel that order, remove the alert, clear a ticket field or stop the trailing.",
+      "**Fills on the chart:** an arrow under the bar for your buys and over it for your sells, merged per order; hover for size, average price, maker / taker and realized PnL."
+     ]
+    },
+    {
+     "h": "Alerts and badges",
+     "items": [
+      "**Price alerts** from the right-click or the **A** key: a draggable line on the chart, an Alert tab that lists them, and a toast, a sound and a browser notification when the price gets there.",
+      {
+       "t": "**Context badges** in the market bar and under each chart's title:",
+       "table": {
+        "head": [
+         "Badge",
+         "When"
+        ],
+        "rows": [
+         [
+          "Event",
+          "A high-impact event for that market, from 1 hour before to 15 minutes after"
+         ],
+         [
+          "Funding",
+          "Funding above 0.01% an hour, in red if your position pays it"
+         ],
+         [
+          "Exchange",
+          "The underlying exchange closed, at lunch or about to close, holidays included"
+         ],
+         [
+          "Liquidation",
+          "Your position within 10% of its liquidation price"
+         ]
+        ]
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "v": "0.5.0",
+   "date": "2026-11-02",
+   "name": "Paper trading for everyone",
+   "intro": "Paper trading on Lighter's live prices, scaled exits, keyboard shortcuts and an account page. lighterdeck.xyz now lets anyone trade with simulated money, no account needed.",
+   "tags": [
+    "Paper trading",
+    "Scaled exits",
+    "Shortcuts",
+    "Account page"
+   ],
+   "groups": [
+    {
+     "h": "Paper trading",
+     "items": [
+      "**The same trade screen with simulated money** on Lighter's live prices: market and limit fills, post-only, reduce-only, SL / TP, scaled exits, the trailing stop, hourly funding, cross margin and liquidation, all running in the browser.",
+      "**Time away is replayed.** On the next visit the candles of the hours you were away are played back, so a limit or a stop that would have filled has filled."
+     ]
+    },
+    {
+     "h": "Scaled exits",
+     "items": [
+      "**+ TP** splits the take-profit into 2 to 5 levels, each with its price and share (presets 2 × 50%, 3 × 33%, 4 × 25%).",
+      "**Stop to breakeven after TP1**, on by default.",
+      "The levels show on the chart with the PnL of each part and can be dragged; the positions table shows how many have filled (TP 1/2)."
+     ]
+    },
+    {
+     "h": "Keyboard shortcuts",
+     "items": [
+      {
+       "t": "On the trade screen; F, H, R and C ask for a second press, and each key shows as a faint badge on its button.",
+       "table": {
+        "head": [
+         "Keys",
+         "Action"
+        ],
+        "rows": [
+         [
+          "B / S",
+          "Side"
+         ],
+         [
+          "M / L",
+          "Order type (limit at the mid)"
+         ],
+         [
+          "Enter",
+          "Send the order"
+         ],
+         [
+          "F / H",
+          "Close the position / half of it"
+         ],
+         [
+          "R",
+          "Reverse the position"
+         ],
+         [
+          "C",
+          "Cancel the market's limit orders"
+         ],
+         [
+          "1–4",
+          "Select a chart"
+         ],
+         [
+          "[ ]",
+          "Change the timeframe"
+         ],
+         [
+          "/",
+          "Search markets"
+         ],
+         [
+          "?",
+          "Full list"
+         ]
+        ]
+       }
+      },
+      "**Reverse:** one button (and the R key) turns a position into the opposite one of the same size with a single market order."
+     ]
+    },
+    {
+     "h": "Account and addresses",
+     "items": [
+      "**Account page:** equity, today's PnL, margin; a PnL curve that leaves out deposits and withdrawals; return on average capital, max drawdown, best and worst day; a PnL calendar; realized PnL and funding per market.",
+      "**An address for every page and market**, such as `/trade/WTI` or `/calendar`. Back and forward work, and a shared market link shows a preview card with its chart, price, 24h change and next event.",
+      "**Market hours with real holidays**, half-days and lunch breaks (Tokyo, Shanghai, Hong Kong)."
+     ]
+    },
+    {
+     "h": "Changed",
+     "items": [
+      "**Trailing stop in PnL %:** activation, breakeven and distance are a % of margin, as the positions table shows it; price %, $ and ATR stay in the menu.",
+      "**Positions table:** a Margin column, the size with its unit (900 WTI), and market names that open their chart.",
+      "Switching a chart's market no longer draws a giant bar while the new candles load."
+     ]
+    }
+   ]
+  },
+  {
+   "v": "0.4.0",
+   "date": "2026-11-01",
+   "name": "Online at lighterdeck.xyz",
+   "intro": "LighterDeck goes public: a read-only site at lighterdeck.xyz, a calendar that knows which events move each market, funding details, and risk limits that stay out of the way.",
+   "tags": [
+    "lighterdeck.xyz",
+    "Calendar page",
+    "Funding details"
+   ],
+   "groups": [
+    {
+     "h": "The public site",
+     "items": [
+      "**lighterdeck.xyz** opens charts, markets, funding and the calendar without an account. The server never loads a key and refuses every write.",
+      "A thin welcome bar with links to the code and to open a Lighter account, a one-time residence check, and a link preview card on Discord, Telegram and X."
+     ]
+    },
+    {
+     "h": "Calendar",
+     "items": [
+      "**A Calendar page:** every event grouped by day, filtered by market, type (macro, energy, earnings, crypto, yours), impact, period and text. Each event shows the markets it moves.",
+      {
+       "t": "**Events per market:**",
+       "sub": [
+        "**Energy:** EIA crude inventories and gas storage, the API bulletin and the Baker Hughes rig count, high impact for WTI, Brent and natural gas;",
+        "**Earnings** of the stocks listed on Lighter, with EPS estimate and last year's figure;",
+        "**Crypto:** Deribit's monthly and quarterly BTC / ETH option expiries;",
+        "**Forex:** each pair gets the releases of both its currencies."
+       ]
+      },
+      "**Your own events:** a token unlock, an upgrade or anything with a time, an impact and the markets it moves. It shows on those charts and can drive an event trade."
+     ]
+    },
+    {
+     "h": "Funding and risk",
+     "items": [
+      "**Funding details:** click *Funding 1h* for the rate over a week, a month and a year, the countdown, what your position pays or receives, and the 24H / 1W / 1M history.",
+      "**Risk limits are optional**, each with its own switch, all off by default. The checks Lighter itself would enforce always run.",
+      "**First visit:** English, four charts (BTC, ETH, XAU, HOOD)."
+     ]
+    }
+   ]
+  },
+  {
+   "v": "0.3.0",
+   "date": "2026-10-31",
+   "name": "Orders on the chart",
+   "intro": "Orders and stops move onto the chart and the positions table, and the risk limits scale with the account.",
+   "tags": [
+    "Draggable lines",
+    "Ticket preview",
+    "Elements menu"
+   ],
+   "groups": [
+    {
+     "h": "New",
+     "items": [
+      "**TP / SL in the positions table:** click a value to set it, move it or remove it; the side is checked against the mark price first.",
+      "**Draggable order lines:** drag a SL, TP or limit line to a new level, and a small *Move / Cancel* box confirms it.",
+      "**Ticket preview on the chart:** limit price, SL, TP, estimated liquidation and trailing levels drawn while you fill in the ticket, with the PnL of each exit.",
+      "**Elements menu:** order lines, the managed stop, position and liquidation lines, mark price, macro events and the ticket preview, on or off per chart.",
+      "**Realized PnL in the trade history**, worked out by LighterDeck from each fill."
+     ]
+    },
+    {
+     "h": "Changed",
+     "items": [
+      "**Risk limits as a % of equity** instead of fixed dollars.",
+      "**Daily loss** from Lighter's account PnL since 00:00 UTC, open positions included.",
+      "**Confirm with a second click** on the same button instead of a browser pop-up.",
+      "A quieter ticket: a SL / TP on the wrong side is reported when you press the trade button."
+     ]
+    }
+   ]
+  },
+  {
+   "v": "0.2.0",
+   "date": "2026-10-31",
+   "name": "Trailing stops and favourites",
+   "intro": "The first step towards putting every automation on the main trading screen, the same day as 0.1.0.",
+   "tags": [
+    "Trailing stop",
+    "Classic theme",
+    "Favourites"
+   ],
+   "groups": [
+    {
+     "h": "New",
+     "items": [
+      "**Trailing stop from the ticket and from open positions:** a distance in %, in $ or as a multiple of ATR(14), with an optional start and breakeven. One stop per market, modified in place on Lighter.",
+      "**Classic theme** with Lighter's own colours.",
+      "**Trade history grouped by order**, with *Single fills* for every fill.",
+      "**Resizable bottom panel**, double-click to reset.",
+      "**Reorder favourites** by dragging them; favourites come first in the market picker.",
+      "**The price in the browser tab** for the selected chart."
+     ]
+    },
+    {
+     "h": "Improved",
+     "items": [
+      "Positions table: PnL larger and coloured, size coloured by side, liquidation in amber."
+     ]
+    }
+   ]
+  },
+  {
+   "v": "0.1.0",
+   "date": "2026-10-31",
+   "name": "The first release",
+   "intro": "A personal trading terminal for Lighter's perpetual futures, one day after the first commit.",
+   "tags": [
+    "Multi-chart",
+    "Risk guard",
+    "Automations",
+    "Four themes"
+   ],
+   "groups": [
+    {
+     "h": "What was in it",
+     "items": [
+      "**Charts:** 1, 2 or 4 at once, 14 timeframes (with merged 3m, 2h, 8h, 3D, 1W, 1M), entry and liquidation lines, high-impact macro events on the chart.",
+      "**Markets:** live prices for every perpetual, a market picker with search, recents, categories and sorting, a live order book.",
+      "**Order ticket:** market and limit, post-only, reduce-only, a slippage cap; size in USD, quantity, % of equity or $ risk to the stop; SL / TP sent with the entry; margin, fee and liquidation estimates.",
+      "**Risk guard:** limits per order, per market, total exposure, leverage, daily loss; optional mandatory stop-loss; no reversals or stale prices.",
+      "**Automations:** a managed stop (initial, breakeven, trailing, never loosened) and trades on macro events, with a kill switch.",
+      "**Calendar:** the week's economic events, Fed meetings and exchange hours.",
+      "**API key from the UI**, checked with Lighter before saving; read-only without a key.",
+      "**Four themes**, English and Italian, a layout for phones."
+     ]
+    }
+   ]
+  }
+ ]
+}
