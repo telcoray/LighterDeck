@@ -4867,6 +4867,7 @@ function logSpy() {
   $$("#logNav a").forEach((a) => a.classList.toggle("on", a.dataset.to === on));
 }
 function wireChangelog() {
+  $("#sbLog").onclick = (e) => { e.preventDefault(); switchView("log"); }; // from the status bar, in place
   $("#logPage").addEventListener("scroll", logSpy, { passive: true });
   $("#logNav").addEventListener("click", (e) => {
     const a = e.target.closest("a[data-to]");

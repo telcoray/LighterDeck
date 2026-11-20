@@ -1598,3 +1598,8 @@ option { background: var(--surface); color: var(--text); }
   .log-nav { display: none; }
   .log-groups { columns: 1; }
 }
+/* a narrow phone: the status bar keeps its links and Discord in view; the phone shows the time already */
+@media (max-width: 480px) {
+  .statusbar { gap: 10px; }
+  #sbClock { display: none; }
+}
