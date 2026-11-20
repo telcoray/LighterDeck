@@ -930,6 +930,7 @@ button.pill:hover { border-color: var(--line-3); color: var(--text); }
 .ghost { height: 28px; padding: 0 12px; border: 1px solid var(--line-2); border-radius: var(--r); color: var(--text-2); font-size: 12px; }
 .ghost:hover { border-color: var(--line-3); color: var(--text); }
 .ghost.danger:hover { border-color: var(--red); color: var(--red); background: var(--red-soft); }
+#paperLive:hover { border-color: var(--green); color: var(--green); background: var(--green-soft); }
 
 /* language switch */
 .lang-btn { display: inline-flex; align-items: center; gap: 5px; height: 26px; min-width: 34px; padding: 0 9px; border: 1px solid var(--line-2); border-radius: 13px; font-size: 11px; font-weight: 600; letter-spacing: .04em; color: var(--text-2); }
