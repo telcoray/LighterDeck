@@ -151,8 +151,9 @@ body.public:not(.paper):not(.browser-key) #bottomSplit, body.public:not(.paper):
 body.public:not(.paper):not(.browser-key):not(.live-first) #accountPill { cursor: default; }
 body.paper [data-view="auto"], body.paper [data-view="activity"], body.paper [data-view="account"] { display: none !important; }
 .dot.paper { background: var(--amber); box-shadow: 0 0 6px var(--amber); }
-.paper-reset { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 4px 0 12px; font-size: 12px; color: var(--muted); }
-.paper-reset .seg { margin-right: auto; }
+.paper-reset { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 4px 0 12px; font-size: 12px; color: var(--muted); }
+.paper-reset #paperLive { margin-left: auto; }
+.paper-reset .ghost { padding-left: 10px; padding-right: 10px; }
 .key-paper { width: 100%; margin-top: 8px; }
 .key-paper-note { text-align: center; margin: 6px 0 0; }
 /* the indexes are found by themselves: tucked away for whoever wants to set them */
