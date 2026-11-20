@@ -911,7 +911,7 @@ button.pill:hover { border-color: var(--line-3); color: var(--text); }
 .key-steps li { margin-bottom: 3px; }
 .key-find { display: flex; align-items: center; }
 .key-find input { flex: 1; }
-.key-find .ghost { align-self: center; margin: -19px 6px 0 0; } /* centred in the whole box, label included */
+.key-find .ghost { align-self: center; margin: -19px 6px 0 0; white-space: nowrap; } /* centred in the whole box, label included */
 /* masked like a password, but a text field, so browsers don't offer to save it */
 .secret { -webkit-text-security: disc; text-security: disc; }
 .key-row { display: grid; grid-template-columns: 1fr 104px; gap: 8px; }

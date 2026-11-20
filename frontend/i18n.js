@@ -251,6 +251,7 @@ const EN = {
   "prev. {f} · prec. {p}": "fcst. {f} · prev. {p}",
   // ---- order book ----
   "Prezzo": "Price",
+  "Collega wallet": "Connect wallet",
   "Solo gli eventi di {c}": "Only {c}'s events",
   "Mostra tutti i paesi": "Show every country",
   "Rete vera di Lighter, soldi veri": "Lighter's real network, real money",
