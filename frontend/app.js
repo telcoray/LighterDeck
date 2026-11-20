@@ -5594,6 +5594,12 @@ function showKeyConfirm(show) {
   $("#keyActions").classList.toggle("hidden", show);
 }
 
+// closing the dialog without connecting: back to paper on a live site (its default)
+function dismissKeyDialog() {
+  closeKeyDialog();
+  if (liveFirst() && !Live.on && !Paper.on) setPaper(true);
+}
+
 function closeKeyDialog() {
   $("#keyShade").classList.add("hidden");
   $("#keyModal").classList.add("hidden");
@@ -5673,7 +5679,7 @@ function paperAtStart() {
   if (paperOnly()) return true;
   const chosen = load("paper", null);
   if (chosen !== null) return chosen;
-  return liveFirst() && Paper.used();
+  return liveFirst();
 }
 
 function setPaper(on) {
@@ -5707,9 +5713,9 @@ function renderTicketSwitch() {
   if (show) el.textContent = Paper.on ? t("Soldi finti · passa al tuo account Lighter") : t("Oppure prova in paper trading");
 }
 
-// a live site's first visit: how to connect, with paper one click away
+// a live site's first visit: how to connect; closing it keeps the paper account the site starts in
 function liveIntro() {
-  if (!liveFirst() || Live.on || Paper.on || load("liveIntro", false) || !load("residence", false)) return;
+  if (!liveFirst() || Live.on || load("liveIntro", false) || !load("residence", false)) return;
   store("liveIntro", true);
   openKeyDialog();
 }
@@ -5764,7 +5770,7 @@ function wirePaper() {
     setPaper(true);
     toast(t("Paper trading: prezzi veri, soldi finti"));
   };
-  $("#keyPaper").onclick = $("#keyPaper2").onclick = () => {
+  $("#keyPaper").onclick = () => {
     closeKeyDialog();
     if (Live.on) { Live.disconnect(); document.body.classList.remove("browser-key"); } // paper instead of the browser key
     setPaper(true);
@@ -5936,9 +5942,9 @@ function wireHotkeys() {
 
 function wireKeyDialog() {
   $("#accountPill").onclick = () => (Paper.on ? openPaperModal() : (!info.public || Live.on || liveFirst()) && openKeyDialog());
-  $("#keyClose").onclick = closeKeyDialog;
-  $("#keyShade").onmousedown = closeKeyDialog;
-  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("#keyModal").classList.contains("hidden")) closeKeyDialog(); });
+  $("#keyClose").onclick = dismissKeyDialog;
+  $("#keyShade").onmousedown = dismissKeyDialog;
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("#keyModal").classList.contains("hidden")) dismissKeyDialog(); });
   // browser wallets (EIP-6963, with window.ethereum as fallback): only the address is read
   $("#keyWallet").onclick = () => {
     const list = [...walletProviders.values()];

@@ -154,8 +154,6 @@ body.paper [data-view="auto"], body.paper [data-view="activity"], body.paper [da
 .paper-reset { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 4px 0 12px; font-size: 12px; color: var(--muted); }
 .paper-reset #paperLive { margin-left: auto; }
 .paper-reset .ghost { padding-left: 10px; padding-right: 10px; }
-.key-paper { width: 100%; margin-top: 8px; }
-.key-paper-note { text-align: center; margin: 6px 0 0; }
 /* the indexes are found by themselves: tucked away for whoever wants to set them */
 .key-adv { margin: 0 0 12px; }
 /* what happens to the key, in three lines that read at a glance */
