@@ -17,6 +17,11 @@ Sources, merged:
 - China: the National Bureau of Statistics' yearly release calendar (CPI and PPI, PMI, the monthly
   activity data with GDP every quarter; 09:30 / 10:00 Beijing). The weekly feed has only China's PMIs,
   rated low; these releases move Chinese stocks, copper and oil, so they carry those assets.
+- South Korea: the statistics ministry's yearly schedule (CPI, jobs, industrial output; 08:00 Seoul), the
+  Bank of Korea's statistical calendar (GDP advance estimate) and its rate-decision dates, plus the trade data
+  on fixed days (1st of the month, and exports for the first 20 days on the 21st). The weekly feed has no
+  Korean releases. They move Korea's stocks, the EWY ETF and USDKRW: medium at most, high only for a rate
+  decision on those markets.
 - Ratings: the weekly feed rates a release for its own currency. A small economy's top releases (Canada,
   Australia, New Zealand, Switzerland) stay high for its own currency pairs and are medium elsewhere.
 
@@ -37,7 +42,7 @@ import json
 import logging
 import re
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 import aiohttp
@@ -90,6 +95,86 @@ NBS_RELEASES = [
 BEIJING = ZoneInfo("Asia/Shanghai")
 CHINA_ASSETS = {"china": None, "oil": "Medium"}  # None: the release's own impact
 SMALL_ECONOMIES = ("CAD", "AUD", "NZD", "CHF")
+
+# South Korea's official calendars, and the releases taken from them: (start of the title, ours, impact in
+# the list, impact on Korean markets)
+MODS_SCHEDULE = "https://mods.go.kr/schdl.es?mid=a20301000000"
+BOK_STATS = "https://www.bok.or.kr/eng/stats/statsPublictSchdul/listCldr.do?menuNo=400359"
+BOK_MEETINGS = "https://www.bok.or.kr/eng/main/contents.do?menuNo=400020"
+SEOUL = ZoneInfo("Asia/Seoul")
+KOREA_RELEASES = [
+    ("The Consumer Price Index", "CPI", "Low", "Medium"),
+    ("The Economically Active Population Survey", "Unemployment rate", "Low", "Low"),
+    ("Monthly Industrial Statistics", "Industrial production", "Low", "Low"),
+    ("Real Gross Domestic Product", "GDP (advance estimate)", "Low", "Medium"),
+]
+MONTH_ABBR = {m: i for i, m in enumerate(["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"], 1)}
+
+
+def korea_event(title, ts, impact, korea_impact, source, approx=False):
+    e = _make(title, "KRW", ts, impact, source)
+    e["assets"], e["impact_by"] = ["korea"], {"korea": korea_impact}
+    if approx:
+        e["approx"] = True
+    return e
+
+
+def _korea_release(name):
+    return next((r for r in KOREA_RELEASES if name.startswith(r[0])), None)
+
+
+def parse_mods(html):
+    """The statistics ministry's yearly schedule: "<h3>2026 Schedule", then a row per release
+    (month, title, "Nov. 03 (Tue.)", division). Released at 08:00 Seoul."""
+    year = re.search(r"<h3>\s*(\d{4}) Schedule", html)
+    out = []
+    for tr in re.findall(r"<tr[^>]*>([\s\S]*?)</tr>", html) if year else []:
+        cells = [re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", c)).strip() for c in re.findall(r"<td[^>]*>([\s\S]*?)</td>", tr)]
+        rel = len(cells) >= 3 and _korea_release(cells[1])
+        day = rel and re.match(r"([A-Z][a-z]{2})\. (\d{1,2})", cells[2])
+        if day:
+            ts = datetime(int(year.group(1)), MONTH_ABBR[day.group(1)], int(day.group(2)), 8, 0, tzinfo=SEOUL).timestamp()
+            out.append(korea_event(rel[1], ts, rel[2], rel[3], "Statistics Korea"))
+    return out
+
+
+def parse_bok_stats(html):
+    """The Bank of Korea's statistical calendar: a row per release (date, Seoul time, title); GDP only."""
+    out = []
+    for day, hh, mm, title in re.findall(r"<td>(\d{4}-\d\d-\d\d)</td>\s*<td>(\d{1,2}):(\d\d)</td>[\s\S]*?<a[^>]*>([^<]+)</a>", html):
+        rel = _korea_release(title.strip())
+        if rel and "advance" in title:
+            y, m, d = map(int, day.split("-"))
+            out.append(korea_event(rel[1], datetime(y, m, d, int(hh), int(mm), tzinfo=SEOUL).timestamp(), rel[2], rel[3], "BoK"))
+    return out
+
+
+def parse_bok_meetings(html):
+    """The Bank of Korea's rate decisions: a block per year ("2026 Jan. Feb. ... Jan.15 (Thu) Feb.26 (Thu) ...").
+    The decision comes out around 10:00 Seoul."""
+    text = re.sub(r"\s+", " ", re.sub(r"&nbsp;", " ", re.sub(r"<[^>]+>", " ", html)))
+    out = []
+    for year, block in re.findall(r"\b(20\d\d) ((?:(?!\b20\d\d\b).)*)", text):
+        for mon, day in re.findall(r"\b([A-Z][a-z]{2})\.(\d{1,2}) \((?:Mon|Tue|Wed|Thu|Fri)\)", block):
+            ts = datetime(int(year), MONTH_ABBR[mon], int(day), 10, 0, tzinfo=SEOUL).timestamp()
+            out.append(korea_event("BoK rate decision", ts, "Medium", "High", "BoK", approx=True))
+    return out
+
+
+def korea_trade_events(start, end):
+    """Trade data on fixed days, 09:00 Seoul: the month's trade balance on the 1st (even on a holiday), and
+    the customs service's exports for the first 20 days on the 21st (the next weekday when it is a weekend)."""
+    out = []
+    y, m = start.year, start.month
+    while date(y, m, 1) <= end:
+        first = datetime(y, m, 1, 9, 0, tzinfo=SEOUL)
+        out.append(korea_event("Trade balance", first.timestamp(), "Low", "Medium", "MOTIE", approx=True))
+        d21 = date(y, m, 21)
+        d21 += timedelta(days=(7 - d21.weekday()) % 7 if d21.weekday() >= 5 else 0)
+        out.append(korea_event("Exports, first 20 days", datetime(d21.year, d21.month, d21.day, 9, 0, tzinfo=SEOUL).timestamp(),
+                               "Low", "Low", "Korea Customs", approx=True))
+        y, m = y + (m == 12), m % 12 + 1
+    return out
 
 
 def rate(e):
@@ -354,7 +439,9 @@ CURRENCIES = ("USD", "EUR", "GBP", "JPY", "CHF", "CAD", "AUD", "NZD", "CNY", "HK
 MARKET_ASSETS = {"WTI": ["oil"], "BRENTOIL": ["oil"], "NATGAS": ["natgas"],
                  # China's data: its companies and copper (keep in step with MARKET_ASSETS in frontend/app.js)
                  **{s: ["china"] for s in ("BABA", "TENCENT", "XIAOMI", "BYD", "SMIC", "ZHIPU", "MINIMAX", "UNITREE",
-                                           "CXMT", "POPMART", "XCU")}}
+                                           "CXMT", "POPMART", "XCU")},
+                 # South Korea's data: its stocks, the EWY ETF and the won
+                 **{s: ["korea"] for s in ("SAMSUNGUSD", "SKHYNIXUSD", "HYUNDAIUSD", "SKHY", "EWY", "USDKRW")}}
 IMPACT_RANK = {"Low": 0, "Medium": 1, "High": 2}
 
 
@@ -516,6 +603,11 @@ class Calendar:
                     page = url and await self._fetch(s, url)
                     if page:
                         found += parse_nbs(page, year)
+                for url, parse in ((MODS_SCHEDULE, parse_mods), (BOK_STATS, parse_bok_stats), (BOK_MEETINGS, parse_bok_meetings)):
+                    page = await self._fetch(s, url)
+                    if page:
+                        found += parse(page)
+                found += korea_trade_events(today - timedelta(days=35), today + timedelta(days=OFFICIAL_HORIZON_DAYS))
                 stocks = self.stock_symbols()
                 if stocks:
                     for n in range(-35, EARNINGS_AHEAD_DAYS + 1):

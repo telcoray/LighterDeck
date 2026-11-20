@@ -1666,11 +1666,13 @@ async def trade_page(symbol: str):
     nxt = calendar.next_for(m.symbol, m.categories)
     if nxt:  # the next event that moves it, from the calendar (UTC, for readers anywhere)
         when = time.strftime("%a %d %b", time.gmtime(nxt["ts"]))
-        if nxt.get("approx"):
+        if nxt.get("when"):  # earnings: only the session is known
             when += f", {nxt['when']}"
+        elif nxt.get("approx"):
+            when += time.strftime(" around %H:%M UTC", time.gmtime(nxt["ts"]))
         elif nxt["ts"] % 300 == 0:  # a real release time (all-day items come with odd minutes)
             when += time.strftime(" %H:%M UTC", time.gmtime(nxt["ts"]))
-        desc += f" Next: {(nxt['country'] + ' ') if nxt['country'] and not nxt.get('assets') else ''}{nxt['title']}, {when}."
+        desc += f" Next: {(nxt['country'] + ' ') if nxt['country'] and (not nxt.get('assets') or nxt['country'] != 'USD') else ''}{nxt['title']}, {when}."
     url = f"{config.SITE_URL}/trade/{m.symbol}"
     html = html.replace("<title>LighterDeck</title>", f"<title>{title}</title>", 1)
     for key, value in (("og:title", title), ("twitter:title", title), ("og:description", desc), ("twitter:description", desc),

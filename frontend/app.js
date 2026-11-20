@@ -3687,7 +3687,9 @@ function renderTrades() {
 // priced in (EUR and USD for EURUSD, USD for everything quoted in dollars).
 const MARKET_ASSETS = { WTI: ["oil"], BRENTOIL: ["oil"], NATGAS: ["natgas"],
   // China's data (NBS): its companies and copper (keep in step with MARKET_ASSETS in backend/econ.py)
-  ...Object.fromEntries(["BABA", "TENCENT", "XIAOMI", "BYD", "SMIC", "ZHIPU", "MINIMAX", "UNITREE", "CXMT", "POPMART", "XCU"].map((s) => [s, ["china"]])) };
+  ...Object.fromEntries(["BABA", "TENCENT", "XIAOMI", "BYD", "SMIC", "ZHIPU", "MINIMAX", "UNITREE", "CXMT", "POPMART", "XCU"].map((s) => [s, ["china"]])),
+  // South Korea's data: its stocks, the EWY ETF and the won
+  ...Object.fromEntries(["SAMSUNGUSD", "SKHYNIXUSD", "HYUNDAIUSD", "SKHY", "EWY", "USDKRW"].map((s) => [s, ["korea"]])) };
 const CURRENCIES = ["USD", "EUR", "GBP", "JPY", "CHF", "CAD", "AUD", "NZD", "CNY", "HKD", "KRW"];
 // stocks: their own earnings; ETF and index markets: the earnings of the largest US companies
 function marketFocus(sym) {
