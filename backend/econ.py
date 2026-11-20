@@ -617,6 +617,13 @@ class Calendar:
                             await asyncio.sleep(0.3)  # one gentle request at a time
                 if bea and fomc:
                     self._official_at = time.time()
+                # earnings whose time or day changed (Nasdaq first says "time not given", later "after the close"):
+                # the new copy has another id, so drop the old ones of the same company
+                fresh = {e["id"] for e in found}
+                reported = {e["title"] for e in found if e["source"] == "Nasdaq"}
+                for k in [k for k, e in self.events.items()
+                          if e.get("source") == "Nasdaq" and e["title"] in reported and k not in fresh]:
+                    del self.events[k]
                 for e in found:
                     if time.time() - 35 * 86400 <= e["ts"] <= horizon:
                         self.events[e["id"]] = e
