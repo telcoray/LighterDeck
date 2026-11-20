@@ -3726,13 +3726,13 @@ const eventDetail = (e) => (e.source === "custom" ? esc((e.markets || []).join("
 // Real sessions come from exchange_hours.json (holidays, half-days, lunch breaks; made by
 // tools/make_exchange_hours.py); past its last date the plain weekday hours below are used.
 const SESSIONS = [
-  { name: "Stati Uniti", ex: "NYSE", code: "XNYS", tz: "America/New_York", open: [9, 30], close: [16, 0] },
-  { name: "Regno Unito", ex: "LSE", code: "XLON", tz: "Europe/London", open: [8, 0], close: [16, 30] },
-  { name: "Germania", ex: "Xetra", code: "XETR", tz: "Europe/Berlin", open: [9, 0], close: [17, 30] },
-  { name: "Giappone", ex: "TSE", code: "XTKS", tz: "Asia/Tokyo", open: [9, 0], close: [15, 30], lunch: [[11, 30], [12, 30]] },
-  { name: "Cina", ex: "SSE Shanghai", code: "XSHG", tz: "Asia/Shanghai", open: [9, 30], close: [15, 0], lunch: [[11, 30], [13, 0]] },
-  { name: "Hong Kong", ex: "HKEX", code: "XHKG", tz: "Asia/Hong_Kong", open: [9, 30], close: [16, 0], lunch: [[12, 0], [13, 0]] },
-  { name: "Corea del Sud", ex: "KRX", code: "XKRX", tz: "Asia/Seoul", open: [9, 0], close: [15, 30] },
+  { name: "Stati Uniti", ex: "NYSE", code: "XNYS", ccy: "USD", tz: "America/New_York", open: [9, 30], close: [16, 0] },
+  { name: "Regno Unito", ex: "LSE", code: "XLON", ccy: "GBP", tz: "Europe/London", open: [8, 0], close: [16, 30] },
+  { name: "Germania", ex: "Xetra", code: "XETR", ccy: "EUR", tz: "Europe/Berlin", open: [9, 0], close: [17, 30] },
+  { name: "Giappone", ex: "TSE", code: "XTKS", ccy: "JPY", tz: "Asia/Tokyo", open: [9, 0], close: [15, 30], lunch: [[11, 30], [12, 30]] },
+  { name: "Cina", ex: "SSE Shanghai", code: "XSHG", ccy: "CNY", tz: "Asia/Shanghai", open: [9, 30], close: [15, 0], lunch: [[11, 30], [13, 0]] },
+  { name: "Hong Kong", ex: "HKEX", code: "XHKG", ccy: "HKD", tz: "Asia/Hong_Kong", open: [9, 30], close: [16, 0], lunch: [[12, 0], [13, 0]] },
+  { name: "Corea del Sud", ex: "KRX", code: "XKRX", ccy: "KRW", tz: "Asia/Seoul", open: [9, 0], close: [15, 30] },
 ];
 let exchangeHours = null;
 fetch("exchange_hours.json?v=2").then((r) => r.json()).then((d) => { exchangeHours = d.exchanges; renderSessions(); }).catch(() => {});
@@ -3803,7 +3803,8 @@ function renderSessions() {
     ? (st.lunchNext ? t("pausa pranzo alle {t} · chiude {c}", { t: hm(st.at), c: hm(st.close) }) : `${t("chiude")} ${local(st.at)}`)
     : st.state === "lunch" ? t("pausa pranzo · riprende {t}", { t: hm(st.at) })
     : `${st.holiday ? t("festività") + " · " : ""}${t("apre")} ${st.at ? local(st.at) : ""}`;
-  const html = rows.map(({ s, st }) => `<div class="cal-row">
+  // a country's row filters the Calendar page to its releases (Germany: the euro area's)
+  const html = rows.map(({ s, st }) => `<div class="cal-row${cp.country === s.ccy ? " on" : ""}" data-cc="${s.ccy}" role="button" tabindex="0" title="${t("Solo gli eventi di {c}", { c: t(s.name) })}">
       <div><div class="t">${t(s.name)}</div><div class="s">${s.ex} · ${line(st)}</div></div>
       <div class="w ${st.state === "open" ? "open" : st.state === "lunch" || st.at - now < 3600000 ? "soon" : ""}">${
         st.state === "open" ? t("aperto · {d}", { d: dur(st.at - now) }) : st.state === "lunch" ? t("pausa · {d}", { d: dur(st.at - now) }) : t("tra {d}", { d: dur(st.at - now) })}</div>
@@ -4085,13 +4086,17 @@ function renderCalPage() {
     : e.ts >= now - 3 * 3600 && (cp.range === "all" || e.ts < (cp.range === "today" ? endOfToday : now + +cp.range * 86400));
   const list = events.filter((e) => {
     if (!inRange(e) || !cp.types.includes(evType(e))) return false;
+    if (cp.country && e.country !== cp.country) return false;
     const imp = sym ? impactFor(e, sym) : impactAny(e);
     if (!cp.impacts.includes(imp === "Holiday" ? "Low" : imp)) return false;
     if (sym && !eventFor(e, sym)) return false;
     return !q || `${e.title} ${e.country} ${e.name || ""} ${evMarkets(e).join(" ")}`.toLowerCase().includes(q);
   });
   if (cp.range === "past") list.reverse();
-  $("#cpCount").textContent = t("{n} eventi", { n: list.length }) + (sym ? " · " + t("che muovono {sym}", { sym }) : "");
+  const country = cp.country && SESSIONS.find((s) => s.ccy === cp.country);
+  $("#cpCount").innerHTML = esc(t("{n} eventi", { n: list.length }) + (sym ? " · " + t("che muovono {sym}", { sym }) : ""))
+    + (country ? ` · <button class="cp-country" data-cc="${country.ccy}" title="${t("Mostra tutti i paesi")}">${esc(t(country.name))} · ${country.ccy} ✕</button>` : "");
+  $$("#cpSessions [data-cc]").forEach((r) => r.classList.toggle("on", r.dataset.cc === cp.country));
   let lastDay = "";
   $("#cpList").innerHTML = list.map((e) => {
     const d = new Date(e.ts * 1000), left = e.ts - now;
@@ -5023,7 +5028,24 @@ function wire() {
   $("#acNext").onclick = () => { acc.month = shiftMonth(acc.month, 1); acc.day = null; renderPnlCalendar(); };
   $("#acCal").onclick = (e) => { const b = e.target.closest("[data-day]"); if (b) showDayFills(b.dataset.day); };
   $("#econOpen").onclick = () => { cp.scope = "mkt"; cp.market = activeMarket() && activeMarket().symbol; saveCp(); switchView("cal"); };
+  // a country in the market hours: only its events (again: all of them)
+  const pickCountry = (e) => {
+    const r = e.target.closest("[data-cc]");
+    if (!r) return false;
+    cp.country = cp.country === r.dataset.cc ? null : r.dataset.cc;
+    renderCalPage();
+    return true;
+  };
+  $("#cpCount").onclick = pickCountry;
+  // the same rows on the Trade page open the Calendar on that country
+  $("#ctab-sessions").onclick = (e) => {
+    const r = e.target.closest("[data-cc]");
+    if (r) { cp.country = r.dataset.cc; switchView("cal"); }
+  };
+  $("#ctab-sessions").onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $("#ctab-sessions").onclick(e); } };
+  $("#cpSessions").onkeydown = (e) => { if ((e.key === "Enter" || e.key === " ") && pickCountry(e)) e.preventDefault(); };
   $("#cpFilters").onclick = (e) => {
+    if (pickCountry(e)) return;
     const b = e.target.closest("button");
     if (!b) return;
     const flip = (arr, v) => (arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v]);

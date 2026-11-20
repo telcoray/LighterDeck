@@ -251,6 +251,8 @@ const EN = {
   "prev. {f} · prec. {p}": "fcst. {f} · prev. {p}",
   // ---- order book ----
   "Prezzo": "Price",
+  "Solo gli eventi di {c}": "Only {c}'s events",
+  "Mostra tutti i paesi": "Show every country",
   "Rete vera di Lighter, soldi veri": "Lighter's real network, real money",
   "Rete di prova di Lighter, soldi finti": "Lighter's test network, play money",
   "Settimana, mese e anno: il tasso attuale ripetuto, una stima. Quello pagato davvero è nello storico qui sotto.": "Week, month and year: the current rate repeated, an estimate. What was actually paid is in the history below.",
