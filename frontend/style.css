@@ -164,7 +164,7 @@ body.paper [data-view="auto"], body.paper [data-view="activity"], body.paper [da
 .key-adv summary:hover { color: var(--text-2); }
 .key-adv .key-row { margin-top: 8px; }
 /* what happens to the key, in three lines that read at a glance */
-.key-points { list-style: none; margin: 0 0 6px; padding: 10px 12px; border: 1px solid var(--line-2); border-radius: var(--r); background: var(--surface); display: grid; gap: 5px; }
+.key-points { list-style: none; margin: 0 0 14px; padding: 10px 12px; border: 1px solid var(--line-2); border-radius: var(--r); background: var(--surface); display: grid; gap: 5px; }
 .key-points li { position: relative; padding-left: 18px; font-size: 11.5px; line-height: 1.45; color: var(--text-2); }
 .key-points li::before { content: ""; position: absolute; left: 2px; top: 4px; width: 8px; height: 4px; border-left: 1.5px solid var(--green); border-bottom: 1.5px solid var(--green); transform: rotate(-45deg); }
 .key-points b { color: var(--text); font-weight: 500; }

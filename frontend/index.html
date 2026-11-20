@@ -40,7 +40,7 @@
 </script>
 <style>html.i18n-pending body { visibility: hidden; }</style>
 <link rel="icon" href="favicon.svg?v=1" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=300">
+<link rel="stylesheet" href="style.css?v=301">
 <script src="vendor/lightweight-charts-4.2.0.standalone.production.js"></script>
 </head>
 <body>
@@ -672,6 +672,11 @@
     </div>
   </div>
   <form id="keyForm" autocomplete="off">
+    <ul class="key-points browser-key">
+      <li><b>Resta in questo browser:</b> il server di LighterDeck non la riceve mai.</li>
+      <li><b>Firma qui, con il firmatario ufficiale di Lighter:</b> gli ordini vanno direttamente a Lighter.</li>
+      <li><b>Non può mandare fondi ad altri:</b> preleva solo verso il tuo wallet.</li>
+    </ul>
     <div class="key-create hidden" id="keyCreate">
       <button type="button" class="primary" id="keyCreateBtn">Crea una chiave con il wallet</button>
       <p class="key-note">Una firma nel wallet, senza transazioni né gas: LighterDeck genera la chiave in questo browser e la registra sul tuo account Lighter.</p>
@@ -700,11 +705,6 @@
     </details>
     </div>
     <p class="key-note server-key">La chiave resta solo sul server, in data/credentials.json, e non viene mai rimandata al browser. Un'API key firma ordini e può prelevare solo verso il tuo wallet: non può mandare fondi ad altri indirizzi.</p>
-    <ul class="key-points browser-key">
-      <li><b>Resta in questo browser:</b> il server di LighterDeck non la riceve mai.</li>
-      <li><b>Firma qui, con il firmatario ufficiale di Lighter:</b> gli ordini vanno direttamente a Lighter.</li>
-      <li><b>Non può mandare fondi ad altri:</b> preleva solo verso il tuo wallet.</li>
-    </ul>
     <p class="key-note browser-key"><a href="/security" target="_blank" rel="noopener">Come LighterDeck protegge la chiave →</a></p>
     <label class="key-remember browser-key"><input type="checkbox" id="keyRemember"><span>Ricorda la chiave su questo browser</span></label>
     <label class="key-remember browser-key"><input type="checkbox" id="keyTerms"><span>Ho letto e accetto i <a href="/terms" target="_blank" rel="noopener">Termini d'uso</a>: il trading con leva è rischioso e le decisioni sono mie.</span></label>
@@ -774,13 +774,13 @@
 </div>
 
 <div class="toast hidden" id="toast" role="status" aria-live="polite"></div>
-<script src="i18n.js?v=300"></script>
-<script src="i18n-zh.js?v=300"></script>
-<script src="i18n-ko.js?v=300"></script>
-<script src="formulas.js?v=300"></script>
-<script src="paper.js?v=300"></script>
-<script src="live.js?v=300"></script>
-<script src="app.js?v=300"></script>
-<script src="picker.js?v=300"></script>
+<script src="i18n.js?v=301"></script>
+<script src="i18n-zh.js?v=301"></script>
+<script src="i18n-ko.js?v=301"></script>
+<script src="formulas.js?v=301"></script>
+<script src="paper.js?v=301"></script>
+<script src="live.js?v=301"></script>
+<script src="app.js?v=301"></script>
+<script src="picker.js?v=301"></script>
 </body>
 </html>
