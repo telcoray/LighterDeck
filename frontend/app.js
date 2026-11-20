@@ -3329,7 +3329,7 @@ function renderAccount() {
   $("#accLimitDt").classList.toggle("hidden", !perOrder);
   $("#accLimit").textContent = perOrder ? `${perOrder}%${has ? " · " + fusd((account.total_value * perOrder) / 100, 0) : ""}` : "—";
   const pill = $("#accountPill");
-  pill.innerHTML = Paper.on ? `<i class="dot paper"></i><span>Paper${has ? " · " + fusd(account.total_value, 0) : ""}</span>`
+  pill.innerHTML = Paper.on ? `<i class="dot paper"></i><span>Paper</span>`
     : liveInfo ? `<i class="dot"></i><span>${t("Account #{n}", { n: liveInfo.account_index })}${has ? " · " + fusd(account.total_value, 0) : ""}</span>`
     : info.trading ? `<i class="dot"></i><span>${t("Account #{n}", { n: info.account_index })}</span>`
     : `<i class="dot off"></i><span>${liveFirst() ? t("Collega Lighter") : t("Sola lettura")}</span>`;
