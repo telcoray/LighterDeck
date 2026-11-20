@@ -2,7 +2,6 @@
  "start": "2026-10-30",
  "origin": {
   "date": "2026-10-30",
-  "name": "Day one",
   "text": "The first commit: a personal trading terminal for Lighter perpetuals, with charts, a risk guard and automations on one screen. Everything above grew from here."
  },
  "releases": [
@@ -10,7 +9,6 @@
    "v": null,
    "date": "2026-11-20",
    "from": "2026-11-15",
-   "name": "Your wallet, your key",
    "intro": "Everything since 0.7.0, on its way to the next release. Connecting is now one signature in your wallet, the site starts in paper trading, the calendar learns South Korea, and there is a Discord.",
    "tags": [
     "Key from your wallet",
@@ -106,7 +104,6 @@
   {
    "v": "0.7.0",
    "date": "2026-11-15",
-   "name": "Your key, in your browser",
    "intro": "Live trading with the key kept in the browser, a rebuilt order ticket with Lighter's advanced orders, and the Farming page. The biggest release so far: twelve days of work.",
    "tags": [
     "Browser trading",
@@ -199,7 +196,6 @@
   {
    "v": "0.6.0",
    "date": "2026-11-02",
-   "name": "Pairs, chart trading and alerts",
    "intro": "Pair trading, orders from a right-click on the chart, price alerts and context badges. All of it works in paper trading too.",
    "tags": [
     "Pair trading",
@@ -277,7 +273,6 @@
   {
    "v": "0.5.0",
    "date": "2026-11-02",
-   "name": "Paper trading for everyone",
    "intro": "Paper trading on Lighter's live prices, scaled exits, keyboard shortcuts and an account page. lighterdeck.xyz now lets anyone trade with simulated money, no account needed.",
    "tags": [
     "Paper trading",
@@ -379,7 +374,6 @@
   {
    "v": "0.4.0",
    "date": "2026-11-01",
-   "name": "Online at lighterdeck.xyz",
    "intro": "LighterDeck goes public: a read-only site at lighterdeck.xyz, a calendar that knows which events move each market, funding details, and risk limits that stay out of the way.",
    "tags": [
     "lighterdeck.xyz",
@@ -423,7 +417,6 @@
   {
    "v": "0.3.0",
    "date": "2026-10-31",
-   "name": "Orders on the chart",
    "intro": "Orders and stops move onto the chart and the positions table, and the risk limits scale with the account.",
    "tags": [
     "Draggable lines",
@@ -455,7 +448,6 @@
   {
    "v": "0.2.0",
    "date": "2026-10-31",
-   "name": "Trailing stops and favourites",
    "intro": "The first step towards putting every automation on the main trading screen, the same day as 0.1.0.",
    "tags": [
     "Trailing stop",
@@ -485,7 +477,6 @@
   {
    "v": "0.1.0",
    "date": "2026-10-31",
-   "name": "The first release",
    "intro": "A personal trading terminal for Lighter's perpetual futures, one day after the first commit.",
    "tags": [
     "Multi-chart",

@@ -1568,8 +1568,8 @@ option { background: var(--surface); color: var(--text); }
 .log-rel header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; }
 .log-v { padding: 2px 8px; border: 1px solid var(--line-2); border-radius: 10px; font-family: var(--mono); font-size: 11px; color: var(--text); }
 .log-rel.next .log-v, .log-rel.latest .log-v { border-color: color-mix(in srgb, var(--green) 45%, transparent); color: var(--green); }
-.log-rel h2 { margin: 0; font-size: 17px; font-weight: 500; letter-spacing: -.01em; color: var(--text); }
-.log-date { color: var(--muted); font-size: 11px; font-family: var(--mono); }
+.log-date { color: var(--text-2); font-size: 12px; font-family: var(--mono); }
+.log-origin header { display: flex; align-items: baseline; gap: 12px; }
 .log-intro { max-width: 760px; margin: 8px 0 10px; color: var(--text-2); font-size: 12.5px; line-height: 1.6; }
 .log-tags { display: flex; flex-wrap: wrap; gap: 5px; margin: 0 0 16px; }
 .log-tags span { padding: 2px 9px; border-radius: 10px; background: var(--raised); color: var(--text-2); font-size: 10.5px; }
@@ -1589,9 +1589,8 @@ option { background: var(--surface); color: var(--text); }
 .log-table td { padding: 4px 10px 4px 0; border-bottom: 1px solid var(--line); color: var(--text-2); vertical-align: top; }
 .log-table td:first-child { font-family: var(--mono); color: var(--text); white-space: nowrap; }
 .log-origin { position: relative; padding: 0 0 8px 30px; }
-.log-origin::before { content: ""; position: absolute; left: 1px; top: 6px; width: 9px; height: 9px; transform: rotate(45deg); background: var(--line-3); }
-.log-origin h2 { margin: 0; font-size: 15px; font-weight: 500; color: var(--text); }
-.log-origin p { max-width: 640px; margin: 6px 0 0; color: var(--text-2); font-size: 12.5px; line-height: 1.6; }
+.log-origin::before { content: ""; position: absolute; left: 1px; top: 7px; width: 9px; height: 9px; transform: rotate(45deg); background: var(--line-3); }
+.log-origin p { max-width: 640px; margin: 8px 0 0; color: var(--text-2); font-size: 12.5px; line-height: 1.6; }
 @media (max-width: 860px) {
   .log-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .log-layout { grid-template-columns: minmax(0, 1fr); gap: 0; }

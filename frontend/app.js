@@ -4811,7 +4811,7 @@ function setStatus(ok) {
 let changelog = null;
 function loadChangelog() {
   if (changelog) { renderChangelog(); return; }
-  fetch("changelog.json?v=1").then((r) => r.json()).then((d) => { changelog = d; renderChangelog(); }).catch(() => {});
+  fetch("changelog.json?v=2").then((r) => r.json()).then((d) => { changelog = d; renderChangelog(); }).catch(() => {});
 }
 // **bold**, *highlight*, `code`
 const logMd = (s) => esc(s).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>").replace(/\*(.+?)\*/g, "<i>$1</i>").replace(/`(.+?)`/g, "<code>$1</code>");
@@ -4843,19 +4843,17 @@ function renderChangelog() {
   const id = (r) => "log-" + (r.v ? r.v.replace(/\./g, "-") : "next");
   $("#logNav").innerHTML = rels.map((r) => `<a href="#${id(r)}" data-to="${id(r)}">${r.v ? "v" + esc(r.v) : esc(t("Prossima"))}<span>${esc(logDate(r.date, { day: "numeric", month: "short" }))}</span></a>`).join("")
     + `<a href="#log-origin" data-to="log-origin">${esc(t("Giorno uno"))}<span>${esc(logDate(d.origin.date, { day: "numeric", month: "short" }))}</span></a>`;
-  $("#logList").innerHTML = rels.map((r, i) => {
-    const prev = rels[i + 1], gap = prev ? Math.round((logDay(r.date) - logDay(prev.date)) / 86400000) : 0;
-    const when = r.v
-      ? logDate(r.date) + (prev ? " · " + (gap === 0 ? t("lo stesso giorno della {v}", { v: prev.v }) : t(gap === 1 ? "1 giorno dopo la {v}" : "{n} giorni dopo la {v}", { n: gap, v: prev.v })) : "")
+  $("#logList").innerHTML = rels.map((r) => {
+    const when = r.v ? logDate(r.date)
       : t("dal {a} al {b}", { a: logDate(r.from, { day: "numeric", month: "short" }), b: logDate(r.date, { day: "numeric", month: "short" }) });
     return `<section class="log-rel${r.v ? (r === latest ? " latest" : "") : " next"}" id="${id(r)}">
-      <header><span class="log-v">${r.v ? "v" + esc(r.v) : esc(t("Prossima versione"))}</span><h2>${esc(r.name)}</h2><span class="log-date">${esc(when)}</span></header>
+      <header><span class="log-v">${r.v ? "v" + esc(r.v) : esc(t("Prossima versione"))}</span><span class="log-date">${esc(when)}</span></header>
       <p class="log-intro">${logMd(r.intro)}</p>
       <div class="log-tags">${r.tags.map((x) => `<span>${esc(x)}</span>`).join("")}</div>
       <div class="log-groups">${r.groups.map((g) => `<div class="log-group"><h3>${esc(g.h)}</h3>${logItems(g.items)}</div>`).join("")}</div>
     </section>`;
-  }).join("") + `<section class="log-origin" id="log-origin"><span class="log-date">${esc(logDate(d.origin.date))}</span>
-      <h2>${esc(d.origin.name)}</h2><p>${logMd(d.origin.text)}</p></section>`;
+  }).join("") + `<section class="log-origin" id="log-origin"><header><span class="log-v">${esc(t("Giorno uno"))}</span><span class="log-date">${esc(logDate(d.origin.date))}</span></header>
+      <p>${logMd(d.origin.text)}</p></section>`;
   logSpy();
 }
 // the index marks the release at the top of the page
