@@ -1144,8 +1144,8 @@ body.browser-key :is(.pair-add, #mktSpread) { display: none !important; }
 .mg-seg.adds { background: repeating-linear-gradient(135deg, var(--text-2) 0 2px, transparent 2px 4px); }
 .mg-seg.adds.over { background: repeating-linear-gradient(135deg, var(--red) 0 2px, transparent 2px 4px); }
 .mg-seg.freed { background: repeating-linear-gradient(135deg, var(--muted) 0 2px, transparent 2px 4px); }
-.mg-tick { position: absolute; top: -3px; bottom: -3px; width: 2px; margin-left: -1px; background: var(--text); border-radius: 1px; transition: left .15s; }
-.mg-tick.warn { background: var(--amber); } .mg-tick.danger { background: var(--red); }
+.mg-tick { position: absolute; top: -3px; bottom: -3px; width: 2px; margin-left: -1px; background: var(--amber); border-radius: 1px; transition: left .15s; }
+.mg-tick.danger { background: var(--red); } /* amber like the liquidation price; red when close */
 .mg-legend { display: flex; flex-wrap: wrap; gap: 3px 10px; margin-bottom: 10px; font-size: 11px; color: var(--muted); }
 .mg-legend:empty { display: none; }
 .mg-key { display: inline-flex; align-items: center; gap: 4px; padding: 0; color: inherit; font-size: inherit; }
