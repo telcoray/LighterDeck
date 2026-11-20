@@ -1502,15 +1502,15 @@ option { background: var(--surface); color: var(--text); }
 .tk-arrow:hover svg { border-color: var(--line-3); }
 @media (hover: none) { .tk-arrow { display: none; } } /* a phone: the finger scrolls it */
 /* on a computer every favourite shows, on as many rows as it takes; the arrow at the end folds it to one row */
-.ticker.wrap { height: auto; min-height: 32px; align-items: flex-start; padding-top: 3px; padding-bottom: 3px; }
+.ticker.wrap { height: auto; min-height: 32px; align-items: flex-start; padding-top: 4px; padding-bottom: 4px; } /* the first row stays where the single row sits */
 .ticker.wrap .ticker-items { flex-wrap: wrap; overflow: visible; row-gap: 2px; flex: 1; }
 .ticker.wrap .tk-arrow { display: none; }
 .tk-fold { flex: none; margin-left: auto; display: flex; align-items: center; color: var(--text-2); }
 .ticker.wrap .tk-fold { margin-top: 2px; }
-.tk-fold svg { box-sizing: content-box; padding: 4px; border: 1px solid var(--line-2); border-radius: 4px; background: var(--raised); transition: transform .15s; }
+.tk-fold svg { box-sizing: content-box; padding: 4px; border: 1px solid var(--line-2); border-radius: 4px; background: var(--raised); }
 .tk-fold:hover { color: var(--text); }
 .tk-fold:hover svg { border-color: var(--line-3); }
-.ticker:not(.wrap) .tk-fold svg { transform: rotate(180deg); }
+.ticker:not(.wrap) .tk-fold path { transform: rotate(180deg); transform-box: fill-box; transform-origin: center; } /* only the chevron turns, not its box */
 .ticker.has-fold .tk-arrow.right { right: 32px; }
 
 /* "Create a key with my wallet" above the paste steps, then a divider */
