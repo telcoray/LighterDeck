@@ -5530,7 +5530,6 @@ function openKeyDialog(justConnected = false) {
   $("#keyTitle").textContent = on ? t("API key collegata") : t("Collega un'API key");
   if (on) {
     $("#keyOk").classList.toggle("hidden", justConnected !== true);
-    $("#keyDone").classList.toggle("go", justConnected === true); // just connected: Done is the way on, in green
     const k = browser ? Live.info() : info;
     $("#keyFactAcc").textContent = "#" + k.account_index;
     $("#keyFactIdx").textContent = k.api_key_index == null ? "—" : "#" + k.api_key_index;
@@ -6046,7 +6045,6 @@ function wireKeyDialog() {
       btn.textContent = t("Verifica e collega");
     }
   };
-  $("#keyDone").onclick = closeKeyDialog;
   $("#keyAutoForm").onsubmit = async (e) => {
     e.preventDefault();
     const btn = $("#keyAutoSubmit"), box = $("#keyAutoError");

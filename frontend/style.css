@@ -1516,8 +1516,6 @@ option { background: var(--surface); color: var(--text); }
 #keyCreate:not(.hidden) ~ .key-paste { margin-top: 14px; }
 
 /* the key dialog's Done right after a key is connected: solid green, the obvious next click */
-#keyDone.go { padding: 0 18px; border-color: var(--green); background: var(--green); color: var(--green-ink); font-weight: 600; }
-#keyDone.go:hover { filter: brightness(1.08); }
 
 /* Farming: the last 6 hours as six marks (filled past 0.01%, green when longs collected, red when shorts did),
    then how many; markets below the line now are greyed */
