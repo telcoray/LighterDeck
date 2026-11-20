@@ -1065,6 +1065,7 @@ button.pill:hover { border-color: var(--line-3); color: var(--text); }
 #keyModal.browser .key-remember.browser-key { display: flex; }
 #keyModal.browser .key-points.browser-key { display: grid; }
 #keyModal.browser .server-key { display: none; }
+#keyModal.browser #keyPaper { display: none; } /* Disconnect already goes back to paper */
 /* a box and its text side by side: a long line wraps under the text, not under the box */
 .key-remember { display: flex; align-items: flex-start; gap: 9px; margin: 0 0 10px; font-size: 12px; line-height: 1.45; color: var(--text-2); cursor: pointer; }
 .key-remember input { flex: none; margin: 1px 0 0; }
