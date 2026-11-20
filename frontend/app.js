@@ -4829,14 +4829,11 @@ function renderChangelog() {
   const d = changelog;
   if (!d) return;
   const rels = d.releases, shipped = rels.filter((r) => r.v), latest = shipped[0], next = rels.find((r) => !r.v);
-  const days = Math.floor((Date.now() - logDay(d.start)) / 86400000) + 1;
   const count = (items) => items.reduce((n, it) => n + 1 + (typeof it === "object" && it.sub ? count(it.sub) : 0), 0);
   const nextCount = next ? next.groups.reduce((n, g) => n + count(g.items), 0) : 0;
   $("#logSince").textContent = t("Dal primo commit, il {d}", { d: logDate(d.start, { day: "numeric", month: "long", year: "numeric" }) });
   $("#logLang").classList.toggle("hidden", LANG === "en");
   $("#logStats").innerHTML = [
-    [t("Giorni"), days, t("dal primo commit")],
-    [t("Versioni"), shipped.length, `v${rels[rels.length - 1].v} → v${latest.v}`],
     [t("Ultima versione"), "v" + latest.v, logDate(latest.date)],
     [t("In arrivo"), nextCount, t("modifiche dopo la {v}", { v: latest.v })],
   ].map(([k, v, s]) => `<div><span class="k">${esc(k)}</span><b>${esc(v)}</b><small>${esc(s)}</small></div>`).join("");

@@ -296,8 +296,6 @@ const EN = {
   "Le note di versione sono in inglese.": "Release notes are in English.",
   "Versioni": "Releases",
   "Dal primo commit, il {d}": "Since the first commit, on {d}",
-  "Giorni": "Days",
-  "dal primo commit": "since the first commit",
   "Ultima versione": "Latest release",
   "In arrivo": "Coming next",
   "modifiche dopo la {v}": "changes since {v}",
