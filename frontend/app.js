@@ -3730,10 +3730,10 @@ const SESSIONS = [
   { name: "Giappone", ex: "TSE", code: "XTKS", tz: "Asia/Tokyo", open: [9, 0], close: [15, 30], lunch: [[11, 30], [12, 30]] },
   { name: "Cina", ex: "SSE Shanghai", code: "XSHG", tz: "Asia/Shanghai", open: [9, 30], close: [15, 0], lunch: [[11, 30], [13, 0]] },
   { name: "Hong Kong", ex: "HKEX", code: "XHKG", tz: "Asia/Hong_Kong", open: [9, 30], close: [16, 0], lunch: [[12, 0], [13, 0]] },
-  { name: "Australia", ex: "ASX", code: "XASX", tz: "Australia/Sydney", open: [10, 0], close: [16, 0] },
+  { name: "Corea del Sud", ex: "KRX", code: "XKRX", tz: "Asia/Seoul", open: [9, 0], close: [15, 30] },
 ];
 let exchangeHours = null;
-fetch("exchange_hours.json?v=1").then((r) => r.json()).then((d) => { exchangeHours = d.exchanges; renderSessions(); }).catch(() => {});
+fetch("exchange_hours.json?v=2").then((r) => r.json()).then((d) => { exchangeHours = d.exchanges; renderSessions(); }).catch(() => {});
 
 function zoned(ts, tz) {
   const parts = Object.fromEntries(new Intl.DateTimeFormat("en-US", { timeZone: tz, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", weekday: "short" })

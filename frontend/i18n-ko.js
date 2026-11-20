@@ -147,6 +147,7 @@ DICTS.ko = {
   "holiday": "휴일",
   "Hong Kong": "홍콩",
   "Australia": "호주",
+  "Corea del Sud": "대한민국",
   "Search symbol…": "심볼 검색…",
   "Open in chart →": "차트에서 열기 →",
   "Managed stop": "관리 스탑",

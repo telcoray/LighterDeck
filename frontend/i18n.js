@@ -397,6 +397,7 @@ const EN = {
   "festività": "holiday",
   "Hong Kong": "Hong Kong",
   "Australia": "Australia",
+  "Corea del Sud": "South Korea",
   // ---- markets page ----
   "Cerca simbolo…": "Search symbol…",
   "Apri nel grafico →": "Open in chart →",

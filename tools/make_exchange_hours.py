@@ -12,7 +12,7 @@ from pathlib import Path
 
 import exchange_calendars as xc
 
-CODES = ["XNYS", "XLON", "XETR", "XTKS", "XSHG", "XHKG", "XASX"]  # NYSE, LSE, Xetra, Tokyo, Shanghai, HKEX, ASX
+CODES = ["XNYS", "XLON", "XETR", "XTKS", "XSHG", "XHKG", "XKRX"]  # NYSE, LSE, Xetra, Tokyo, Shanghai, HKEX, Korea Exchange
 out_file = Path(__file__).resolve().parent.parent / "frontend" / "exchange_hours.json"
 
 start = date.today() - timedelta(days=3)
