@@ -688,6 +688,8 @@ tr:hover .open-btn { color: var(--green); }
 /* ---------- status bar ---------- */
 .statusbar { height: 24px; flex: none; display: flex; align-items: center; gap: 16px; padding: 0 12px; border-top: 1px solid var(--line); font-size: 9.5px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-family: var(--mono); }
 .statusbar .live { font-size: 9.5px; }
+.statusbar .live.stale { color: var(--amber); }
+.statusbar .live.stale .dot { background: var(--amber); }
 
 /* ---------- picker / toast ---------- */
 /* market picker */
@@ -987,7 +989,7 @@ button.pill:hover { border-color: var(--line-3); color: var(--text); }
 
   /* status bar: one line, only the essentials */
   .statusbar { position: sticky; bottom: 0; z-index: 5; background: var(--bg); white-space: nowrap; overflow: hidden; }
-  .statusbar > span:nth-child(3), .statusbar > span:nth-child(4), #sbAge, #sbLat { display: none; }
+  .statusbar > span:nth-child(3), .statusbar > span:nth-child(4), #sbLat { display: none; }
 
   .three { grid-template-columns: 1fr 1fr; }
 }

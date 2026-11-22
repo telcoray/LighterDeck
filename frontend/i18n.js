@@ -222,8 +222,7 @@ const EN = {
   "Lingua": "Language",
   "Perpetual · dati pubblici": "Perpetuals · public data",
   "Feed pubblico": "Public feed",
-  "Prezzi ricevuti {ms} ms fa": "Prices received {ms} ms ago",
-  "In attesa di prezzi": "Waiting for prices",
+  "Nessun prezzo da più di 5 secondi": "No prices for more than 5 seconds",
   "Token di accesso LighterDeck:": "LighterDeck access token:",
   // ---- themes ----
   "nero caldo, testo sabbia e oro": "warm black, sand and gold text",

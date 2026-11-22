@@ -5432,7 +5432,10 @@ function utcOffset() {
 function clock() {
   const d = new Date();
   $("#sbClock").textContent = d.toISOString().slice(11, 19) + " UTC";
-  $("#sbAge").textContent = lastTick ? t("Prezzi ricevuti {ms} ms fa", { ms: Math.max(0, Date.now() - lastTick) }) : t("In attesa di prezzi");
+  // "Live data" turns amber when no prices have come for a few seconds (the server sends them every second)
+  const stale = !lastTick || Date.now() - lastTick > 5000, live = $(".statusbar .live");
+  live.classList.toggle("stale", stale);
+  live.title = stale ? t("Nessun prezzo da più di 5 secondi") : "";
 }
 
 // ================= scaled exits: TP1, TP2... each closing a share of the order =================
