@@ -278,8 +278,11 @@ class Panel {
       this.series.setData([]);
       this.vol.setData([]);
     }
-    const candles = await api(`/candles?market_id=${m.id}&resolution=${this.cfg.tf}&count=600`).catch((e) => { toast(e.message, true); return []; });
+    this.loadingAt = Date.now();
+    const candles = await this.fetchCandles(m);
     if (token !== this.loadToken) return;
+    this.loadingAt = 0;
+    if (!candles) { this.retryLoad(token); return; }
     this.data = new Map(candles.map((c) => [c.time, c]));
     this.series.setData(candles);
     this.vol.setData(candles.map((c) => ({ time: c.time, value: c.volume, color: c.close >= c.open ? "rgba(43,217,164,.28)" : "rgba(242,84,109,.28)" })));
@@ -289,6 +292,19 @@ class Panel {
     this.drawMarkers();
     this.drawLines();
     this.renderLegend();
+  }
+
+  // the last 600 candles, or null when the request failed or timed out (it is tried again)
+  fetchCandles(m) {
+    return api(`/candles?market_id=${m.id}&resolution=${this.cfg.tf}&count=600`, { signal: AbortSignal.timeout(20000) })
+      .then((c) => { this.failShown = false; return c; })
+      .catch((e) => { // said once, not at every retry
+        if (e.name !== "TimeoutError" && e.name !== "AbortError" && !this.failShown) { this.failShown = true; toast(e.message, true); }
+        return null;
+      });
+  }
+  retryLoad(token) {
+    setTimeout(() => { if (token === this.loadToken) this.load(); }, 5000);
   }
 
   renderLegend() {
@@ -328,9 +344,11 @@ class Panel {
       $(".chart-ctx", this.el).innerHTML = "";
       $(".chart-ctx", this.el).dataset.html = "";
     }
-    const get = (m) => api(`/candles?market_id=${m.id}&resolution=${this.cfg.tf}&count=600`).catch((e) => { toast(e.message, true); return []; });
-    const [ca, cb] = await Promise.all([get(a), get(b)]);
+    this.loadingAt = Date.now();
+    const [ca, cb] = await Promise.all([this.fetchCandles(a), this.fetchCandles(b)]);
     if (token !== this.loadToken) return;
+    this.loadingAt = 0;
+    if (!ca || !cb) { this.retryLoad(token); return; }
     // bars both markets have; a ratio's true high and low aren't known, so they come from the bar's
     // open, close and the two highs and lows over each other
     const byTime = new Map(cb.map((c) => [c.time, c]));
@@ -491,6 +509,7 @@ class Panel {
 
   tick() {
     this.keepGap();
+    if (!this.last && this.loadingAt && Date.now() - this.loadingAt > 30000) { this.load(); return; }
     if (this.pair) return this.tickPair();
     const m = this.market;
     const p = m && prices[m.id];
@@ -6355,17 +6374,31 @@ async function init() {
   setInterval(loadCalendar, 10 * 60 * 1000);
   setInterval(() => { if (!$("#btab-alerts").classList.contains("hidden")) renderAlerts(); }, 30000); // "5m ago" moves on
   setInterval(() => panels.forEach((p) => p.load()), 15 * 60 * 1000);
-  // a phone that slept (screen off, tab in the background) missed the candles in between: the chart
-  // would join the old ones to the new price with a gap. Coming back after a while reloads them.
-  let hiddenAt = 0;
+  // after a sleep the charts missed the candles in between: they would join the old ones to the new price,
+  // or stay frozen behind a request the sleep cut. Coming back reloads them, whichever way the sleep shows:
+  // - a phone or a background tab: the page was hidden for a while;
+  // - a computer that slept with the page in view: the timers stopped, so a 5-second beat comes late;
+  // - a page the browser froze or kept in its back/forward cache and brings back as it was.
+  const wake = () => {
+    panels.forEach((p) => p.load());
+    if (chartEls.orders && info.trading) fetchOpenOrders(true).catch(() => {});
+    loadCalendar().catch(() => {});
+  };
+  let hiddenAt = 0, beat = Date.now();
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) { hiddenAt = Date.now(); return; }
     if (!hiddenAt || Date.now() - hiddenAt < 15000) return;
     hiddenAt = 0;
-    panels.forEach((p) => p.load());
-    if (chartEls.orders && info.trading) fetchOpenOrders(true).catch(() => {});
-    loadCalendar().catch(() => {});
+    beat = Date.now();
+    wake();
   });
+  setInterval(() => {
+    const gap = Date.now() - beat;
+    beat = Date.now();
+    if (gap > 30000 && !document.hidden) wake();
+  }, 5000);
+  addEventListener("pageshow", (e) => { if (e.persisted) { beat = Date.now(); wake(); } });
+  document.addEventListener("resume", () => { beat = Date.now(); wake(); }); // Chromium: a frozen page thawed
 }
 
 init();
