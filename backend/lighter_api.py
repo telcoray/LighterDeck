@@ -10,6 +10,7 @@ conversion happens here, as in Lighter's own frontend (lighter-ts, utils/multipl
 Today every perp has multiplier 1, so both are the same number.
 """
 import asyncio
+import collections
 import logging
 import math
 import time
@@ -140,6 +141,7 @@ class Market:
 
 class LighterAPI:
     def __init__(self):
+        self.timings = collections.deque(maxlen=40)  # Lighter's answer times, in ms, for /api/latency
         self.http = None
         self.markets = {}  # market_id -> Market
         self.signer = None
@@ -222,10 +224,12 @@ class LighterAPI:
 
     # ---------- public data ----------
     async def _get(self, path, params=None, headers=None):
+        t0 = time.perf_counter()
         async with self.http.get(path, params=params, headers=headers) as r:
             data = await r.json(content_type=None)
             if r.status != 200 or data.get("code", 200) != 200:
                 raise RuntimeError(f"{path}: {r.status} {data}")
+            self.timings.append((time.perf_counter() - t0) * 1000)  # how long Lighter takes to answer, for /api/latency
             return data
 
     async def load_markets(self):

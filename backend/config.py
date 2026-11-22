@@ -42,6 +42,8 @@ BROWSER_TRADING = _env("BROWSER_TRADING", "").lower() in ("1", "true", "yes")
 # without it the public site offers no automations. Make one with:
 #   python -c "import os, base64; print(base64.b64encode(os.urandom(32)).decode())"
 VAULT_KEY = _env("LD_VAULT_KEY", None)
+# where the server runs, for the Automations page ("Tokyo"); empty leaves the place unnamed
+SERVER_LOCATION = _env("SERVER_LOCATION", "")
 REFERRAL_URL = _env("REFERRAL_URL", "https://app.lighter.xyz/?referral=7658993U&source=none")  # "open a Lighter account": the project's referral
 GITHUB_URL = "https://github.com/telcoray/LighterDeck"
 SITE_URL = _env("SITE_URL", "https://lighterdeck.xyz").rstrip("/")

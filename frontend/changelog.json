@@ -7,11 +7,12 @@
  "releases": [
   {
    "v": null,
-   "date": "2026-11-20",
+   "date": "2026-11-22",
    "from": "2026-11-15",
    "intro": "Everything since 0.7.0, on its way to the next release. Connecting is now one signature in your wallet, the site starts in paper trading, the calendar learns South Korea, and there is a Discord.",
    "tags": [
     "Key from your wallet",
+    "Automations & latency",
     "Security page",
     "South Korea",
     "Favourites on rows",
@@ -31,6 +32,21 @@
       "**Pasting a key you already have** still works: the paste fields fold under *or paste a key you already have*, open with one click, and **Verify** finds the account and the key index on its own.",
       "**A clearer dialog.** The three safety points come first, under the title: the key stays in this browser, it signs with Lighter's official signer, and it can't send funds to anyone else. *Connect wallet* says what the button does; the terms line is one short sentence.",
       "The account and key index fields are always in view, with no fold to open."
+     ]
+    },
+    {
+     "h": "Automations",
+     "items": [
+      "**The Automations page is open to everyone**, paper and public site included: every automation LighterDeck runs, what it does, and how to switch it on from where you are.",
+      {
+       "t": "**Latency, measured live:**",
+       "sub": [
+        "LighterDeck's server → Lighter, from the keepalive ping of its open connection;",
+        "how long Lighter's API takes to answer the server;",
+        "your browser → Lighter and your browser → LighterDeck, measured when the page opens."
+       ]
+      },
+      "**Why it is so low:** the server sits next to Lighter's own, so an automatic order reaches Lighter in a few milliseconds without going through your computer, and the page compares it with your own connection."
      ]
     },
     {

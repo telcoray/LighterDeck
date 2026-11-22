@@ -150,6 +150,14 @@ async def auth(request: Request, call_next):
 
 
 # ---------- read ----------
+@app.get("/api/latency")
+async def latency():
+    """How far this server is from Lighter: the price feed's ping round trip and the API's recent answer times."""
+    t = sorted(api.timings)
+    return {"ws_ms": feed.latency_ms, "api_ms": round(t[len(t) // 2], 1) if t else None, "api_samples": len(t),
+            "location": config.SERVER_LOCATION}
+
+
 @app.get("/api/info")
 async def info(request: Request):
     return {

@@ -4824,13 +4824,100 @@ function setStatus(ok) {
   $("#statusPill").classList.toggle("hidden", ok);
 }
 
+// ================= automations page =================
+// What the automations are, and how far they run from Lighter: the server's round trip to Lighter (its price
+// feed's keepalive ping and Lighter's recent answer times), next to this browser's own trip to Lighter and
+// to LighterDeck, measured when the page opens. The rules and limits forms are the personal deck's, live only.
+const autoOpsShown = () => !info.public && !Paper.on;
+const lat = { ws: null, api: null, you: null, deck: null, loc: "", at: 0 };
+const fmtMs = (v) => (v === null || v === undefined ? "—" : `${v < 10 ? v.toFixed(1) : Math.round(v)}<small>ms</small>`);
+function renderLatency() {
+  $("#latWs").innerHTML = fmtMs(lat.ws);
+  $("#latApi").innerHTML = fmtMs(lat.api);
+  $("#latYou").innerHTML = fmtMs(lat.you);
+  $("#latDeck").innerHTML = fmtMs(lat.deck);
+  $("#latAge").textContent = lat.at ? t("aggiornata alle {t}", { t: new Date(lat.at).toLocaleTimeString(LOCALE, { hour: "2-digit", minute: "2-digit", second: "2-digit" }) }) : "";
+  if (lat.ws === null) { $("#latWhy").textContent = ""; return; } // the first ping comes within 10 seconds
+  const ms = lat.ws < 10 ? lat.ws.toFixed(1) : Math.round(lat.ws);
+  // "why so low" only where it is low: a deck run far from Lighter says how far it is instead
+  let why = lat.ws >= 50 ? t("Il server di questo LighterDeck è a {ms} ms da Lighter: più è vicino ai server di Lighter, prima partono gli ordini automatici.", { ms })
+    : lat.loc
+    ? t("Perché così bassa: il server di LighterDeck sta a {loc}, accanto ai server di Lighter. Un ordine automatico parte da lì e arriva a Lighter in circa {ms} ms, senza passare dal tuo computer né dalla tua connessione.", { loc: esc(lat.loc), ms })
+    : t("Perché così bassa: il server di LighterDeck sta accanto ai server di Lighter. Un ordine automatico parte da lì e arriva a Lighter in circa {ms} ms, senza passare dal tuo computer né dalla tua connessione.", { ms });
+  if (lat.ws < 50 && lat.you !== null && lat.ws && lat.you / lat.ws >= 2) {
+    why += " " + t("Dalla tua connessione lo stesso viaggio richiede {you} ms: <b>{x} volte</b> tanto.", { you: Math.round(lat.you), x: Math.round(lat.you / lat.ws) });
+  }
+  $("#latWhy").innerHTML = why;
+}
+// the fastest of a few back-to-back requests: the first one also pays for opening the connection
+async function timeFetch(url, n = 4) {
+  let best = null;
+  for (let i = 0; i < n; i++) {
+    const t0 = performance.now();
+    try { await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(8000) }); } catch { continue; }
+    const d = performance.now() - t0;
+    if (i > 0 || n === 1) best = best === null ? d : Math.min(best, d);
+  }
+  return best;
+}
+async function loadServerLatency() {
+  const r = await api("/latency").catch(() => null);
+  if (!r) return;
+  Object.assign(lat, { ws: r.ws_ms, api: r.api_ms, loc: r.location || "", at: Date.now() });
+  renderLatency();
+}
+let latBusy = false;
+async function measureLatency() {
+  if (latBusy) return;
+  latBusy = true;
+  $("#latAgain").disabled = true;
+  try {
+    await loadServerLatency();
+    lat.deck = await timeFetch("/api/latency");
+    renderLatency();
+    // a tiny call Lighter always answers itself: its root page comes from the nearest CDN cache instead
+    if (info.lighter_url) lat.you = await timeFetch(info.lighter_url + "/api/v1/nextNonce?account_index=0&api_key_index=0");
+    lat.at = Date.now();
+    renderLatency();
+  } finally {
+    latBusy = false;
+    $("#latAgain").disabled = false;
+  }
+}
+function renderAutoPage() {
+  $("#autoOps").classList.toggle("hidden", !autoOpsShown());
+  $("#autoState").classList.toggle("hidden", !autoOpsShown()); // the deck's own engine state
+  const cta = $("#axCta"), a = Live.on ? Live.auto() : {};
+  let html;
+  if (!info.public) {
+    html = Paper.on
+      ? `<b>${t("Sei in paper trading")}</b><p>${t("In paper le automazioni girano in questo browser, mentre la pagina è aperta. Passa al live per usare quelle del server.")}</p>`
+      : `<b>${info.armed ? `<span class="on">${t("Auto acceso")}</span>` : t("Auto spento")}</b><p>${t("Il motore di questo deck gira sul server: le regole qui sotto partono anche a pagina chiusa, quando Auto è acceso.")}</p>`;
+  } else if (!Live.on) {
+    html = `<b>${t("Prova le automazioni")}</b><p>${Paper.on ? t("Sei in paper trading: trailing stop, uscite a scaglioni e breakeven girano in questo browser, con soldi simulati.") : ""} ${info.browser_automations ? t("Collega una chiave per farle girare sul server, anche a pagina chiusa.") : t("Collega una chiave per usarle con il tuo conto Lighter.")}</p><button class="primary" type="button" data-ax="key">${t("Collega una chiave")}</button>`;
+  } else if (info.browser_automations && !a.on) {
+    html = `<b>${t("Porta le automazioni sul server")}</b><p>${t("Affida al server una seconda chiave API, cifrata: le automazioni partono da lì, a pochi millisecondi da Lighter, anche a pagina chiusa. Puoi cancellarla quando vuoi.")}</p><button class="primary" type="button" data-ax="key">${t("Attiva le automazioni")}</button>`;
+  } else if (info.browser_automations) {
+    html = `<b class="on">${t("Automazioni attive sul server")}</b><p>${t("La tua chiave per le automazioni è sul server, cifrata. Accendi Auto in alto per farle partire.")}</p>`;
+  } else {
+    html = `<b>${t("Automazioni nella pagina")}</b><p>${t("Su questo sito le automazioni girano nel tuo browser, mentre la pagina è aperta.")}</p>`;
+  }
+  cta.innerHTML = html;
+  renderLatency();
+}
+function wireAutoPage() {
+  $("#latAgain").onclick = measureLatency;
+  $("#axCta").addEventListener("click", (e) => { if (e.target.closest('[data-ax="key"]')) openKeyDialog(); });
+  setInterval(() => { if (curView === "auto" && !document.hidden) loadServerLatency(); }, 10000); // the server's figures move on
+}
+
 // ================= changelog page =================
 // The story so far, from changelog.json (written in English, newest first): a numbers strip, a timeline
 // of the releases with their groups of changes, and an index on the left that follows the scroll.
 let changelog = null;
 function loadChangelog() {
   if (changelog) { renderChangelog(); return; }
-  fetch("changelog.json?v=2").then((r) => r.json()).then((d) => { changelog = d; renderChangelog(); }).catch(() => {});
+  fetch("changelog.json?v=3").then((r) => r.json()).then((d) => { changelog = d; renderChangelog(); }).catch(() => {});
 }
 // **bold**, *highlight*, `code`
 const logMd = (s) => esc(s).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>").replace(/\*(.+?)\*/g, "<i>$1</i>").replace(/`(.+?)`/g, "<code>$1</code>");
@@ -4912,7 +4999,7 @@ function syncUrl(push) {
 }
 
 function switchView(v, opts = {}) {
-  if ((info.public || Paper.on) && ["auto", "activity", "account"].includes(v)) v = "trade"; // live account only
+  if ((info.public || Paper.on) && ["activity", "account"].includes(v)) v = "trade"; // live account only
   $$("#views button").forEach((b) => b.classList.toggle("active", b.dataset.view === v));
   $$(".view").forEach((s) => s.classList.toggle("hidden", s.id !== "view-" + v));
   if (v === "markets") renderMarkets();
@@ -4920,7 +5007,7 @@ function switchView(v, opts = {}) {
   if (v === "farm") renderFarm();
   if (v === "log") loadChangelog();
   if (v === "account") loadAccountPage();
-  if (v === "auto") { loadRules(); loadLimits(); }
+  if (v === "auto") { renderAutoPage(); measureLatency(); if (autoOpsShown()) { loadRules(); loadLimits(); } }
   store("view", v);
   curView = v;
   if (!opts.fromUrl) syncUrl(true);
@@ -4976,6 +5063,7 @@ function wire() {
   wireTickerDrag();
   wireTickerScroll();
   wireChangelog();
+  wireAutoPage();
   wireToolbarFit();
   $("#ticker").onclick = (e) => { // from Markets or Calendar too: it opens Trade on that chart
     if (Date.now() - tickerDragEnd < 300) return;
@@ -6245,6 +6333,7 @@ function rerenderLanguage() {
   renderSessions();
   renderEcon();
   renderChangelog();
+  if (curView === "auto") renderAutoPage();
   renderEventSelect();
   loadRules();
   renderMarkets();

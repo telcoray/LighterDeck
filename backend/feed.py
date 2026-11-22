@@ -19,6 +19,13 @@ class PriceFeed:
         self.stats = {}  # market_id -> {mark, last, bid, ask, funding, change}
         self.updated_at = 0.0
         self.multipliers = {}  # market_id -> multiplier, set by main once markets are loaded
+        self.ws = None  # the open connection: its keepalive pings measure the round trip to Lighter
+
+    @property
+    def latency_ms(self):
+        """Round trip of the last keepalive ping to Lighter, in ms (None before the first one)."""
+        lat = getattr(self.ws, "latency", 0) if self.ws else 0
+        return round(lat * 1000, 1) if lat else None
 
     def mark(self, market_id):
         s = self.stats.get(market_id)
@@ -27,7 +34,8 @@ class PriceFeed:
     async def run(self):
         while True:
             try:
-                async with websockets.connect(config.LIGHTER_WS, ping_interval=20, max_size=None) as ws:
+                async with websockets.connect(config.LIGHTER_WS, ping_interval=10, max_size=None) as ws:
+                    self.ws = ws
                     await ws.send(json.dumps({"type": "subscribe", "channel": "market_stats/all"}))
                     log.info("price feed connected")
                     async for raw in ws:
@@ -38,6 +46,7 @@ class PriceFeed:
                         if "market_stats" in msg:
                             self._merge(msg["market_stats"])
             except Exception as e:  # reconnect on any drop
+                self.ws = None
                 log.warning("price feed dropped: %s; reconnecting", e)
                 await asyncio.sleep(3)
 
