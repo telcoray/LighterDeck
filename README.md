@@ -121,6 +121,13 @@ and is remembered per browser. `LD_VAULT_KEY` (a secret of your own, kept off th
 visitors hand a second API key to the server, encrypted, for the automations that must run with the page
 closed.
 
+`ENGINE_FAST=1` makes the automation engine react to the order book instead of looking every 3 seconds:
+it follows Lighter's `order_book` channel of the markets with an active rule (an update every few
+milliseconds) and runs their managed stops, breakouts and chased orders on every change of the best
+price, with a stop moved at most once a second. Off by default; try it on testnet first.
+`SERVER_LOCATION` (e.g. `Tokyo`) names where the server runs on the Automations page, next to its
+measured latency to Lighter.
+
 ## Security
 
 - A Lighter API key can open and close positions and withdraw to **your own** wallet, but it

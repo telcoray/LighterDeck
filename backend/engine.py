@@ -25,13 +25,21 @@ MISSING_LIMIT = 10  # looks without finding it, then it stops rather than send m
 MIN_STOP_STEP_PCT = 0.05   # don't send a modify for moves smaller than this
 VERIFY_EVERY = 60          # re-check that each stop order still exists
 ATR_TF, ATR_LEN, ATR_TTL = "15m", 14, 300  # trailing by volatility: ATR(14) on 15m candles, refreshed every 5 min
+# fast engine (config.ENGINE_FAST): it wakes on every best bid/ask change of a watched market
+FAST_IDLE = 0.25           # seconds it waits for a price before looking at the clock-driven rules anyway
+FAST_MAX_SPREAD = 0.003    # the book's mid stands in for the mark only while the spread is under 0.3%
+FAST_MODIFY_EVERY = 1.0    # a stop or a chased order moves at most once a second (Lighter's rate limits)
 STOP_FIELDS = ("initial_stop_pct", "breakeven_at_pct", "trail_pnl", "trail_pct", "trail_price", "trail_atr", "trail_activate_pct",
                "be_now")  # be_now: stop at breakeven right away (set when TP1 of a scaled exit fills)
 
 
 class Engine:
-    def __init__(self, api, feed, calendar, risk, data_dir=None, name=""):
+    def __init__(self, api, feed, calendar, risk, data_dir=None, name="", book=None):
         self.api, self.feed, self.calendar, self.risk = api, feed, calendar, risk
+        self.book = book  # feed.BookWatch: the order book's best prices, for the fast engine
+        self.fast = bool(config.ENGINE_FAST and book)
+        self._wake = None  # asyncio.Event, set by a new best price of a watched market
+        self._dirty = set()
         # the deck's rules in data/; a visitor's (public site) in their own folder
         self.rules_file = (data_dir / "rules.json") if data_dir else RULES_FILE
         self.state_file = (data_dir / "state.json") if data_dir else STATE_FILE
@@ -164,6 +172,8 @@ class Engine:
 
     # ---------- main loop ----------
     async def run(self):
+        if self.fast:
+            return await self.run_fast()
         while True:
             try:
                 await self.tick()
@@ -198,6 +208,94 @@ class Engine:
                 changed = True
         if changed:
             self.save()
+
+    # ---------- fast loop: woken by the order book ----------
+    # The rules that follow the price (managed stops, breakouts, chase) run on every change of their market's
+    # best bid or ask; the rest keeps its clock: the account and every rule each TICK_SECONDS, worked orders'
+    # checks each second. One pass at a time, so a new price waits for the orders of the last one.
+    async def run_fast(self):
+        self._wake = asyncio.Event()
+        self.book.listen(self._on_quote)
+        last_tick = last_work = 0.0
+        try:
+            while True:
+                try:
+                    await asyncio.wait_for(self._wake.wait(), FAST_IDLE)
+                except asyncio.TimeoutError:
+                    pass
+                self._wake.clear()
+                dirty, self._dirty = self._dirty, set()
+                now = time.time()
+                try:
+                    if now - last_tick >= TICK_SECONDS:
+                        last_tick = now
+                        await self.tick()
+                    elif self.armed and self.api.signer:
+                        await self.react(dirty, now)
+                    if now - last_work >= 1 or dirty & self._worked_markets():
+                        last_work = now
+                        await self.work()
+                except Exception as e:
+                    self.note(f"engine error: {e}", "error")
+                self.book.want(id(self), self._watched())
+        finally:
+            self.book.unlisten(self._on_quote)
+            self.book.want(id(self), ())
+
+    def _on_quote(self, market_id):
+        if self._wake is not None and market_id in self.book._wants.get(id(self), ()):
+            self._dirty.add(market_id)
+            self._wake.set()
+
+    def _worked_markets(self):
+        return {r["market_id"] for r in self.rules.values() if r["type"] == "chase" and r.get("enabled")}
+
+    def _watched(self):
+        """The markets whose order book this engine follows: those of the rules that act on the price."""
+        if not self.armed or not self.api.signer:
+            return set()
+        now, out = time.time(), set()
+        for r in self.rules.values():
+            if not r.get("enabled"):
+                continue
+            if r["type"] in ("managed_stop", "chase"):
+                out.add(r["market_id"])
+            elif r["type"] == "event_trade" and (r.get("status") == "window" or (r.get("status") == "waiting" and now >= r["event_ts"] - 120)):
+                out.add(r["market_id"])
+        return out
+
+    async def react(self, dirty, now):
+        """Between two ticks: the rules of the markets whose price just moved, and event trades at their time."""
+        changed = False
+        for r in list(self.rules.values()):
+            if not r.get("enabled"):
+                continue
+            try:
+                if r["type"] == "managed_stop" and r["market_id"] in dirty:
+                    changed |= await self._managed_stop(r)
+                elif r["type"] == "event_trade" and r.get("status") in ("waiting", "window") and now >= r["event_ts"]:
+                    changed |= await self._event_trade(r)
+            except Exception as e:
+                self.note(f"rule {r['id']}: {e}", "error", r)
+                changed = True
+        if changed:
+            self.save()
+
+    def _price(self, market_id):
+        """The price the rules follow: the order book's mid while it is fresh and tight (fast engine), the mark otherwise."""
+        if self.fast:
+            q = self.book.quote(market_id)
+            if q and 0 < q[0] < q[1] and (q[1] - q[0]) / q[1] < FAST_MAX_SPREAD:
+                return (q[0] + q[1]) / 2
+        return self.feed.mark(market_id)
+
+    def _best(self, market_id, side):
+        """Best bid (side > 0) or ask: the order book's when fresh (fast engine), the price feed's otherwise."""
+        if self.fast:
+            q = self.book.quote(market_id)
+            if q:
+                return q[0] if side > 0 else q[1]
+        return (self.feed.stats.get(market_id) or {}).get("bid" if side > 0 else "ask")
 
     def _position(self, market_id):
         for p in (self.account or {}).get("positions", []):
@@ -235,7 +333,7 @@ class Engine:
         st = r["state"]
         mid = r["market_id"]
         pos = self._position(mid)
-        mark = self.feed.mark(mid)
+        mark = self._price(mid)
         if not pos or not mark:
             if st.get("size"):
                 self.note(f"{self.describe(r)}: position closed", rule=r)
@@ -276,6 +374,20 @@ class Engine:
         if not (size_changed or moved or due_check):
             return False
 
+        if self.fast and moved and not size_changed and not due_check and st.get("oi") and st.get("stop") is not None:
+            # the order is known and was checked lately: move it straight away, at most once a second
+            if time.time() - st.get("sent", 0) < FAST_MODIFY_EVERY:
+                return False
+            try:
+                await self.api.modify_stop(mid, st["oi"], pos["size"], desired)
+            except Exception:
+                st["oi"] = None  # gone or changed on Lighter: the next pass looks it up
+                raise
+            st["sent"] = time.time()
+            self.note(f"{self.api.markets[mid].symbol} stop -> {desired} (best {st['best']})", rule=r)
+            st["stop"] = desired
+            return True
+
         order = None
         if st.get("coi"):
             orders = await self.api.active_orders(mid)
@@ -283,13 +395,16 @@ class Engine:
         st["checked"] = time.time()
 
         if order and not size_changed:
+            st["oi"] = order["order_index"]
             if moved:
                 await self.api.modify_stop(mid, order["order_index"], pos["size"], desired)
+                st["sent"] = time.time()
                 self.note(f"{self.api.markets[mid].symbol} stop -> {desired} (best {st['best']})", rule=r)
         else:
             if order:
                 await self.api.cancel_order(mid, order["order_index"])
             st["coi"] = await self.api.stop_order(mid, pos["size"], desired, "sl")
+            st["oi"], st["sent"] = None, time.time()  # its order index comes from the next look-up
             self.note(f"{self.api.markets[mid].symbol} stop placed @ {desired} for {pos['size']}", rule=r)
         st["stop"] = desired
         st["size"] = pos["size"]
@@ -429,6 +544,9 @@ class Engine:
         if changed:
             self.save()
 
+    def book_fresh(self, market_id):
+        return bool(self.fast and self.book.quote(market_id))
+
     def _end_working(self, r, why, level="warning"):
         self.note(f"{self.describe(r)}: {why}", level)
         self.rules.pop(r["id"], None)
@@ -464,8 +582,8 @@ class Engine:
     async def _chase(self, r):
         st, mid, side = r["state"], r["market_id"], r["side"]
         m, now = self.api.markets[mid], time.time()
-        best = (self.feed.stats.get(mid) or {}).get("bid" if side > 0 else "ask")
-        if not best or now - self.feed.updated_at > 15:
+        best = self._best(mid, side)
+        if not best or (not self.book_fresh(mid) and now - self.feed.updated_at > 15):
             return False
         cap = r.get("cap")
         target = m.round_price((min(best, cap) if side > 0 else max(best, cap)) if cap else best)
@@ -501,7 +619,7 @@ class Engine:
             st["checked"] = 0
             await self.api.cancel_order(mid, st["order_index"])
             return True
-        if not st.get("expiring") and target != st["price"] and now - st.get("moved", 0) >= 2:
+        if not st.get("expiring") and target != st["price"] and now - st.get("moved", 0) >= (FAST_MODIFY_EVERY if self.fast else 2):
             st["moved"] = now
             await self.api.modify_order(mid, st["order_index"], st["remaining"], target)
             st["price"] = target
@@ -549,7 +667,7 @@ class Engine:
         ts = r["event_ts"]
         mid = r["market_id"]
         m = self.api.markets[mid]
-        mark = self.feed.mark(mid)
+        mark = self._price(mid)
 
         if r["mode"] in ("long", "short"):
             if now < ts + r.get("delay_s", 0):

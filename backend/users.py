@@ -33,8 +33,8 @@ TOKEN_CACHE = 2000  # tokens remembered at most (each valid for minutes)
 
 
 class Users:
-    def __init__(self, api, feed, calendar):
-        self.api, self.feed, self.calendar = api, feed, calendar
+    def __init__(self, api, feed, calendar, book=None):
+        self.api, self.feed, self.calendar, self.book = api, feed, calendar, book
         self.engines = {}   # account -> Engine
         self._tasks = {}    # account -> its engine's loop
         self._tokens = {}   # auth token -> (account, api key index, valid until)
@@ -82,7 +82,7 @@ class Users:
         api = UserAPI(self.api, account, sealed["api_key_index"])
         await api.connect(self._open(account, sealed))
         d = self._dir(account)
-        engine = Engine(api, self.feed, self.calendar, RiskGuard(api, self.feed, d), d, name=f"#{account} ")
+        engine = Engine(api, self.feed, self.calendar, RiskGuard(api, self.feed, d), d, name=f"#{account} ", book=self.book)
         self.engines[account] = engine
         self._tasks[account] = asyncio.create_task(engine.run())
         return engine

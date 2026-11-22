@@ -291,6 +291,7 @@ const EN = {
   "Lighter non ha ancora registrato la chiave: riprova tra poco": "Lighter hasn't registered the key yet: try again shortly",
   "Preferiti precedenti": "Previous favourites",
   "Altri preferiti": "More favourites",
+  "Il motore reagisce a ogni cambio del miglior prezzo nel book dei mercati con una regola attiva, cioè ogni pochi millisecondi; il conto si rilegge ogni 3 secondi e uno stop si sposta al massimo una volta al secondo.": "The engine reacts to every change of the best price in the order book of the markets with an active rule, every few milliseconds; the account is read again every 3 seconds and a stop moves at most once a second.",
   "Server → Lighter {ms} ms": "Server → Lighter {ms} ms",
   "Andata e ritorno tra il server di LighterDeck e Lighter": "Round trip between LighterDeck's server and Lighter",
   "Il server di questo LighterDeck è a {ms} ms da Lighter: più è vicino ai server di Lighter, prima partono gli ordini automatici.": "This LighterDeck's server is {ms} ms from Lighter: the closer it is to Lighter's servers, the sooner automatic orders leave.",

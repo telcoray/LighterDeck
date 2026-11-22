@@ -4836,6 +4836,7 @@ function renderLatency() {
   $("#latApi").innerHTML = fmtMs(lat.api);
   $("#latYou").innerHTML = fmtMs(lat.you);
   $("#latDeck").innerHTML = fmtMs(lat.deck);
+  if (lat.fast) $("#axNote").textContent = t("Il motore reagisce a ogni cambio del miglior prezzo nel book dei mercati con una regola attiva, cioè ogni pochi millisecondi; il conto si rilegge ogni 3 secondi e uno stop si sposta al massimo una volta al secondo.");
   if (lat.ws === null) { $("#latWhy").textContent = ""; return; } // the first ping comes within 10 seconds
   const ms = lat.ws < 10 ? lat.ws.toFixed(1) : Math.round(lat.ws);
   // "why so low" only where it is low: a deck run far from Lighter says how far it is instead
@@ -4862,7 +4863,7 @@ async function timeFetch(url, n = 4) {
 async function loadServerLatency() {
   const r = await api("/latency").catch(() => null);
   if (!r) return;
-  Object.assign(lat, { ws: r.ws_ms, api: r.api_ms, loc: r.location || "", at: Date.now() });
+  Object.assign(lat, { ws: r.ws_ms, api: r.api_ms, loc: r.location || "", fast: !!r.engine_fast, at: Date.now() });
   renderLatency();
   renderFooterLatency();
 }

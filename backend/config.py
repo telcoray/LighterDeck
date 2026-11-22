@@ -44,6 +44,9 @@ BROWSER_TRADING = _env("BROWSER_TRADING", "").lower() in ("1", "true", "yes")
 VAULT_KEY = _env("LD_VAULT_KEY", None)
 # where the server runs, for the Automations page ("Tokyo"); empty leaves the place unnamed
 SERVER_LOCATION = _env("SERVER_LOCATION", "")
+# the engine reacts to every best bid/ask change of the markets with an active rule (Lighter's order book
+# channel, an update every few ms) instead of looking every 3 seconds; off keeps the classic loop
+ENGINE_FAST = _env("ENGINE_FAST", "").lower() in ("1", "true", "yes")
 REFERRAL_URL = _env("REFERRAL_URL", "https://app.lighter.xyz/?referral=7658993U&source=none")  # "open a Lighter account": the project's referral
 GITHUB_URL = "https://github.com/telcoray/LighterDeck"
 SITE_URL = _env("SITE_URL", "https://lighterdeck.xyz").rstrip("/")

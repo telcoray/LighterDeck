@@ -20,7 +20,7 @@ import config
 import og
 from econ import Calendar
 from engine import Engine
-from feed import PriceFeed
+from feed import BookWatch, PriceFeed
 from lighter_api import LighterAPI
 from logos import Logos
 from risk import Blocked, RiskGuard, sltp_trigger_error
@@ -37,8 +37,9 @@ feed = PriceFeed()
 calendar = Calendar()
 risk = RiskGuard(api, feed)
 logos = Logos()
-engine = Engine(api, feed, calendar, risk)
-users = Users(api, feed, calendar)  # public site: visitors' automations
+book = BookWatch()  # the order book's best prices, for the fast engine (config.ENGINE_FAST)
+engine = Engine(api, feed, calendar, risk, book=book)
+users = Users(api, feed, calendar, book)  # public site: visitors' automations
 clients = set()
 
 
@@ -66,8 +67,11 @@ async def broadcast_loop():
 async def lifespan(app):
     await api.start()
     feed.multipliers = {mid: m.multiplier for mid, m in api.markets.items()}
+    book.multipliers = feed.multipliers
     calendar.stock_symbols = lambda: {m.symbol for m in api.markets.values() if "STOCK" in m.categories}
     tasks = [asyncio.create_task(t) for t in (feed.run(), calendar.run(), engine.run(), broadcast_loop(), pair_watch_loop(), recent_funding_loop())]
+    if config.ENGINE_FAST:
+        tasks.append(asyncio.create_task(book.run()))
     await users.start()
     yield
     for t in tasks:
@@ -155,7 +159,7 @@ async def latency():
     """How far this server is from Lighter: the price feed's ping round trip and the API's recent answer times."""
     t = sorted(api.timings)
     return {"ws_ms": feed.latency_ms, "api_ms": round(t[len(t) // 2], 1) if t else None, "api_samples": len(t),
-            "location": config.SERVER_LOCATION}
+            "location": config.SERVER_LOCATION, "engine_fast": config.ENGINE_FAST}
 
 
 @app.get("/api/info")

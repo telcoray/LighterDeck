@@ -122,6 +122,12 @@ una scelta, a un clic sotto il ticket, ricordata in ogni browser. `LD_VAULT_KEY`
 dal repository) permette inoltre di affidare al server, cifrata, una seconda API key per le automazioni
 che devono funzionare a pagina chiusa.
 
+`ENGINE_FAST=1` fa reagire il motore delle automazioni al book invece di guardare ogni 3 secondi: segue il
+canale `order_book` di Lighter dei mercati con una regola attiva (un aggiornamento ogni pochi millisecondi)
+e fa girare stop gestiti, breakout e ordini Chase a ogni cambio del miglior prezzo, spostando uno stop al
+massimo una volta al secondo. Spento di default; provalo prima sul testnet. `SERVER_LOCATION` (es. `Tokyo`)
+indica dove gira il server nella pagina Automazioni, accanto alla latenza misurata verso Lighter.
+
 ## Sicurezza
 
 - La API key di Lighter può aprire e chiudere posizioni e prelevare verso il **tuo** wallet,
