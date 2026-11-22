@@ -4836,7 +4836,6 @@ function renderLatency() {
   $("#latApi").innerHTML = fmtMs(lat.api);
   $("#latYou").innerHTML = fmtMs(lat.you);
   $("#latDeck").innerHTML = fmtMs(lat.deck);
-  $("#latAge").textContent = lat.at ? t("aggiornata alle {t}", { t: new Date(lat.at).toLocaleTimeString(LOCALE, { hour: "2-digit", minute: "2-digit", second: "2-digit" }) }) : "";
   if (lat.ws === null) { $("#latWhy").textContent = ""; return; } // the first ping comes within 10 seconds
   const ms = lat.ws < 10 ? lat.ws.toFixed(1) : Math.round(lat.ws);
   // "why so low" only where it is low: a deck run far from Lighter says how far it is instead

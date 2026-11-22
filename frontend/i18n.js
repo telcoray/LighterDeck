@@ -326,7 +326,7 @@ const EN = {
   "Interruttore Auto e limiti di rischio": "Auto switch and risk limits",
   "Un solo interruttore accende o spegne tutto; limiti per ordine, per mercato, di esposizione e di perdita giornaliera.": "One switch turns everything on or off; limits per order, per market, on exposure and on daily loss.",
   "Le tue regole": "Your rules",
-  "aggiornata alle {t}": "updated at {t}",
+  "aggiornata ogni 10 secondi": "updated every 10 seconds",
   "Perché così bassa: il server di LighterDeck sta a {loc}, accanto ai server di Lighter. Un ordine automatico parte da lì e arriva a Lighter in circa {ms} ms, senza passare dal tuo computer né dalla tua connessione.": "Why so low: LighterDeck's server is in {loc}, next to Lighter's servers. An automatic order leaves from there and reaches Lighter in about {ms} ms, without going through your computer or your connection.",
   "Perché così bassa: il server di LighterDeck sta accanto ai server di Lighter. Un ordine automatico parte da lì e arriva a Lighter in circa {ms} ms, senza passare dal tuo computer né dalla tua connessione.": "Why so low: LighterDeck's server sits next to Lighter's servers. An automatic order leaves from there and reaches Lighter in about {ms} ms, without going through your computer or your connection.",
   "Dalla tua connessione lo stesso viaggio richiede {you} ms: <b>{x} volte</b> tanto.": "From your connection the same trip takes {you} ms: <b>{x} times</b> as long.",
