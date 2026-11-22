@@ -1622,7 +1622,7 @@ option { background: var(--surface); color: var(--text); }
 .ax-tile > small { display: block; margin-top: 4px; color: var(--muted); font-size: 10.5px; line-height: 1.4; }
 .ax-tile.hero { border-color: color-mix(in srgb, var(--green) 40%, var(--line)); background: color-mix(in srgb, var(--green) 6%, var(--bg)); }
 .ax-tile.hero b { color: var(--green); font-size: 30px; }
-.ax-why { max-width: 860px; margin: 14px 0 0; color: var(--text-2); font-size: 12.5px; line-height: 1.6; }
+.ax-why { margin: 14px 0 0; color: var(--text-2); font-size: 12.5px; line-height: 1.6; }
 .ax-why b { color: var(--text); font-weight: 500; }
 .ax-cols { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(260px, 1fr); gap: 28px; align-items: start; margin-bottom: 26px; }
 .ax-h { margin: 0 0 12px; color: var(--muted); font-size: 10px; font-weight: 500; text-transform: uppercase; letter-spacing: .08em; }
