@@ -1506,11 +1506,14 @@ option { background: var(--surface); color: var(--text); }
 .tk-arrow:hover svg { border-color: var(--line-3); }
 @media (hover: none) { .tk-arrow { display: none; } } /* a phone: the finger scrolls it */
 /* on a computer every favourite shows, on as many rows as it takes; the arrow at the end folds it to one row */
-.ticker.wrap { height: auto; min-height: 32px; align-items: flex-start; padding-top: 4px; padding-bottom: 4px; } /* the first row stays where the single row sits */
+/* one row or many, the first row starts 4px down: centring it in the bar put it a fraction of a pixel
+   elsewhere, and the names and the figures rounded to different pixels when the bar folded or unfolded */
+.ticker { align-items: flex-start; padding-top: 4px; }
+.ticker.wrap { height: auto; min-height: 32px; padding-bottom: 4px; }
 .ticker.wrap .ticker-items { flex-wrap: wrap; overflow: visible; row-gap: 2px; flex: 1; }
 .ticker.wrap .tk-arrow { display: none; }
 .tk-fold { flex: none; margin-left: auto; display: flex; align-items: center; color: var(--text-2); }
-.ticker.wrap .tk-fold { margin-top: 2px; }
+.tk-fold { margin-top: 2px; }
 .tk-fold svg { box-sizing: content-box; padding: 4px; border: 1px solid var(--line-2); border-radius: 4px; background: var(--raised); }
 .tk-fold:hover { color: var(--text); }
 .tk-fold:hover svg { border-color: var(--line-3); }
