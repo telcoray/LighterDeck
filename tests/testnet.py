@@ -57,6 +57,7 @@ sys.path.insert(0, str(ROOT / "backend"))
 
 import config  # noqa: E402
 import engine as engine_mod  # noqa: E402
+import feed as feed_mod  # noqa: E402
 import lighter_api  # noqa: E402
 
 assert "testnet" in config.LIGHTER_URL.lower()
@@ -490,6 +491,64 @@ class Run:
         check("cancelling the slice by hand ends the iceberg", await self._work(eng, mid, 45, ended), eng.rules)
         check("and no further slice is sent", not await self.orders(mid), await self.orders(mid))
 
+    async def fast(self):
+        """Fast engine: the order book wakes a managed stop, which follows the price on Lighter"""
+        mid = self.mids[0]
+        m = self.api.markets[mid]
+        book = feed_mod.BookWatch()
+        book.multipliers = {i: mk.multiplier for i, mk in self.api.markets.items()}
+        heard = []
+        book.listen(lambda i: heard.append(time.time()) if i == mid else None)
+        watch = asyncio.create_task(book.run())
+        config.ENGINE_FAST = True
+        eng = engine_mod.Engine(self.api, self.feed, None, None, data_dir=Path(tempfile.mkdtemp(prefix="lighterdeck-testnet-")), book=book)
+        config.ENGINE_FAST = False
+        eng.armed = True
+        moves = []  # (when the stop was modified, how long after the last best-price change)
+        modify = self.api.modify_stop
+
+        async def timed_modify(*a, **k):
+            moves.append((time.time(), time.time() - (heard[-1] if heard else time.time())))
+            return await modify(*a, **k)
+
+        self.api.modify_stop = timed_modify
+        loop = None
+        try:
+            s = await self.feed.refresh(mid)
+            await self.api.market_order(mid, self.size(mid), m.round_price(s["ask"] * 1.01))
+            if not check("a small long is open", await until(lambda: self.position(mid), 20), await self.position(mid)):
+                return
+            # a tight trailing stop, so the testnet's price moves it within the minute
+            eng.add_rule({"type": "managed_stop", "market_id": mid, "trail_pct": 0.15})
+            loop = asyncio.create_task(eng.run_fast())
+
+            async def placed():
+                return [o for o in await self.orders(mid) if o["reduce_only"]]
+
+            stop = await until(placed, 20)
+            check("the managed stop is on Lighter", bool(stop), await self.orders(mid))
+            check("the engine follows the market's order book", mid in book.wanted and book.quote(mid) is not None, (book.wanted, book.quotes.get(mid)))
+            t0, n0 = time.time(), len(heard)
+            await asyncio.sleep(60)
+            rate = (len(heard) - n0) / (time.time() - t0)
+            info(f"{m.symbol} on testnet: best bid or ask changed {rate:.1f} times a second")
+            if moves:
+                lag = sorted(x[1] for x in moves)
+                info(f"stop modified {len(moves)} times; from the price change to the modify sent: median {lag[len(lag) // 2] * 1000:.1f} ms")
+                gaps = [b[0] - a[0] for a, b in zip(moves, moves[1:])]
+                check("never two modifies within a second", all(g >= 0.99 for g in gaps), gaps)
+                now = await placed()
+                st = next(iter(eng.rules.values()))["state"] if eng.rules else {}
+                check("the stop on Lighter is the engine's last level", now and abs(now[0]["trigger_price"] - st.get("stop", 0)) <= 2 * 10 ** -m.price_decimals, (now, st.get("stop")))
+            else:
+                info("the price didn't rise enough in the minute to move a 0.15% trailing stop: run 'fast' again")
+        finally:
+            self.api.modify_stop = modify
+            for t in (loop, watch):
+                if t:
+                    t.cancel()
+            await asyncio.gather(*(t for t in (loop, watch) if t), return_exceptions=True)
+
     async def rfq(self):
         """RFQ: asked, read back, closed"""
         mid = self.mids[0]
@@ -530,7 +589,7 @@ class Run:
             check("the rate is a % per hour, as the table shows it", 0.2 < ratio < 5, ratio)
 
 
-SCENARIOS = ["account", "leverage", "margin_mode", "limit", "entry", "limit_exits", "conditional", "twap", "basket", "chase", "iceberg", "rfq", "history"]
+SCENARIOS = ["account", "leverage", "margin_mode", "limit", "entry", "limit_exits", "conditional", "twap", "basket", "chase", "iceberg", "fast", "rfq", "history"]
 READS = {"history"}  # these only read: run alone, they leave the account's orders and positions as they are
 
 
