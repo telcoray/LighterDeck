@@ -4865,12 +4865,18 @@ async function loadServerLatency() {
   if (!r) return;
   Object.assign(lat, { ws: r.ws_ms, api: r.api_ms, loc: r.location || "", at: Date.now() });
   renderLatency();
+  renderFooterLatency();
+}
+// the status bar: the server's round trip to Lighter, on every page
+function renderFooterLatency() {
+  const el = $("#sbLat");
+  el.classList.toggle("hidden", lat.ws === null);
+  if (lat.ws !== null) el.textContent = t("Server → Lighter {ms} ms", { ms: lat.ws < 10 ? lat.ws.toFixed(1) : Math.round(lat.ws) });
 }
 let latBusy = false;
 async function measureLatency() {
   if (latBusy) return;
   latBusy = true;
-  $("#latAgain").disabled = true;
   try {
     await loadServerLatency();
     lat.deck = await timeFetch("/api/latency");
@@ -4881,7 +4887,6 @@ async function measureLatency() {
     renderLatency();
   } finally {
     latBusy = false;
-    $("#latAgain").disabled = false;
   }
 }
 function renderAutoPage() {
@@ -4906,9 +4911,9 @@ function renderAutoPage() {
   renderLatency();
 }
 function wireAutoPage() {
-  $("#latAgain").onclick = measureLatency;
   $("#axCta").addEventListener("click", (e) => { if (e.target.closest('[data-ax="key"]')) openKeyDialog(); });
-  setInterval(() => { if (curView === "auto" && !document.hidden) loadServerLatency(); }, 10000); // the server's figures move on
+  loadServerLatency();
+  setInterval(() => { if (!document.hidden) loadServerLatency(); }, 10000); // the server's figures move on (status bar too)
 }
 
 // ================= changelog page =================
