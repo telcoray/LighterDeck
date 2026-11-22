@@ -294,7 +294,7 @@ const EN = {
   "Server → Lighter {ms} ms": "Server → Lighter {ms} ms",
   "Andata e ritorno tra il server di LighterDeck e Lighter": "Round trip between LighterDeck's server and Lighter",
   "Il server di questo LighterDeck è a {ms} ms da Lighter: più è vicino ai server di Lighter, prima partono gli ordini automatici.": "This LighterDeck's server is {ms} ms from Lighter: the closer it is to Lighter's servers, the sooner automatic orders leave.",
-  "Regole che lavorano al posto tuo: spostano lo stop, prendono il profitto a scaglioni, entrano su un evento, inseguono il prezzo. Girano sul server di LighterDeck, a pochi millisecondi da Lighter.": "Rules that work for you: they move the stop, take profit in steps, enter on an event, chase the price. They run on LighterDeck's server, a few milliseconds from Lighter.",
+  "Le automazioni girano sul server di LighterDeck, a pochi millisecondi da Lighter.": "Automations run on LighterDeck's server, a few milliseconds from Lighter.",
   "Latenza adesso": "Latency now",
   "Server LighterDeck → Lighter": "LighterDeck server → Lighter",
   "andata e ritorno sulla connessione aperta con Lighter": "round trip on the open connection to Lighter",
