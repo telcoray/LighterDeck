@@ -4841,10 +4841,10 @@ function renderLatency() {
   // "why so low" only where it is low: a deck run far from Lighter says how far it is instead
   let why = lat.ws >= 50 ? t("Il server di questo LighterDeck è a {ms} ms da Lighter: più è vicino ai server di Lighter, prima partono gli ordini automatici.", { ms })
     : lat.loc
-    ? t("Perché così bassa: il server di LighterDeck sta a {loc}, accanto ai server di Lighter. Un ordine automatico parte da lì e arriva a Lighter in circa {ms} ms, senza passare dal tuo computer né dalla tua connessione.", { loc: esc(lat.loc), ms })
-    : t("Perché così bassa: il server di LighterDeck sta accanto ai server di Lighter. Un ordine automatico parte da lì e arriva a Lighter in circa {ms} ms, senza passare dal tuo computer né dalla tua connessione.", { ms });
+    ? t("Il server di LighterDeck sta a {loc}, accanto ai server di Lighter. Un ordine automatico parte da lì e arriva a Lighter senza passare dal tuo computer né dalla tua connessione.", { loc: esc(lat.loc) })
+    : t("Il server di LighterDeck sta accanto ai server di Lighter. Un ordine automatico parte da lì e arriva a Lighter senza passare dal tuo computer né dalla tua connessione.");
   if (lat.ws < 50 && lat.you !== null && lat.ws && lat.you / lat.ws >= 2) {
-    why += " " + t("Dalla tua connessione lo stesso viaggio richiede {you} ms: <b>{x} volte</b> tanto.", { you: Math.round(lat.you), x: Math.round(lat.you / lat.ws) });
+    why += "<br>" + t("Dalla tua connessione lo stesso viaggio richiede {you} ms: {x} volte tanto.", { you: Math.round(lat.you), x: Math.round(lat.you / lat.ws) });
   }
   $("#latWhy").innerHTML = why;
 }
