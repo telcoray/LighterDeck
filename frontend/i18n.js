@@ -329,7 +329,7 @@ const EN = {
   "aggiornata ogni 10 secondi": "updated every 10 seconds",
   "Il server di LighterDeck sta a {loc}, accanto ai server di Lighter. Un ordine automatico parte da lì e arriva a Lighter senza passare dal tuo computer né dalla tua connessione.": "LighterDeck's server is in {loc}, next to Lighter's servers. An automatic order leaves from there and reaches Lighter without going through your computer or your connection.",
   "Il server di LighterDeck sta accanto ai server di Lighter. Un ordine automatico parte da lì e arriva a Lighter senza passare dal tuo computer né dalla tua connessione.": "LighterDeck's server sits next to Lighter's servers. An automatic order leaves from there and reaches Lighter without going through your computer or your connection.",
-  "Dalla tua connessione lo stesso viaggio richiede {you} ms: {x} volte tanto.": "From your connection the same trip takes {you} ms: {x} times as long.",
+  "Dalla tua connessione lo stesso viaggio richiede {you} ms: <b>{x} volte</b> tanto.": "From your connection the same trip takes {you} ms: <b>{x} times</b> as long.",
   "Sei in paper trading": "You're paper trading",
   "In paper le automazioni girano in questo browser, mentre la pagina è aperta. Passa al live per usare quelle del server.": "In paper the automations run in this browser, while the page is open. Switch to live to use the server's.",
   "Auto acceso": "Auto on",

@@ -4844,7 +4844,7 @@ function renderLatency() {
     ? t("Il server di LighterDeck sta a {loc}, accanto ai server di Lighter. Un ordine automatico parte da lì e arriva a Lighter senza passare dal tuo computer né dalla tua connessione.", { loc: esc(lat.loc) })
     : t("Il server di LighterDeck sta accanto ai server di Lighter. Un ordine automatico parte da lì e arriva a Lighter senza passare dal tuo computer né dalla tua connessione.");
   if (lat.ws < 50 && lat.you !== null && lat.ws && lat.you / lat.ws >= 2) {
-    why += "<br>" + t("Dalla tua connessione lo stesso viaggio richiede {you} ms: {x} volte tanto.", { you: Math.round(lat.you), x: Math.round(lat.you / lat.ws) });
+    why += "<br>" + t("Dalla tua connessione lo stesso viaggio richiede {you} ms: <b>{x} volte</b> tanto.", { you: Math.round(lat.you), x: Math.round(lat.you / lat.ws) });
   }
   $("#latWhy").innerHTML = why;
 }
