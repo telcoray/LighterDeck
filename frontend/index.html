@@ -40,7 +40,7 @@
 </script>
 <style>html.i18n-pending body { visibility: hidden; }</style>
 <link rel="icon" href="favicon.svg?v=1" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=334">
+<link rel="stylesheet" href="style.css?v=335">
 <script src="vendor/lightweight-charts-4.2.0.standalone.production.js"></script>
 </head>
 <body>
@@ -612,24 +612,17 @@
     <div id="acBody">
       <div class="ac-kpis">
         <div><label>Equity</label><b id="acEq">—</b></div>
-        <div><label id="acTodayLabel">PnL di oggi</label><b id="acToday">—</b><small>UTC</small></div>
+        <div><label>PnL di oggi</label><b id="acToday">—</b><small>UTC</small></div>
         <div><label>PnL non realizzato</label><b id="acUpnl">—</b></div>
         <div><label>Margine disponibile</label><b id="acAvail">—</b></div>
         <div><label>Leva</label><b id="acLev">—</b></div>
         <div><label>Margine usato</label><b id="acUsed">—</b><i class="ac-bar"><i id="acUsedBar"></i></i></div>
       </div>
-      <!-- paper, or a key in the browser: what the page knows of the account without the deck's server key -->
-      <div class="ac-grid hidden" id="acLite">
-        <section class="ac-card">
-          <div class="ac-head"><b id="acLiteTitle">—</b></div>
-          <p class="hint" id="acLiteNote"></p>
-          <button class="ghost" id="acLiteManage" type="button">—</button>
-        </section>
-        <section class="ac-card">
-          <div class="ac-head"><b>Per mercato</b><span class="muted">dalle ultime 100 esecuzioni</span></div>
-          <div id="acLiteMarkets"></div>
-        </section>
-      </div>
+      <!-- paper, or a key in the browser: which, and where to manage it -->
+      <section class="ac-card ac-mode hidden" id="acLite">
+        <b id="acLiteTitle">—</b><span class="hint" id="acLiteNote"></span>
+        <button class="ghost" id="acLiteManage" type="button">—</button>
+      </section>
       <div class="ac-grid ac-deck">
         <section class="ac-card">
           <div class="ac-head">
@@ -843,13 +836,13 @@
 </div>
 
 <div class="toast hidden" id="toast" role="status" aria-live="polite"></div>
-<script src="i18n.js?v=334"></script>
-<script src="i18n-zh.js?v=334"></script>
-<script src="i18n-ko.js?v=334"></script>
-<script src="formulas.js?v=334"></script>
-<script src="paper.js?v=334"></script>
-<script src="live.js?v=334"></script>
-<script src="app.js?v=334"></script>
-<script src="picker.js?v=334"></script>
+<script src="i18n.js?v=335"></script>
+<script src="i18n-zh.js?v=335"></script>
+<script src="i18n-ko.js?v=335"></script>
+<script src="formulas.js?v=335"></script>
+<script src="paper.js?v=335"></script>
+<script src="live.js?v=335"></script>
+<script src="app.js?v=335"></script>
+<script src="picker.js?v=335"></script>
 </body>
 </html>

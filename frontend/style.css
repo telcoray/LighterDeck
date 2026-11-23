@@ -1654,5 +1654,7 @@ option { background: var(--surface); color: var(--text); }
 .tk-peek.loading .tkp-chart { opacity: .35; }
 
 /* account page in paper or with a key in the browser */
-#acLite .hint { margin: 4px 0 12px; }
-#acLiteMarkets .table td, #acLiteMarkets .table th { padding: 7px 8px; }
+.ac-mode { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 14px; }
+.ac-mode b { font-weight: 500; color: var(--text); }
+.ac-mode .hint { margin: 0; }
+.ac-mode .ghost { margin-left: auto; }

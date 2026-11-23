@@ -4018,17 +4018,16 @@ async function fetchAccount(days, kind) {
 
 // the deck's own key (on the server): equity curve, PnL calendar, per-market stats. Paper or a key in the browser:
 // the account's figures, and the latest fills per market
+// paper and a key in the browser answer the same calls in the page (paper.js, live.js), so the page is the same
 const accLite = () => !(info.trading && !Paper.on) && !!account;
 async function loadAccountPage() {
   const deck = !!info.trading && !Paper.on, lite = accLite();
   $("#acEmpty").classList.toggle("hidden", deck || lite);
   $("#acBody").classList.toggle("hidden", !(deck || lite));
-  $$("#acBody .ac-deck").forEach((g) => g.classList.toggle("hidden", !deck));
   $("#acLite").classList.toggle("hidden", !lite);
   $("#acLighter").classList.toggle("hidden", Paper.on);
-  $("#acTodayLabel").textContent = lite ? t("Realizzato oggi") : t("PnL di oggi");
-  if (lite) { renderAccountHead(); return loadAccountLite(); }
-  if (!deck) return;
+  if (lite) renderAccountMode();
+  if (!deck && !lite) return;
   $$("#acDays button").forEach((b) => b.classList.toggle("active", +b.dataset.days === acc.days));
   $$("#acMode button").forEach((b) => b.classList.toggle("active", b.dataset.mode === acc.mode));
   renderAccountHead();
@@ -4052,42 +4051,22 @@ async function loadAccountPage() {
 
 // the Account page open while the account arrives or changes (paper, live, another key), and its fills now and then
 function accountPageFollow() {
-  if (curView !== "account") return;
   const key = Paper.on ? "paper" : account ? "live:" + account.index : "none";
-  if (key !== acc.pageKey) { acc.pageKey = key; loadAccountPage(); return; }
-  if (accLite() && Date.now() - (acc.liteAt || 0) > 30000) loadAccountLite();
+  if (key !== acc.pageKey) { // another account: what was read for the last one goes
+    acc.pageKey = key;
+    acc.cache = {}; acc.mcache = {}; acc.data = null; acc.mkt = null;
+    if (curView === "account") loadAccountPage();
+    return;
+  }
+  if (curView === "account" && accLite() && Date.now() - (acc.liteAt || 0) > 60000) { acc.liteAt = Date.now(); loadAccountPage(); }
 }
 
-async function loadAccountLite() {
-  acc.liteAt = Date.now();
+function renderAccountMode() {
   const paper = Paper.on;
   $("#acLiteTitle").textContent = paper ? t("Paper trading") : t("Chiave nel browser");
   $("#acLiteNote").textContent = paper ? t("Soldi simulati sui prezzi veri di Lighter, salvati in questo browser.")
     : t("Conto Lighter #{n}: gli ordini sono firmati in questo browser e vanno direttamente a Lighter.", { n: account.index });
   $("#acLiteManage").textContent = paper ? t("Ricomincia o passa al live") : t("Gestisci la chiave");
-  const fills = await api("/trades").catch(() => null);
-  if (!fills || !accLite()) return;
-  const day = utcDay(new Date()), by = new Map();
-  let today = null;
-  for (const f of fills) {
-    const r = by.get(f.symbol) || { sym: f.symbol, n: 0, usd: 0, pnl: 0, fee: 0, hasPnl: false };
-    r.n += 1;
-    r.usd += +f.usd || 0;
-    r.fee += +f.fee || 0;
-    if (f.pnl !== null && f.pnl !== undefined) { r.pnl += +f.pnl; r.hasPnl = true; }
-    by.set(f.symbol, r);
-    if (f.pnl !== null && f.pnl !== undefined && utcDay(new Date(f.ts > 1e12 ? f.ts : f.ts * 1000)) === day) today = { pnl: (today ? today.pnl : 0) + +f.pnl };
-  }
-  acc.liteToday = today;
-  renderAccountHead();
-  const rows = [...by.values()].sort((a, b) => Math.abs(b.pnl) - Math.abs(a.pnl) || b.usd - a.usd);
-  const fee = paper && rows.some((r) => r.fee);
-  $("#acLiteMarkets").innerHTML = rows.length
-    ? `<table class="table"><thead><tr><th>${t("Mercato")}</th><th class="r">${t("Esecuzioni")}</th><th class="r">${t("Volume")}</th>${fee ? `<th class="r">${t("Commissioni")}</th>` : ""}<th class="r">${t("PnL realizzato")}</th></tr></thead><tbody>`
-      + rows.map((r) => `<tr><td class="mk"><span class="sym">${ico(r.sym, "xs")}${esc(r.sym)}</span></td><td class="r">${r.n}</td><td class="r">${fusd(r.usd, 0)}</td>`
-        + (fee ? `<td class="r">${fusd(r.fee)}</td>` : "")
-        + `<td class="r ${r.hasPnl ? cls(r.pnl) : ""}">${r.hasPnl ? fsigned(r.pnl) : "—"}</td></tr>`).join("") + "</tbody></table>"
-    : `<p class="muted">${t("Nessuna esecuzione ancora.")}</p>`;
 }
 
 function showAccountStats(d) {
@@ -4120,7 +4099,7 @@ function renderAccountHead() {
   const used = marginState(account).usedPct;
   $("#acIdx").textContent = account.paper ? t("Paper trading") : "#" + account.index;
   $("#acEq").textContent = fusd(eq);
-  const today = accLite() ? acc.liteToday : acc.data && acc.data.days.find((x) => x.day === utcDay(new Date()));
+  const today = acc.data && acc.data.days.find((x) => x.day === utcDay(new Date()));
   const td = $("#acToday");
   td.textContent = today ? fsigned(today.pnl) : "—";
   td.className = today ? cls(today.pnl) : "";

@@ -76,6 +76,26 @@ const Paper = (() => {
       maintenance: mmr, cross_value: crossTotal, positions: positions.map(({ mark, ...p }) => p), settings };
   }
 
+  // ---------- the Account page: a PnL series made of the paper account's own history ----------
+  // A point holds the cumulative PnL up to its time (fills' realized PnL less fees, and funding) and the starting
+  // balance as the only deposit. The last point is the live equity, and the earlier ones are counted back from it,
+  // so the oldest fills dropped from the history (it keeps the latest 500) don't shift the present.
+  function paperStats(days) {
+    const t = Math.floor(now() / 1000), live = account().total_value - S.balance;
+    const events = [...S.trades.map((x) => ({ ts: x.ts, d: (+x.pnl || 0) - (+x.fee || 0) })),
+      ...(S.fundings || []).map((f) => ({ ts: f.ts, d: +f.change || 0 }))].sort((a, b) => b.ts - a.ts);
+    const at = (sec) => { let v = live; for (const e of events) { if (e.ts <= sec * 1000) break; v -= e.d; } return v; };
+    const begun = Math.floor(S.start / 1000);
+    const point = (sec, pnl) => ({ timestamp: sec, trade_pnl: pnl, inflow: sec >= begun - 86400 ? S.balance : 0, outflow: 0 });
+    const series = (step, from) => {
+      const out = [];
+      for (let s = Math.max(Math.floor(from / step) * step, Math.floor(begun / step) * step); s < t; s += step) out.push(point(s, s < begun ? 0 : at(s)));
+      out.push(point(t, live));
+      return out;
+    };
+    return AccountStats.build(series(86400, t - 365 * 86400), days <= 7 ? series(3600, t - 7 * 86400) : null, days, t);
+  }
+
   // ---------- fills ----------
   // signed qty at price; realized PnL is booked on the part that reduces the position
   function fill(id, qty, price, role, orderId) {
@@ -1016,6 +1036,9 @@ const Paper = (() => {
     if (p === "/open_orders") return run(() => S.orders.map(({ sl, tp, trail, post_only, ts, ...o }) => ({ ...o, symbol: byId[o.market_id] ? byId[o.market_id].symbol : String(o.market_id),
       remaining: o.remaining || Math.abs((S.positions[o.market_id] || {}).size || 0) })));
     if (p === "/funding_history") return run(() => (S.fundings || []).slice(0, 100));
+    if (p === "/account_stats") return run(() => paperStats(Math.max(1, Math.min(365, +qs.get("days") || 30))));
+    if (p === "/account_markets") return run(() => AccountStats.markets(S.trades, S.fundings || [], now() - Math.max(1, Math.min(365, +qs.get("days") || 30)) * 86400000));
+    if (p === "/fills") return run(() => S.trades.filter((x) => x.ts >= +qs.get("start") * 1000 && x.ts < +qs.get("end") * 1000));
     if (p === "/trades") return run(() => (qs.has("market_id") ? S.trades.filter((x) => x.market_id === +qs.get("market_id")) : S.trades).slice(0, 100));
     const trail = p.match(/^\/trail\/(\d+)$/);
     if (trail && method === "PUT") return run(() => {

@@ -278,10 +278,18 @@ const Live = (() => {
     });
   }
 
-  async function trades(marketId) {
+  // the latest 100 fills, or (sinceMs) every fill back to that time, 100 a page, at most maxPages
+  async function trades(marketId, sinceMs = null, maxPages = 20) {
     const params = { account_index: cred.account_index, sort_by: "timestamp", limit: 100 };
     if (marketId !== null) params.market_id = marketId;
-    const raw = (await get("trades", params, true)).trades || [];
+    let raw = [];
+    for (let i = 0, cursor = null; i < (sinceMs ? maxPages : 1); i++) {
+      const page = await get("trades", cursor ? { ...params, cursor } : params, true);
+      const rows = page.trades || [];
+      raw = raw.concat(rows);
+      cursor = page.next_cursor;
+      if (!sinceMs || !rows.length || !cursor || rows[rows.length - 1].timestamp < sinceMs) break;
+    }
     const fills = [];
     const out = raw.map((x) => {
       const buyer = x.bid_account_id === cred.account_index, m = byId[x.market_id];
@@ -295,6 +303,44 @@ const Live = (() => {
     for (const p of (acc || {}).positions || []) if (marketId === null || p.market_id === marketId) real[p.market_id] = p.size / (byId[p.market_id] || { multiplier: 1 }).multiplier;
     realizedPnl(fills, real).forEach((pnl, i) => (out[i].pnl = pnl));
     return out;
+  }
+
+  // ---------- the Account page: Lighter's PnL series and the period's fills, as the server's /api/account_* ----------
+  const accCache = {};
+  const cachedAcc = async (key, ttl, fn) => {
+    const hit = accCache[key];
+    if (hit && Date.now() - hit.at < ttl) return hit.v;
+    const v = await fn();
+    accCache[key] = { at: Date.now(), v };
+    return v;
+  };
+  const pnlPoints = (resolution, seconds) => cachedAcc("pnl" + resolution, 60000, async () => {
+    const t = Math.floor(Date.now() / 1000);
+    return (await get("pnl", { by: "index", value: cred.account_index, resolution, start_timestamp: t - seconds, end_timestamp: t, count_back: 0 }, true)).pnl || [];
+  });
+  async function accountStats(days) {
+    const year = await pnlPoints("1d", 365 * 86400);
+    return AccountStats.build(year, days <= 7 ? await pnlPoints("1h", 7 * 86400) : null, days);
+  }
+  const yearFills = () => cachedAcc("fills", 120000, () => trades(null, Date.now() - 365 * 86400000));
+  async function fundingSince(sinceSec) {
+    return cachedAcc("funding" + Math.floor(sinceSec / 3600), 300000, async () => {
+      const out = [];
+      let cursor = null, complete = false;
+      for (let i = 0; i < 30; i++) {
+        const page = await get("positionFunding", { account_index: cred.account_index, limit: 100, ...(cursor ? { cursor } : {}) }, true);
+        const rows = page.position_fundings || [];
+        for (const f of rows) if (f.timestamp >= sinceSec) out.push({ ts: f.timestamp * 1000, market_id: f.market_id, symbol: byId[f.market_id] ? byId[f.market_id].symbol : String(f.market_id), change: +f.change });
+        cursor = page.next_cursor;
+        if (!rows.length || !cursor || rows[rows.length - 1].timestamp < sinceSec) { complete = true; break; }
+      }
+      return { out, complete };
+    });
+  }
+  async function accountMarkets(days) {
+    const since = Date.now() - days * 86400000;
+    const [fills, funding] = await Promise.all([yearFills(), fundingSince(Math.floor(since / 1000))]);
+    return AccountStats.markets(fills, funding.out, since, funding.complete);
   }
 
   // ---------- the /api calls, as the server answers them ----------
@@ -483,7 +529,13 @@ const Live = (() => {
       return (await Promise.all(ids.map((id) => activeOrders(id, qs.get("fresh") === "true")))).flat();
     });
     if (p === "/trades") return run(() => trades(qs.has("market_id") ? +qs.get("market_id") : null));
-    if (p === "/fills") return run(() => []);
+    if (p === "/fills") return run(async () => {
+      const start = +qs.get("start") * 1000, end = +qs.get("end") * 1000;
+      const rows = start >= Date.now() - 365 * 86400000 ? await yearFills() : await trades(null, start);
+      return rows.filter((r) => r.ts >= start && r.ts < end);
+    });
+    if (p === "/account_stats") return run(() => accountStats(Math.max(1, Math.min(365, +qs.get("days") || 30))));
+    if (p === "/account_markets") return run(() => accountMarkets(Math.max(1, Math.min(365, +qs.get("days") || 30))));
     if (p === "/funding_history") return run(async () => ((await get("positionFunding", { account_index: cred.account_index, limit: 100 }, true)).position_fundings || []).map((f) => {
       const change = +f.change, long = f.position_side === "long", rate = Math.abs(+f.rate || 0) * 100, m = byId[f.market_id]; // a fraction on the wire, a % per hour in the table
       return { ts: f.timestamp * 1000, market_id: f.market_id, symbol: m ? m.symbol : String(f.market_id), side: long ? "long" : "short",
