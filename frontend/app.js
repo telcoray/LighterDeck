@@ -105,7 +105,7 @@ async function api(path, opts = {}) {
   }
   const r = await fetch("/api" + path, { ...opts, headers: { "Content-Type": "application/json", "X-Token": TOKEN, "X-Lang": LANG, ...(opts.headers || {}) } });
   const body = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(body.detail || r.statusText);
+  if (!r.ok) throw Object.assign(new Error(body.detail || r.statusText), { status: r.status });
   return body;
 }
 
@@ -6510,17 +6510,34 @@ async function init() {
   };
   document.addEventListener("click", () => $("#langMenu").classList.add("hidden"));
   onLangChange = rerenderLanguage;
-  try {
-    info = await api("/info");
-  } catch (e) {
-    const token = prompt(t("Token di accesso LighterDeck:"));
-    if (token) { store("token", token); location.reload(); }
-    return;
+  // while the server restarts (a deploy) it doesn't answer for a few seconds: wait for it instead of asking
+  // for a token, which is only for a refused one
+  for (let i = 0; ; i++) {
+    try {
+      info = await api("/info");
+      break;
+    } catch (e) {
+      if ((e.status === 401 || e.status === 403) || i >= 30) {
+        const token = prompt(t("Token di accesso LighterDeck:"));
+        if (token) { store("token", token); location.reload(); }
+        return;
+      }
+      if (i === 1) toast(t("Il server si sta riavviando, riprovo…"));
+      await new Promise((ok) => setTimeout(ok, 2000));
+    }
   }
   markets = info.markets;
   liveTrading = info.trading;
   if (info.public && info.browser_trading && Live.saved()) {
-    try { await Live.restore(); } catch {}
+    // the saved key needs Lighter's signer from the server: if it can't be loaded (the server restarting), try
+    // again for about half a minute rather than falling back to paper. The key stays saved either way.
+    for (let i = 0; ; i++) {
+      try { await Live.restore(); break; } catch {
+        if (i >= 15) { toast(t("Non riesco a ricollegare la chiave: ricarica la pagina tra poco"), true); break; }
+        if (i === 0) toast(t("Ricollego la chiave…"));
+        await new Promise((ok) => setTimeout(ok, 2000));
+      }
+    }
     document.body.classList.toggle("browser-key", Live.on);
   }
   Paper.on = !Live.on && paperAtStart();

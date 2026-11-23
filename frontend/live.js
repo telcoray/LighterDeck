@@ -661,13 +661,14 @@ const Live = (() => {
     changed = true;
   }
 
-  // a key saved on this device (or in this tab) reconnects on load, without asking Lighter again
+  // a key saved on this device (or in this tab) reconnects on load, without asking Lighter again. A signer that
+  // can't be loaded throws (the caller tries again); a key the signer refuses gives false.
   async function restore() {
     let saved = null;
     try { saved = JSON.parse(sessionStorage.getItem(STORE) || localStorage.getItem(STORE) || "null"); } catch {}
     if (!saved) return false;
+    await loadSigner();
     try {
-      await loadSigner();
       const res = window.CreateClient(net.url, saved.key, net.chain, saved.api_key_index, saved.account_index);
       if (res && res.error) err(res.error);
     } catch { return false; }
