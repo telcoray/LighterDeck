@@ -935,7 +935,9 @@ button.pill:hover { border-color: var(--line-3); color: var(--text); }
 .ghost { height: 28px; padding: 0 12px; border: 1px solid var(--line-2); border-radius: var(--r); color: var(--text-2); font-size: 12px; }
 .ghost:hover { border-color: var(--line-3); color: var(--text); }
 .ghost.danger:hover { border-color: var(--red); color: var(--red); background: var(--red-soft); }
-#paperLive:hover { border-color: var(--green); color: var(--green); background: var(--green-soft); }
+/* going live is always green; starting over turns red on hover (.ghost.danger) */
+.ghost.live-go { border-color: var(--green); color: var(--green); background: var(--green-soft); }
+.ghost.live-go:hover { border-color: var(--green); color: var(--green); background: color-mix(in srgb, var(--green) 22%, transparent); }
 
 /* language switch */
 .lang-btn { display: inline-flex; align-items: center; gap: 5px; height: 26px; min-width: 34px; padding: 0 9px; border: 1px solid var(--line-2); border-radius: 13px; font-size: 11px; font-weight: 600; letter-spacing: .04em; color: var(--text-2); }
@@ -1656,5 +1658,4 @@ option { background: var(--surface); color: var(--text); }
 /* account page in paper or with a key in the browser */
 .ac-mode { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 14px; }
 .ac-mode b { font-weight: 500; color: var(--text); }
-.ac-mode .hint { margin: 0; }
-.ac-mode .ghost { margin-left: auto; }
+.ac-mode .hint { margin: 0; flex: 1; } /* the buttons sit together on the right */

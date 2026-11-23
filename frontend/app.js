@@ -4066,7 +4066,9 @@ function renderAccountMode() {
   $("#acLiteTitle").textContent = paper ? t("Paper trading") : t("Chiave nel browser");
   $("#acLiteNote").textContent = paper ? t("Soldi simulati sui prezzi veri di Lighter, salvati in questo browser.")
     : t("Conto Lighter #{n}: gli ordini sono firmati in questo browser e vanno direttamente a Lighter.", { n: account.index });
-  $("#acLiteManage").textContent = paper ? t("Ricomincia o passa al live") : t("Gestisci la chiave");
+  $("#acReset").classList.toggle("hidden", !paper);
+  $("#acLive").classList.toggle("hidden", !paper || (!!info.public && !info.browser_trading));
+  $("#acKey").classList.toggle("hidden", paper);
 }
 
 function showAccountStats(d) {
@@ -5369,7 +5371,17 @@ function wire() {
   // calendar
   $("#calOpen").onclick = () => switchView("cal");
   $("#accOpen").onclick = () => switchView("account");
-  $("#acLiteManage").onclick = () => (Paper.on ? openPaperModal() : openKeyDialog());
+  $("#acKey").onclick = () => openKeyDialog();
+  $("#acLive").onclick = () => $("#paperLive").onclick();
+  $("#acReset").onclick = () => { // the same start over as the paper dialog, with the balance it began with
+    const bal = Paper.summary().balance;
+    if (!askConfirm("acReset", t("Conferma: ricomincia con {bal}", { bal: fusd(bal, 0) }))) return;
+    Paper.reset(bal);
+    setPaper(true);
+    acc.cache = {}; acc.mcache = {}; acc.data = null; acc.mkt = null;
+    loadAccountPage();
+    toast(t("Paper trading ripartito con {bal}", { bal: fusd(bal, 0) }));
+  };
   $("#acDays").onclick = (e) => { const b = e.target.closest("[data-days]"); if (b) { acc.days = +b.dataset.days; store("acc.days", acc.days); loadAccountPage(); } };
   $("#acMode").onclick = (e) => { const b = e.target.closest("[data-mode]"); if (b) { acc.mode = b.dataset.mode; store("acc.mode", acc.mode); renderAccountChart(); } };
   $("#acPrev").onclick = () => { acc.month = shiftMonth(acc.month, -1); acc.day = null; renderPnlCalendar(); };

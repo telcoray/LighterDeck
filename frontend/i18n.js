@@ -295,7 +295,6 @@ const EN = {
   "Chiave nel browser": "Key in the browser",
   "Soldi simulati sui prezzi veri di Lighter, salvati in questo browser.": "Simulated money on Lighter's real prices, kept in this browser.",
   "Conto Lighter #{n}: gli ordini sono firmati in questo browser e vanno direttamente a Lighter.": "Lighter account #{n}: orders are signed in this browser and go straight to Lighter.",
-  "Ricomincia o passa al live": "Start over or switch to live",
   "Gestisci la chiave": "Manage the key",
   "Volume": "Volume",
   "Il motore reagisce a ogni cambio del miglior prezzo nel book dei mercati con una regola attiva, cioè ogni pochi millisecondi; il conto si rilegge ogni 3 secondi e uno stop si sposta al massimo una volta al secondo.": "The engine reacts to every change of the best price in the order book of the markets with an active rule, every few milliseconds; the account is read again every 3 seconds and a stop moves at most once a second.",
