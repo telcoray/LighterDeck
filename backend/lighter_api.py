@@ -14,6 +14,7 @@ import collections
 import logging
 import math
 import time
+from dataclasses import dataclass
 
 import aiohttp
 
@@ -21,6 +22,38 @@ import candles as candles_mod
 import config
 
 log = logging.getLogger("lighter")
+
+QUOTE_BATCH_SIZE = 15
+
+
+@dataclass(frozen=True)
+class PlaceQuote:
+    market_id: int
+    client_order_index: int
+    size: float  # positive for buys, negative for sells
+    price: float
+
+
+@dataclass(frozen=True)
+class ModifyQuote:
+    market_id: int
+    order_index: int
+    size: float
+    price: float
+
+
+@dataclass(frozen=True)
+class CancelQuote:
+    market_id: int
+    order_index: int
+
+
+class QuoteBatchOutcomeUnknown(RuntimeError):
+    """Reconcile the signed transactions and live orders before submitting again."""
+
+    def __init__(self, tx_hashes):
+        super().__init__("quote batch outcome unknown")
+        self.tx_hashes = tuple(tx_hashes)
 
 
 def realized_pnl(fills, positions):
@@ -710,6 +743,67 @@ class LighterAPI:
             order_expiry=int(time.time() * 1000) + minutes * 60000, api_key_index=self.api_key_index,
         ), f"twap {'sell' if size < 0 else 'buy'} {abs(size)} {m.symbol} over {minutes}m")
         return coi
+
+    async def send_quote_batch(self, actions):
+        """Submit ordered quote actions on this key in one request.
+
+        Returns submission hashes in action order. The caller tracks execution
+        and order state separately, and reconciles ambiguous submissions.
+        """
+        import lighter
+
+        actions = tuple(actions)
+        if not 1 <= len(actions) <= QUOTE_BATCH_SIZE:
+            raise ValueError(f"quote batch size must be 1–{QUOTE_BATCH_SIZE}")
+        async with self._send_lock:
+            signer = self.signer
+            if not signer:
+                raise RuntimeError("trading disabled")
+            api_key_index = self.api_key_index
+            prepared = []
+            for action in actions:
+                params = {"market_index": action.market_id}
+                if isinstance(action, CancelQuote):
+                    prepared.append((signer.sign_cancel_order, dict(params, order_index=action.order_index)))
+                    continue
+                market = self.markets[action.market_id]
+                base_amount = market.size_int(action.size)
+                price = market.price_int(market.round_price(action.price))
+                if base_amount <= 0 or price <= 0:
+                    raise ValueError("quote size and price must be positive in exchange units")
+                params.update(base_amount=base_amount, price=price)
+                if isinstance(action, PlaceQuote):
+                    self._check_limits(abs(action.size) * action.price)
+                    params.update(client_order_index=action.client_order_index, is_ask=action.size < 0,
+                                  order_type=lighter.SignerClient.ORDER_TYPE_LIMIT,
+                                  time_in_force=lighter.SignerClient.ORDER_TIME_IN_FORCE_POST_ONLY)
+                    prepared.append((signer.sign_create_order, params))
+                elif isinstance(action, ModifyQuote):
+                    params.update(order_index=action.order_index)
+                    prepared.append((signer.sign_modify_order, params))
+                else:
+                    raise TypeError("unsupported quote action")
+
+            nonce = (await self._get("/api/v1/nextNonce", {
+                "account_index": self.account_index, "api_key_index": api_key_index,
+            }))["nonce"]
+            if self.signer is not signer:
+                raise RuntimeError("trading signer changed while preparing quote batch")
+            types, infos, signed_hashes = [], [], []
+            for offset, (sign, params) in enumerate(prepared):
+                tx_type, tx_info, tx_hash, err = sign(**params, nonce=nonce + offset, api_key_index=api_key_index)
+                if err:
+                    raise RuntimeError(f"quote batch action {offset + 1}: {err}")
+                types.append(tx_type)
+                infos.append(tx_info)
+                signed_hashes.append(tx_hash)
+            try:
+                response = await signer.send_tx_batch(types, infos)
+            except Exception as exc:
+                raise QuoteBatchOutcomeUnknown(signed_hashes) from exc
+            if response.code != 200 or len(response.tx_hash or ()) != len(actions):
+                raise QuoteBatchOutcomeUnknown(signed_hashes)
+            return tuple(response.tx_hash)
 
     async def basket_orders(self, orders):
         """Market orders on several markets, signed one after the other and sent in one sendTxBatch call.
