@@ -1659,3 +1659,7 @@ option { background: var(--surface); color: var(--text); }
 .ac-mode { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 14px; }
 .ac-mode b { font-weight: 500; color: var(--text); }
 .ac-mode .hint { margin: 0; flex: 1; } /* the buttons sit together on the right */
+
+/* the account card's Paper tag: amber like the paper dot, opens the paper window */
+#accIdx.paper-tag { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border: 1px solid color-mix(in srgb, var(--amber) 45%, transparent); border-radius: 10px; color: var(--amber); background: color-mix(in srgb, var(--amber) 10%, transparent); font-size: 11px; cursor: pointer; }
+#accIdx.paper-tag:hover, #accIdx.paper-tag:focus-visible { border-color: var(--amber); background: color-mix(in srgb, var(--amber) 18%, transparent); outline: none; }

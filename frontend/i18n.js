@@ -291,6 +291,7 @@ const EN = {
   "Lighter non ha ancora registrato la chiave: riprova tra poco": "Lighter hasn't registered the key yet: try again shortly",
   "Preferiti precedenti": "Previous favourites",
   "Altri preferiti": "More favourites",
+  "Paper trading: ricomincia o passa al live": "Paper trading: start over or switch to live",
   "Il server si sta riavviando, riprovo…": "The server is restarting, trying again…",
   "Ricollego la chiave…": "Reconnecting the key…",
   "Non riesco a ricollegare la chiave: ricarica la pagina tra poco": "Couldn't reconnect the key: reload the page in a moment",

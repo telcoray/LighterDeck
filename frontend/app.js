@@ -3474,6 +3474,10 @@ function renderAccount() {
   renderAccountHead();
   const has = !!account;
   $("#accIdx").textContent = has ? (Paper.on ? "Paper" : "#" + account.index) : "";
+  const tag = $("#accIdx"), paperTag = has && Paper.on; // in paper it opens the paper window, like the top-right pill
+  tag.classList.toggle("paper-tag", paperTag);
+  tag.tabIndex = paperTag ? 0 : -1;
+  tag.title = paperTag ? t("Paper trading: ricomincia o passa al live") : "";
   const liveInfo = Live.on && Live.info();
   $("#accEq").textContent = has ? account.total_value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—";
   const upnl = has ? account.positions.reduce((s, p) => s + p.upnl, 0) : null;
@@ -5371,6 +5375,8 @@ function wire() {
   // calendar
   $("#calOpen").onclick = () => switchView("cal");
   $("#accOpen").onclick = () => switchView("account");
+  $("#accIdx").onclick = () => Paper.on && openPaperModal();
+  $("#accIdx").onkeydown = (e) => { if (Paper.on && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); openPaperModal(); } };
   $("#acKey").onclick = () => openKeyDialog();
   $("#acLive").onclick = () => $("#paperLive").onclick();
   $("#acReset").onclick = () => { // the same start over as the paper dialog, with the balance it began with
