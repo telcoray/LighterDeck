@@ -773,3 +773,4 @@ Object.assign(DICTS.zh, {
   "Percentage of maximum size": "最大下单数量的百分比",
   "Percentage of reducible position": "可减仓数量的百分比",
 });
+Object.assign(DICTS.zh, { "Switch to paper trading": "切换到模拟交易", "Real trading is coming soon": "实盘交易即将推出" });

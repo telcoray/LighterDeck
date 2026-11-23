@@ -1663,3 +1663,17 @@ option { background: var(--surface); color: var(--text); }
 /* the account card's Paper tag: amber like the paper dot, opens the paper window */
 #accIdx.paper-tag { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border: 1px solid color-mix(in srgb, var(--amber) 45%, transparent); border-radius: 10px; color: var(--amber); background: color-mix(in srgb, var(--amber) 10%, transparent); font-size: 11px; cursor: pointer; }
 #accIdx.paper-tag:hover, #accIdx.paper-tag:focus-visible { border-color: var(--amber); background: color-mix(in srgb, var(--amber) 18%, transparent); outline: none; }
+
+/* Paper / Live in the top bar: one pill split by a slash, like Cross / Isolated. Both buttons are the same width and
+   cut along the same slanted line (their overlap), so the line sits in the middle; the side in use is lit */
+#accountPill { position: relative; gap: 0; padding: 0; overflow: hidden; --acc-slant: 8px; }
+#accountPill > button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 62px; height: 100%; padding: 0 10px;
+  background: none; border: 0; color: var(--muted); font: inherit; cursor: pointer; }
+#accountPill > button:first-child { clip-path: polygon(0 0, 100% 0, calc(100% - var(--acc-slant)) 100%, 0 100%); padding-right: calc(8px + var(--acc-slant) / 2); }
+#accountPill > button:last-child { margin-left: calc(var(--acc-slant) * -1); clip-path: polygon(var(--acc-slant) 0, 100% 0, 100% 100%, 0 100%); padding-left: calc(8px + var(--acc-slant) / 2); }
+#accountPill > button:not(.active) .dot { display: none; }
+#accountPill > button.active { background: var(--raised); color: var(--text); }
+#accountPill > button:not(.active):not(:disabled):hover { color: var(--text-2); }
+#accountPill > button:disabled { cursor: default; opacity: .45; }
+#accountPill::after { content: ""; position: absolute; top: 0; bottom: 0; left: 50%; width: 1px; background: var(--line-2);
+  transform: skewX(calc(atan2(var(--acc-slant), 24px) * -1)); pointer-events: none; }

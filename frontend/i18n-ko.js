@@ -773,3 +773,4 @@ Object.assign(DICTS.ko, {
   "Percentage of maximum size": "최대 주문 수량의 비율",
   "Percentage of reducible position": "줄일 수 있는 포지션의 비율",
 });
+Object.assign(DICTS.ko, { "Switch to paper trading": "모의 거래로 전환", "Real trading is coming soon": "실거래는 곧 제공됩니다" });

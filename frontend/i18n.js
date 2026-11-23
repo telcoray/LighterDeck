@@ -888,6 +888,8 @@ const EN = {
   "Ricomincia con": "Start over with",
   "Ricomincia": "Start over",
   "Passa al live": "Switch to live",
+  "Passa al paper trading": "Switch to paper trading",
+  "Il trading reale arriva presto": "Real trading is coming soon",
   "Conferma: ricomincia con {bal}": "Confirm: start over with {bal}",
   "Paper trading ripartito con {bal}": "Paper trading restarted with {bal}",
   "Trading live: ordini veri su Lighter": "Live trading: real orders on Lighter",

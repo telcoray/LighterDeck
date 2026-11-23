@@ -40,7 +40,7 @@
 </script>
 <style>html.i18n-pending body { visibility: hidden; }</style>
 <link rel="icon" href="favicon.svg?v=1" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=338">
+<link rel="stylesheet" href="style.css?v=339">
 <script src="vendor/lightweight-charts-4.2.0.standalone.production.js"></script>
 </head>
 <body>
@@ -74,7 +74,7 @@
     <svg viewBox="0 0 12 12" width="10" height="10"><rect x="2" y="2" width="3" height="8" fill="currentColor"/><rect x="7" y="2" width="3" height="8" fill="currentColor"/></svg>
     <span>Auto OFF</span>
   </button>
-  <button class="pill muted" id="accountPill" title="Collega un'API key"><i class="dot off"></i><span>Sola lettura</span></button>
+  <div class="pill muted" id="accountPill" role="group"><button type="button" data-acct="paper"><i class="dot paper"></i><span>Paper</span></button><button type="button" data-acct="live"><i class="dot off"></i><span>Live</span></button></div>
   <div class="theme-pick">
     <button class="theme-btn" id="themeBtn" title="Cambia tema"><span class="swatch" id="themeSwatch"></span></button>
     <div class="theme-menu hidden" id="themeMenu"></div>
@@ -838,13 +838,13 @@
 </div>
 
 <div class="toast hidden" id="toast" role="status" aria-live="polite"></div>
-<script src="i18n.js?v=338"></script>
-<script src="i18n-zh.js?v=338"></script>
-<script src="i18n-ko.js?v=338"></script>
-<script src="formulas.js?v=338"></script>
-<script src="paper.js?v=338"></script>
-<script src="live.js?v=338"></script>
-<script src="app.js?v=338"></script>
-<script src="picker.js?v=338"></script>
+<script src="i18n.js?v=339"></script>
+<script src="i18n-zh.js?v=339"></script>
+<script src="i18n-ko.js?v=339"></script>
+<script src="formulas.js?v=339"></script>
+<script src="paper.js?v=339"></script>
+<script src="live.js?v=339"></script>
+<script src="app.js?v=339"></script>
+<script src="picker.js?v=339"></script>
 </body>
 </html>

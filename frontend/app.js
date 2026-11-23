@@ -3488,15 +3488,19 @@ function renderAccount() {
   $("#accLimit").classList.toggle("hidden", !perOrder);
   $("#accLimitDt").classList.toggle("hidden", !perOrder);
   $("#accLimit").textContent = perOrder ? `${perOrder}%${has ? " · " + fusd((account.total_value * perOrder) / 100, 0) : ""}` : "—";
-  const pill = $("#accountPill");
-  pill.innerHTML = Paper.on ? `<i class="dot paper"></i><span>Paper</span>`
-    : liveInfo ? `<i class="dot"></i><span>${t("Account #{n}", { n: liveInfo.account_index })}${has ? " · " + fusd(account.total_value, 0) : ""}</span>`
-    : info.trading ? `<i class="dot"></i><span>${t("Account #{n}", { n: info.account_index })}</span>`
-    : `<i class="dot off"></i><span>${liveFirst() ? t("Collega Lighter") : t("Sola lettura")}</span>`;
+  // Paper / Live: the side in use is lit and carries the dot; the two buttons stay, so the mouse never loses them
+  const pill = $("#accountPill"), pb = pill.querySelector('[data-acct="paper"]'), lb = pill.querySelector('[data-acct="live"]');
+  const liveAcct = liveInfo ? liveInfo.account_index : info.trading && !Paper.on ? info.account_index : null;
+  pb.classList.toggle("active", Paper.on);
+  lb.classList.toggle("active", !Paper.on);
+  lb.querySelector(".dot").classList.toggle("off", Paper.on || liveAcct == null);
+  lb.disabled = paperOnly();
+  pb.title = Paper.on ? t("Paper trading: ricomincia o passa al live") : t("Passa al paper trading");
+  lb.title = paperOnly() ? t("Il trading reale arriva presto") : liveAcct != null
+    ? t("Account #{n}", { n: liveAcct }) + (has ? " · " + fusd(account.total_value, 0) : "") : Paper.on ? t("Passa al live") : t("Collega un'API key");
   pill.classList.toggle("muted", !info.trading);
   if (info.trading && !$("#keyModal").classList.contains("hidden")) renderKeyEquity();
   if (Paper.on && !$("#paperModal").classList.contains("hidden")) renderPaperModal();
-  pill.title = Paper.on ? t("Paper trading") : info.trading ? t("API key collegata") : t("Collega un'API key");
   renderPositions();
   renderTicket();
   renderMargin();
@@ -4431,7 +4435,6 @@ function applyPublic() {
     $("#pubShort").textContent = t("Trading su Lighter · chiave nel tuo browser");
   }
   $("#resNo").onclick = () => { $("#resVeil").classList.add("hidden"); $("#resModal").classList.add("hidden"); $("#geoPage").classList.remove("hidden"); };
-  $("#accountPill").title = info.browser_trading ? t("Collega il tuo account Lighter") : t("Versione pubblica in sola lettura");
 }
 const myEvents = () => (info && info.public ? load("myEvents", []) : []);
 
@@ -6309,7 +6312,13 @@ function wireHotkeys() {
 }
 
 function wireKeyDialog() {
-  $("#accountPill").onclick = () => (Paper.on ? openPaperModal() : (!info.public || Live.on || liveFirst()) && openKeyDialog());
+  $("#accountPill").onclick = (e) => {
+    const b = e.target.closest("[data-acct]");
+    if (!b || b.disabled) return;
+    if (b.dataset.acct === "paper") return Paper.on ? openPaperModal() : $("#keyPaper").onclick();
+    if (Paper.on) return $("#paperLive").onclick();
+    if (!info.public || Live.on || liveFirst()) openKeyDialog();
+  };
   $("#keyClose").onclick = dismissKeyDialog;
   $("#keyShade").onmousedown = dismissKeyDialog;
   document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("#keyModal").classList.contains("hidden")) dismissKeyDialog(); });
