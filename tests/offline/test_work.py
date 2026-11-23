@@ -130,7 +130,7 @@ async def main():
     check("iceberg: adds up exactly", abs(total - 1.0) < 1e-9 and r["id"] not in eng.rules, (total, api.sent))
     check("iceberg: one at a time, all at its price, as sells", not seen_two and all(s["price"] == 105.0 and s["size"] < 0 and s["post"] for s in api.sent), api.sent)
     sizes = [-s["size"] for s in api.sent]
-    check("iceberg: slices about 10% and not all the same", 8 <= len(sizes) <= 13 and len(set(sizes)) > 1 and all(s <= 0.2 for s in sizes), sizes)
+    check("iceberg: slices about 10% and not all the same", 8 <= len(sizes) <= 13 and len(set(sizes)) > 1 and all(s <= 0.12 + 10 / 105 + 1e-4 for s in sizes), sizes)
     # ---- partly filled, then cancelled by hand: stops, counted right
     eng, api, feed = fresh()
     r = eng.start_working("iceberg", 1, 1, 1.0, price=95.0, slice_pct=25)

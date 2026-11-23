@@ -20,6 +20,7 @@ import config
 import og
 from econ import Calendar
 from engine import Engine
+from engine_go import GoHost
 from feed import BookWatch, PriceFeed
 from lighter_api import LighterAPI
 from logos import Logos
@@ -38,8 +39,10 @@ calendar = Calendar()
 risk = RiskGuard(api, feed)
 logos = Logos()
 book = BookWatch()  # the order book's best prices, for the fast engine (config.ENGINE_FAST)
-engine = Engine(api, feed, calendar, risk, book=book)
-users = Users(api, feed, calendar, book)  # public site: visitors' automations
+# the automations run in the Go engine (ENGINE_GO) or here in Python
+go = GoHost(api, calendar) if config.ENGINE_GO else None
+engine = go.deck if go else Engine(api, feed, calendar, risk, book=book)
+users = Users(api, feed, calendar, book, go=go)  # public site: visitors' automations
 clients = set()
 
 
@@ -69,14 +72,20 @@ async def lifespan(app):
     feed.multipliers = {mid: m.multiplier for mid, m in api.markets.items()}
     book.multipliers = feed.multipliers
     calendar.stock_symbols = lambda: {m.symbol for m in api.markets.values() if "STOCK" in m.categories}
+    if go:
+        await go.start()
+        if api.signer:
+            go.set_deck_key(config.ACCOUNT_INDEX, config.API_KEY_INDEX, config.API_PRIVATE_KEY)
     tasks = [asyncio.create_task(t) for t in (feed.run(), calendar.run(), engine.run(), broadcast_loop(), pair_watch_loop(), recent_funding_loop())]
-    if config.ENGINE_FAST:
+    if config.ENGINE_FAST and not go:
         tasks.append(asyncio.create_task(book.run()))
     await users.start()
     yield
     for t in tasks:
         t.cancel()
     await users.close()
+    if go:
+        await go.close()
     await api.close()
 
 
@@ -159,7 +168,8 @@ async def latency():
     """How far this server is from Lighter: the price feed's ping round trip and the API's recent answer times."""
     t = sorted(api.timings)
     return {"ws_ms": feed.latency_ms, "api_ms": round(t[len(t) // 2], 1) if t else None, "api_samples": len(t),
-            "location": config.SERVER_LOCATION, "engine_fast": config.ENGINE_FAST}
+            "location": config.SERVER_LOCATION, "engine_fast": config.ENGINE_FAST or config.ENGINE_GO,
+            "engine": "go" if config.ENGINE_GO else "python"}
 
 
 @app.get("/api/info")
@@ -1177,6 +1187,8 @@ async def set_credentials(req: CredentialsReq):
     with os.fdopen(fd, "w") as f:
         json.dump({"account_index": req.account_index, "api_key_index": req.api_key_index, "private_key": key}, f)
     config.CREDENTIALS_SOURCE = "ui"
+    if go:
+        go.set_deck_key(req.account_index, req.api_key_index, key)
     engine.note(f"API key {req.api_key_index} added for account {req.account_index}", "warning")
     return await info()
 
@@ -1187,6 +1199,8 @@ async def delete_credentials():
         raise HTTPException(409, L("L'API key è impostata nel file env del server: rimuovila lì", "The API key is set in the server env file: remove it there"))
     engine.set_armed(False)
     await api.disconnect()
+    if go:
+        go.set_deck_key(None, None, None)
     engine.account = None
     config.CREDENTIALS_FILE.unlink(missing_ok=True)
     config.CREDENTIALS_SOURCE = None

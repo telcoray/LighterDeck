@@ -1,0 +1,81 @@
+[
+ {
+  "type": "managed_stop",
+  "market_id": 1,
+  "auto_remove": true,
+  "trail_pct": 1.5,
+  "initial_stop_pct": 2,
+  "id": "31f0043c",
+  "enabled": true,
+  "created": 1795449633.6944978,
+  "state": {
+   "side": 1,
+   "entry": 100.0,
+   "best": 102.5,
+   "stop": 101.0,
+   "size": 0.5,
+   "coi": 12345,
+   "oi": 67890,
+   "checked": 1.5,
+   "sent": 2.5
+  }
+ },
+ {
+  "type": "exit_plan",
+  "market_id": 1,
+  "levels": [
+   {
+    "price": 110.0,
+    "qty": 0.25
+   },
+   {
+    "price": 120,
+    "qty": 0.25
+   }
+  ],
+  "be_after_tp1": true,
+  "before": 0.0,
+  "size": 0.5,
+  "id": "caa08278",
+  "enabled": true,
+  "created": 1795449633.6952715,
+  "state": {}
+ },
+ {
+  "type": "chase",
+  "market_id": 1,
+  "side": 1,
+  "qty": 1.0,
+  "cap": null,
+  "until": null,
+  "then_market": false,
+  "reduce_only": false,
+  "id": "11005895",
+  "enabled": true,
+  "created": 1795449633.6959226,
+  "state": {
+   "filled": 0.0,
+   "coi": 555,
+   "order_index": null,
+   "price": 100.0,
+   "remaining": 1.0
+  }
+ },
+ {
+  "type": "event_trade",
+  "event_id": "x",
+  "market_id": 1,
+  "mode": "breakout",
+  "size_usd": 100,
+  "range_minutes": 15,
+  "stop_pct": null,
+  "custom_field": "kept",
+  "id": "b8ead70f",
+  "enabled": true,
+  "created": 1795449633.6971295,
+  "state": {},
+  "event_title": "USD CPI",
+  "event_ts": 1800000000,
+  "status": "waiting"
+ }
+]

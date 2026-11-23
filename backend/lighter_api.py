@@ -600,6 +600,8 @@ class LighterAPI:
     async def _send(self, coro_fn, what):
         async with self._send_lock:
             tx, resp, err = await coro_fn()
+            if err and "nonce" in str(err).lower():  # the Go engine (ENGINE_GO) took that nonce: a fresh one, once
+                tx, resp, err = await coro_fn()
         if err:
             raise RuntimeError(f"{what}: {err}")
         log.info("%s ok: %s", what, getattr(resp, "tx_hash", resp))

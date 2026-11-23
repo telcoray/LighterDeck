@@ -79,7 +79,12 @@ systemctl daemon-reload && systemctl enable --now lighterdeck
 ```
 python tests/run_offline.py     # finti al posto di Lighter: non esce nulla dal tuo computer
 python tests/testnet.py         # ordini veri sulla testnet di Lighter, senza soldi veri
+cd engine && go test ./...      # il motore Go, con dei finti
 ```
+
+`tests/offline/test_go.py` fa girare il motore Go come lo fa il server (compilalo prima, vedi sotto)
+contro un Lighter finto in locale, REST e websocket, e stampa quanto ci mette un nuovo miglior prezzo a
+diventare uno stop spostato.
 
 `tests/testnet.py` manda gli ordini più piccoli che ogni mercato accetta, con lo stesso codice con cui
 il deck fa trading, e alla fine ripulisce: leva con i decimali, cross/isolated, ordini limit spostati e
@@ -128,6 +133,20 @@ e fa girare stop gestiti, breakout e ordini Chase a ogni cambio del miglior prez
 massimo una volta al secondo. Spento di default; provalo prima sul testnet. `SERVER_LOCATION` (es. `Tokyo`)
 indica dove gira il server nella pagina Automazioni, accanto alla latenza misurata verso Lighter.
 
+`ENGINE_GO=1` fa girare le automazioni nel motore Go (`engine/`) al posto di quello Python: le stesse
+regole, lo stesso `rules.json` (ognuno dei due motori legge quello dell'altro), sempre in reazione al book
+come con `ENGINE_FAST`, e gli ordini firmati con il firmatario Go ufficiale di Lighter. Il server lo avvia,
+gli passa le chiavi su una connessione locale (127.0.0.1, con un token nuovo a ogni avvio) e lo riavvia se
+si ferma. Si compila con Go 1.26 o successivo:
+
+```
+cd engine && go build -o bin/ldengine ./cmd/ldengine
+```
+
+Per un server Linux, compilando da un altro computer: `GOOS=linux GOARCH=amd64 go build -o bin/ldengine ./cmd/ldengine`
+(`GOARCH=arm64` su un server ARM). `engine/bin/` è ignorata da git, quindi al deploy copia il binario accanto
+al codice. `ENGINE_GO_BIN` lo indica se sta altrove. Spento di default; provalo prima sul testnet.
+
 ## Sicurezza
 
 - La API key di Lighter può aprire e chiudere posizioni e prelevare verso il **tuo** wallet,
@@ -172,7 +191,9 @@ L'icona di traduzione del pulsante della lingua viene dai [Material Symbols](htt
 
 Gli ordini firmati nel browser usano il firmatario ufficiale di Lighter, compilato senza modifiche da
 [elliottech/lighter-go](https://github.com/elliottech/lighter-go) (Apache-2.0) in WebAssembly, con `wasm_exec.js` di Go
-(licenza in stile BSD): vedi `frontend/signer/README.md`.
+(licenza in stile BSD): vedi `frontend/signer/README.md`. Il motore Go (`engine/`) usa lo stesso firmatario.
+
+Il progetto del motore Go ha preso spunto dal backend Go di Hyperway, condiviso dal suo autore.
 
 ## Licenza
 

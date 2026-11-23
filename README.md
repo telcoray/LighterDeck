@@ -80,7 +80,12 @@ systemctl daemon-reload && systemctl enable --now lighterdeck
 ```
 python tests/run_offline.py     # fakes instead of Lighter: nothing leaves your computer
 python tests/testnet.py         # real orders on Lighter's testnet, no real money
+cd engine && go test ./...      # the Go engine, with fakes
 ```
+
+`tests/offline/test_go.py` runs the Go engine as the server does (build it first, see below) against a
+fake Lighter on localhost, REST and websocket, and prints how long a new best price takes to become a
+modified stop.
 
 `tests/testnet.py` sends the smallest orders each market accepts through the same code the deck trades
 with, and cleans up after itself: leverage with decimals, cross/isolated, limit orders moved and
@@ -128,6 +133,20 @@ price, with a stop moved at most once a second. Off by default; try it on testne
 `SERVER_LOCATION` (e.g. `Tokyo`) names where the server runs on the Automations page, next to its
 measured latency to Lighter.
 
+`ENGINE_GO=1` runs the automations in the Go engine (`engine/`) instead of the Python one: the same rules,
+the same `rules.json` (either engine reads the other's), always reacting to the order book as `ENGINE_FAST`
+does, and signing its orders with Lighter's official Go signer. The server starts it, sends it the keys
+over a local connection (127.0.0.1, a token made up at each start) and starts it again if it stops. Build
+it with Go 1.26 or later:
+
+```
+cd engine && go build -o bin/ldengine ./cmd/ldengine
+```
+
+For a Linux server built on another computer: `GOOS=linux GOARCH=amd64 go build -o bin/ldengine ./cmd/ldengine`
+(`GOARCH=arm64` on an ARM server). `engine/bin/` is git-ignored, so copy the binary next to the code when
+you deploy. `ENGINE_GO_BIN` points to it elsewhere. Off by default; try it on testnet first.
+
 ## Security
 
 - A Lighter API key can open and close positions and withdraw to **your own** wallet, but it
@@ -174,7 +193,9 @@ Charts by [TradingView Lightweight Charts](https://github.com/tradingview/lightw
 
 Orders signed in the browser use Lighter's official signer, built unchanged from
 [elliottech/lighter-go](https://github.com/elliottech/lighter-go) (Apache-2.0) to WebAssembly, with Go's `wasm_exec.js`
-(BSD-style licence): see `frontend/signer/README.md`.
+(BSD-style licence): see `frontend/signer/README.md`. The Go engine (`engine/`) links the same signer.
+
+The Go engine's design took cues from Hyperway's Go backend, shared by its author.
 
 ## License
 

@@ -47,6 +47,10 @@ SERVER_LOCATION = _env("SERVER_LOCATION", "")
 # the engine reacts to every best bid/ask change of the markets with an active rule (Lighter's order book
 # channel, an update every few ms) instead of looking every 3 seconds; off keeps the classic loop
 ENGINE_FAST = _env("ENGINE_FAST", "").lower() in ("1", "true", "yes")
+# the order engine in Go (engine/, built as engine/bin/ldengine): it runs every automation in place of engine.py,
+# reacting to the order book like ENGINE_FAST, and signs its orders itself. This server starts it (engine_go.py).
+ENGINE_GO = _env("ENGINE_GO", "").lower() in ("1", "true", "yes")
+ENGINE_GO_BIN = _env("ENGINE_GO_BIN", "")  # default: engine/bin/ldengine next to backend/
 REFERRAL_URL = _env("REFERRAL_URL", "https://app.lighter.xyz/?referral=7658993U&source=none")  # "open a Lighter account": the project's referral
 GITHUB_URL = "https://github.com/telcoray/LighterDeck"
 SITE_URL = _env("SITE_URL", "https://lighterdeck.xyz").rstrip("/")

@@ -33,8 +33,9 @@ TOKEN_CACHE = 2000  # tokens remembered at most (each valid for minutes)
 
 
 class Users:
-    def __init__(self, api, feed, calendar, book=None):
+    def __init__(self, api, feed, calendar, book=None, go=None):
         self.api, self.feed, self.calendar, self.book = api, feed, calendar, book
+        self.go = go  # engine_go.GoHost: the engines run in the Go engine
         self.engines = {}   # account -> Engine
         self._tasks = {}    # account -> its engine's loop
         self._tokens = {}   # auth token -> (account, api key index, valid until)
@@ -79,6 +80,10 @@ class Users:
                 log.warning("#%s automations not started: %s", account, e)
 
     async def _run(self, account, sealed):
+        if self.go:  # the Go engine signs with the key: it gets it decrypted, over its local connection
+            engine = await self.go.start_user(account, sealed["api_key_index"], self._open(account, sealed), self._dir(account))
+            self.engines[account] = engine
+            return engine
         api = UserAPI(self.api, account, sealed["api_key_index"])
         await api.connect(self._open(account, sealed))
         d = self._dir(account)
@@ -117,6 +122,8 @@ class Users:
         engine = self.engines.pop(account, None)
         if engine:
             await engine.api.close()
+        if self.go:
+            await self.go.stop_user(account)
         d = self._dir(account)
         if keep_rules:
             (d / "key.json").unlink(missing_ok=True)

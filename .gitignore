@@ -4,6 +4,9 @@ data/
 .env
 lighterdeck.env
 
+# the Go engine's build (engine/bin/ldengine)
+engine/bin/
+
 # python
 .venv/
 __pycache__/
