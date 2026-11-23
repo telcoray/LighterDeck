@@ -1674,11 +1674,12 @@ option { background: var(--surface); color: var(--text); }
 .acct-split > button:first-child { clip-path: polygon(0 0, 100% 0, calc(100% - var(--acc-slant)) 100%, 0 100%); padding-right: calc(8px + var(--acc-slant) / 2); }
 .acct-split > button:last-child { margin-left: calc(var(--acc-slant) * -1); clip-path: polygon(var(--acc-slant) 0, 100% 0, 100% 100%, 0 100%); padding-left: calc(8px + var(--acc-slant) / 2); }
 .acct-split > button:not(.active) .dot { display: none; }
-.acct-split > button.active { background: var(--raised); color: var(--text); }
-.acct-split > button:not(.active):not(:disabled):hover { color: var(--text-2); }
+.acct-split > button.active { color: var(--text); }
+.acct-split > button:not(.active):not(:disabled):hover { color: var(--text); background: color-mix(in srgb, var(--text) 6%, transparent); }
 .acct-split > button:disabled { cursor: default; opacity: .45; }
-/* Live, while in paper: a light green, the way out to the real account (softer than the full green Switch to live) */
-.acct-split > button[data-acct="live"]:not(.active):not(:disabled) { color: var(--text); background: color-mix(in srgb, var(--green) 9%, transparent); }
-.acct-split > button[data-acct="live"]:not(.active):not(:disabled):hover { color: var(--text); background: color-mix(in srgb, var(--green) 16%, transparent); }
+/* one tint for the whole pill: amber in paper, green in live; the dot marks the side in use */
+.acct-split.is-paper { border-color: color-mix(in srgb, var(--amber) 45%, transparent); background: color-mix(in srgb, var(--amber) 10%, transparent); }
+.acct-split.is-live { border-color: color-mix(in srgb, var(--green) 40%, transparent); background: color-mix(in srgb, var(--green) 10%, transparent); }
+.acct-split > button[data-acct="live"]:not(:disabled) { color: var(--text); }
 .acct-split::after { content: ""; position: absolute; top: 0; bottom: 0; left: calc(50% - var(--acc-slant) / 2 - 0.5px); width: 1px; background: var(--line-2);
   transform: skewX(calc(atan2(var(--acc-slant), var(--acc-h)) * -1)); pointer-events: none; }

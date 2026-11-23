@@ -3483,11 +3483,14 @@ function renderAccount() {
   $("#accLimit").classList.toggle("hidden", !perOrder);
   $("#accLimitDt").classList.toggle("hidden", !perOrder);
   $("#accLimit").textContent = perOrder ? `${perOrder}%${has ? " · " + fusd((account.total_value * perOrder) / 100, 0) : ""}` : "—";
-  // Paper / Live, in the top bar and on the account card: the side in use is lit and carries the dot; the two
-  // buttons stay, so the mouse never loses them
+  // Paper / Live, in the top bar and, in paper only, on the account card: the whole pill amber in paper and green
+  // in live, the dot on the side in use; the two buttons stay, so the mouse never loses them
   const liveAcct = liveInfo ? liveInfo.account_index : info.trading && !Paper.on ? info.account_index : null;
+  $("#accSwitch").classList.toggle("hidden", !Paper.on);
   for (const el of $$(".acct-split")) {
     const pb = el.querySelector('[data-acct="paper"]'), lb = el.querySelector('[data-acct="live"]');
+    el.classList.toggle("is-paper", Paper.on);
+    el.classList.toggle("is-live", !Paper.on && liveAcct != null);
     pb.classList.toggle("active", Paper.on);
     lb.classList.toggle("active", !Paper.on);
     lb.querySelector(".dot").classList.toggle("off", Paper.on || liveAcct == null);
