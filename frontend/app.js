@@ -3473,11 +3473,6 @@ function renderAccount() {
   renderNetBadge();
   renderAccountHead();
   const has = !!account;
-  $("#accIdx").textContent = has ? (Paper.on ? "Paper" : "#" + account.index) : "";
-  const tag = $("#accIdx"), paperTag = has && Paper.on; // in paper it opens the paper window, like the top-right pill
-  tag.classList.toggle("paper-tag", paperTag);
-  tag.tabIndex = paperTag ? 0 : -1;
-  tag.title = paperTag ? t("Paper trading: ricomincia o passa al live") : "";
   const liveInfo = Live.on && Live.info();
   $("#accEq").textContent = has ? account.total_value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—";
   const upnl = has ? account.positions.reduce((s, p) => s + p.upnl, 0) : null;
@@ -3488,16 +3483,20 @@ function renderAccount() {
   $("#accLimit").classList.toggle("hidden", !perOrder);
   $("#accLimitDt").classList.toggle("hidden", !perOrder);
   $("#accLimit").textContent = perOrder ? `${perOrder}%${has ? " · " + fusd((account.total_value * perOrder) / 100, 0) : ""}` : "—";
-  // Paper / Live: the side in use is lit and carries the dot; the two buttons stay, so the mouse never loses them
-  const pill = $("#accountPill"), pb = pill.querySelector('[data-acct="paper"]'), lb = pill.querySelector('[data-acct="live"]');
+  // Paper / Live, in the top bar and on the account card: the side in use is lit and carries the dot; the two
+  // buttons stay, so the mouse never loses them
   const liveAcct = liveInfo ? liveInfo.account_index : info.trading && !Paper.on ? info.account_index : null;
-  pb.classList.toggle("active", Paper.on);
-  lb.classList.toggle("active", !Paper.on);
-  lb.querySelector(".dot").classList.toggle("off", Paper.on || liveAcct == null);
-  lb.disabled = paperOnly();
-  pb.title = Paper.on ? t("Paper trading: ricomincia o passa al live") : t("Passa al paper trading");
-  lb.title = paperOnly() ? t("Il trading reale arriva presto") : liveAcct != null
-    ? t("Account #{n}", { n: liveAcct }) + (has ? " · " + fusd(account.total_value, 0) : "") : Paper.on ? t("Passa al live") : t("Collega un'API key");
+  for (const el of $$(".acct-split")) {
+    const pb = el.querySelector('[data-acct="paper"]'), lb = el.querySelector('[data-acct="live"]');
+    pb.classList.toggle("active", Paper.on);
+    lb.classList.toggle("active", !Paper.on);
+    lb.querySelector(".dot").classList.toggle("off", Paper.on || liveAcct == null);
+    lb.disabled = paperOnly();
+    pb.title = Paper.on ? t("Paper trading: ricomincia o passa al live") : t("Passa al paper trading");
+    lb.title = paperOnly() ? t("Il trading reale arriva presto") : liveAcct != null
+      ? t("Account #{n}", { n: liveAcct }) + (has ? " · " + fusd(account.total_value, 0) : "") : Paper.on ? t("Passa al live") : t("Collega un'API key");
+  }
+  const pill = $("#accountPill");
   pill.classList.toggle("muted", !info.trading);
   if (info.trading && !$("#keyModal").classList.contains("hidden")) renderKeyEquity();
   if (Paper.on && !$("#paperModal").classList.contains("hidden")) renderPaperModal();
@@ -5378,8 +5377,6 @@ function wire() {
   // calendar
   $("#calOpen").onclick = () => switchView("cal");
   $("#accOpen").onclick = () => switchView("account");
-  $("#accIdx").onclick = () => Paper.on && openPaperModal();
-  $("#accIdx").onkeydown = (e) => { if (Paper.on && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); openPaperModal(); } };
   $("#acKey").onclick = () => openKeyDialog();
   $("#acLive").onclick = () => $("#paperLive").onclick();
   $("#acReset").onclick = () => { // the same start over as the paper dialog, with the balance it began with
@@ -6076,12 +6073,12 @@ function setPaper(on) {
   if (!$("#btab-funding").classList.contains("hidden")) loadFundingPaid();
 }
 
-// under the ticket's button, on a live site: the way to paper when nothing is connected, and back to live from paper
+// under the ticket's button, on a live site: the way to paper when nothing is connected
 function renderTicketSwitch() {
   const el = $("#tkSwitch");
-  const show = liveFirst() && !Live.on && (Paper.on || !info.trading);
+  const show = liveFirst() && !Live.on && !Paper.on && !info.trading; // from paper, Paper / Live does it
   el.classList.toggle("hidden", !show);
-  if (show) el.textContent = Paper.on ? t("Soldi finti · passa al tuo account Lighter") : t("Oppure prova in paper trading");
+  if (show) el.textContent = t("Oppure prova in paper trading");
 }
 
 // a live site's first visit: how to connect; closing it keeps the paper account the site starts in
@@ -6312,7 +6309,7 @@ function wireHotkeys() {
 }
 
 function wireKeyDialog() {
-  $("#accountPill").onclick = (e) => {
+  $("#accountPill").onclick = $("#accSwitch").onclick = (e) => {
     const b = e.target.closest("[data-acct]");
     if (!b || b.disabled) return;
     if (b.dataset.acct === "paper") return Paper.on ? openPaperModal() : $("#keyPaper").onclick();

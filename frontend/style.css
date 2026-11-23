@@ -1661,19 +1661,20 @@ option { background: var(--surface); color: var(--text); }
 .ac-mode .hint { margin: 0; flex: 1; } /* the buttons sit together on the right */
 
 /* the account card's Paper tag: amber like the paper dot, opens the paper window */
-#accIdx.paper-tag { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border: 1px solid color-mix(in srgb, var(--amber) 45%, transparent); border-radius: 10px; color: var(--amber); background: color-mix(in srgb, var(--amber) 10%, transparent); font-size: 11px; cursor: pointer; }
-#accIdx.paper-tag:hover, #accIdx.paper-tag:focus-visible { border-color: var(--amber); background: color-mix(in srgb, var(--amber) 18%, transparent); outline: none; }
 
-/* Paper / Live in the top bar: one pill split by a slash, like Cross / Isolated. Both buttons are the same width and
+/* Paper / Live in the top bar and on the account card: one pill split by a slash, like Cross / Isolated. Both buttons are the same width and
    cut along the same slanted line (their overlap), so the line sits in the middle; the side in use is lit */
-#accountPill { position: relative; gap: 0; padding: 0; overflow: hidden; --acc-slant: 8px; }
-#accountPill > button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 62px; height: 100%; padding: 0 10px;
+.acct-split { position: relative; display: inline-flex; align-items: stretch; height: 26px; gap: 0; padding: 0; overflow: hidden; --acc-slant: 8px; --acc-h: 24px;
+  border: 1px solid var(--line-2); border-radius: 13px; font-size: 11px; white-space: nowrap; }
+.card-head .acct-split { align-self: center; height: 22px; --acc-h: 20px; --acc-slant: 7px; }
+.card-head .acct-split > button { min-width: 54px; }
+.acct-split > button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 62px; height: 100%; padding: 0 10px;
   background: none; border: 0; color: var(--muted); font: inherit; cursor: pointer; }
-#accountPill > button:first-child { clip-path: polygon(0 0, 100% 0, calc(100% - var(--acc-slant)) 100%, 0 100%); padding-right: calc(8px + var(--acc-slant) / 2); }
-#accountPill > button:last-child { margin-left: calc(var(--acc-slant) * -1); clip-path: polygon(var(--acc-slant) 0, 100% 0, 100% 100%, 0 100%); padding-left: calc(8px + var(--acc-slant) / 2); }
-#accountPill > button:not(.active) .dot { display: none; }
-#accountPill > button.active { background: var(--raised); color: var(--text); }
-#accountPill > button:not(.active):not(:disabled):hover { color: var(--text-2); }
-#accountPill > button:disabled { cursor: default; opacity: .45; }
-#accountPill::after { content: ""; position: absolute; top: 0; bottom: 0; left: 50%; width: 1px; background: var(--line-2);
-  transform: skewX(calc(atan2(var(--acc-slant), 24px) * -1)); pointer-events: none; }
+.acct-split > button:first-child { clip-path: polygon(0 0, 100% 0, calc(100% - var(--acc-slant)) 100%, 0 100%); padding-right: calc(8px + var(--acc-slant) / 2); }
+.acct-split > button:last-child { margin-left: calc(var(--acc-slant) * -1); clip-path: polygon(var(--acc-slant) 0, 100% 0, 100% 100%, 0 100%); padding-left: calc(8px + var(--acc-slant) / 2); }
+.acct-split > button:not(.active) .dot { display: none; }
+.acct-split > button.active { background: var(--raised); color: var(--text); }
+.acct-split > button:not(.active):not(:disabled):hover { color: var(--text-2); }
+.acct-split > button:disabled { cursor: default; opacity: .45; }
+.acct-split::after { content: ""; position: absolute; top: 0; bottom: 0; left: 50%; width: 1px; background: var(--line-2);
+  transform: skewX(calc(atan2(var(--acc-slant), var(--acc-h)) * -1)); pointer-events: none; }
