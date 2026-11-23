@@ -4016,11 +4016,19 @@ async function fetchAccount(days, kind) {
   return d;
 }
 
+// the deck's own key (on the server): equity curve, PnL calendar, per-market stats. Paper or a key in the browser:
+// the account's figures, and the latest fills per market
+const accLite = () => !(info.trading && !Paper.on) && !!account;
 async function loadAccountPage() {
-  const has = !!info.trading;
-  $("#acEmpty").classList.toggle("hidden", has);
-  $("#acBody").classList.toggle("hidden", !has);
-  if (!has) return;
+  const deck = !!info.trading && !Paper.on, lite = accLite();
+  $("#acEmpty").classList.toggle("hidden", deck || lite);
+  $("#acBody").classList.toggle("hidden", !(deck || lite));
+  $$("#acBody .ac-deck").forEach((g) => g.classList.toggle("hidden", !deck));
+  $("#acLite").classList.toggle("hidden", !lite);
+  $("#acLighter").classList.toggle("hidden", Paper.on);
+  $("#acTodayLabel").textContent = lite ? t("Realizzato oggi") : t("PnL di oggi");
+  if (lite) { renderAccountHead(); return loadAccountLite(); }
+  if (!deck) return;
   $$("#acDays button").forEach((b) => b.classList.toggle("active", +b.dataset.days === acc.days));
   $$("#acMode button").forEach((b) => b.classList.toggle("active", b.dataset.mode === acc.mode));
   renderAccountHead();
@@ -4040,6 +4048,46 @@ async function loadAccountPage() {
     if (m && days === acc.days) { acc.mkt = m; renderAccountMarkets(); renderAccountStats(); }
   }
   preloadAccount();
+}
+
+// the Account page open while the account arrives or changes (paper, live, another key), and its fills now and then
+function accountPageFollow() {
+  if (curView !== "account") return;
+  const key = Paper.on ? "paper" : account ? "live:" + account.index : "none";
+  if (key !== acc.pageKey) { acc.pageKey = key; loadAccountPage(); return; }
+  if (accLite() && Date.now() - (acc.liteAt || 0) > 30000) loadAccountLite();
+}
+
+async function loadAccountLite() {
+  acc.liteAt = Date.now();
+  const paper = Paper.on;
+  $("#acLiteTitle").textContent = paper ? t("Paper trading") : t("Chiave nel browser");
+  $("#acLiteNote").textContent = paper ? t("Soldi simulati sui prezzi veri di Lighter, salvati in questo browser.")
+    : t("Conto Lighter #{n}: gli ordini sono firmati in questo browser e vanno direttamente a Lighter.", { n: account.index });
+  $("#acLiteManage").textContent = paper ? t("Ricomincia o passa al live") : t("Gestisci la chiave");
+  const fills = await api("/trades").catch(() => null);
+  if (!fills || !accLite()) return;
+  const day = utcDay(new Date()), by = new Map();
+  let today = null;
+  for (const f of fills) {
+    const r = by.get(f.symbol) || { sym: f.symbol, n: 0, usd: 0, pnl: 0, fee: 0, hasPnl: false };
+    r.n += 1;
+    r.usd += +f.usd || 0;
+    r.fee += +f.fee || 0;
+    if (f.pnl !== null && f.pnl !== undefined) { r.pnl += +f.pnl; r.hasPnl = true; }
+    by.set(f.symbol, r);
+    if (f.pnl !== null && f.pnl !== undefined && utcDay(new Date(f.ts > 1e12 ? f.ts : f.ts * 1000)) === day) today = { pnl: (today ? today.pnl : 0) + +f.pnl };
+  }
+  acc.liteToday = today;
+  renderAccountHead();
+  const rows = [...by.values()].sort((a, b) => Math.abs(b.pnl) - Math.abs(a.pnl) || b.usd - a.usd);
+  const fee = paper && rows.some((r) => r.fee);
+  $("#acLiteMarkets").innerHTML = rows.length
+    ? `<table class="table"><thead><tr><th>${t("Mercato")}</th><th class="r">${t("Esecuzioni")}</th><th class="r">${t("Volume")}</th>${fee ? `<th class="r">${t("Commissioni")}</th>` : ""}<th class="r">${t("PnL realizzato")}</th></tr></thead><tbody>`
+      + rows.map((r) => `<tr><td class="mk"><span class="sym">${ico(r.sym, "xs")}${esc(r.sym)}</span></td><td class="r">${r.n}</td><td class="r">${fusd(r.usd, 0)}</td>`
+        + (fee ? `<td class="r">${fusd(r.fee)}</td>` : "")
+        + `<td class="r ${r.hasPnl ? cls(r.pnl) : ""}">${r.hasPnl ? fsigned(r.pnl) : "—"}</td></tr>`).join("") + "</tbody></table>"
+    : `<p class="muted">${t("Nessuna esecuzione ancora.")}</p>`;
 }
 
 function showAccountStats(d) {
@@ -4070,9 +4118,9 @@ function renderAccountHead() {
   const upnl = account.positions.reduce((s, p) => s + p.upnl, 0);
   const notional = account.positions.reduce((s, p) => s + Math.abs(p.value), 0);
   const used = marginState(account).usedPct;
-  $("#acIdx").textContent = "#" + account.index;
+  $("#acIdx").textContent = account.paper ? t("Paper trading") : "#" + account.index;
   $("#acEq").textContent = fusd(eq);
-  const today = acc.data && acc.data.days.find((x) => x.day === utcDay(new Date()));
+  const today = accLite() ? acc.liteToday : acc.data && acc.data.days.find((x) => x.day === utcDay(new Date()));
   const td = $("#acToday");
   td.textContent = today ? fsigned(today.pnl) : "—";
   td.className = today ? cls(today.pnl) : "";
@@ -4892,6 +4940,7 @@ function connect() {
     working = msg.working || {};
     const accChanged = stopsChanged || JSON.stringify(msg.account) !== JSON.stringify(account);
     account = msg.account;
+    accountPageFollow();
     panels.forEach((p) => p.tick());
     renderMarketBar();
     renderTicker();
@@ -5103,7 +5152,7 @@ function syncUrl(push) {
 }
 
 function switchView(v, opts = {}) {
-  if ((info.public || Paper.on) && ["activity", "account"].includes(v)) v = "trade"; // live account only
+  if ((info.public || Paper.on) && v === "activity") v = "trade"; // live account only
   $$("#views button").forEach((b) => b.classList.toggle("active", b.dataset.view === v));
   $$(".view").forEach((s) => s.classList.toggle("hidden", s.id !== "view-" + v));
   if (v === "markets") renderMarkets();
@@ -5340,7 +5389,8 @@ function wire() {
 
   // calendar
   $("#calOpen").onclick = () => switchView("cal");
-  $("#accOpen").onclick = () => (Paper.on ? openPaperModal() : switchView("account"));
+  $("#accOpen").onclick = () => switchView("account");
+  $("#acLiteManage").onclick = () => (Paper.on ? openPaperModal() : openKeyDialog());
   $("#acDays").onclick = (e) => { const b = e.target.closest("[data-days]"); if (b) { acc.days = +b.dataset.days; store("acc.days", acc.days); loadAccountPage(); } };
   $("#acMode").onclick = (e) => { const b = e.target.closest("[data-mode]"); if (b) { acc.mode = b.dataset.mode; store("acc.mode", acc.mode); renderAccountChart(); } };
   $("#acPrev").onclick = () => { acc.month = shiftMonth(acc.month, -1); acc.day = null; renderPnlCalendar(); };
