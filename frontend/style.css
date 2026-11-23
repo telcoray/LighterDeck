@@ -959,7 +959,7 @@ button.pill:hover { border-color: var(--line-3); color: var(--text); }
   .views button { flex: none; }
   .kill, .theme-btn, .lang-btn { white-space: nowrap; flex: none; }
   #accountPill:not(.muted) { display: none; }
-  #accountPill.muted { display: inline-flex; }
+  #accountPill.muted { display: inline-grid; }
 
   /* favourites strip and market stats scroll sideways */
 
@@ -1662,9 +1662,10 @@ option { background: var(--surface); color: var(--text); }
 
 /* the account card's Paper tag: amber like the paper dot, opens the paper window */
 
-/* Paper / Live in the top bar and on the account card: one pill split by a slash, like Cross / Isolated. Both buttons are the same width and
-   cut along the same slanted line (their overlap), so the line sits in the middle; the side in use is lit */
-.acct-split { position: relative; display: inline-flex; align-items: stretch; height: 26px; gap: 0; padding: 0; overflow: hidden; --acc-slant: 8px; --acc-h: 24px;
+/* Paper / Live in the top bar and on the account card: one pill split by a slash, like Cross / Isolated. Two equal
+   columns, so the sides never shift with the words; Live reaches back over Paper by the slant and both are cut along
+   the same slanted line, which a thin line draws half a slant left of the middle; the side in use is lit */
+.acct-split { position: relative; display: inline-grid; grid-template-columns: 1fr 1fr; align-items: stretch; height: 26px; gap: 0; padding: 0; overflow: hidden; --acc-slant: 8px; --acc-h: 24px;
   border: 1px solid var(--line-2); border-radius: 13px; font-size: 11px; white-space: nowrap; }
 .card-head .acct-split { align-self: center; height: 22px; --acc-h: 20px; --acc-slant: 7px; }
 .card-head .acct-split > button { min-width: 54px; }
@@ -1679,5 +1680,5 @@ option { background: var(--surface); color: var(--text); }
 /* Live, while in paper: a light green, the way out to the real account (softer than the full green Switch to live) */
 .acct-split > button[data-acct="live"]:not(.active):not(:disabled) { color: var(--text); background: color-mix(in srgb, var(--green) 9%, transparent); }
 .acct-split > button[data-acct="live"]:not(.active):not(:disabled):hover { color: var(--text); background: color-mix(in srgb, var(--green) 16%, transparent); }
-.acct-split::after { content: ""; position: absolute; top: 0; bottom: 0; left: 50%; width: 1px; background: var(--line-2);
+.acct-split::after { content: ""; position: absolute; top: 0; bottom: 0; left: calc(50% - var(--acc-slant) / 2 - 0.5px); width: 1px; background: var(--line-2);
   transform: skewX(calc(atan2(var(--acc-slant), var(--acc-h)) * -1)); pointer-events: none; }
