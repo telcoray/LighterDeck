@@ -1586,6 +1586,105 @@ function wireToolbarFit() {
   new MutationObserver(() => { cancelAnimationFrame(raf); raf = requestAnimationFrame(fitToolbar); }).observe($("#tfs"), { childList: true });
 }
 
+// ---------- a favourite's chart on hover ----------
+// Resting the pointer on a favourite for a moment shows its last 24 hours in 15-minute candles, under it; a spread
+// shows its ratio. Candles are kept a minute per market, so moving along the bar doesn't ask Lighter again.
+const PEEK_TF = "15m", PEEK_BARS = 96, PEEK_TTL = 60000, PEEK_DELAY = 280;
+const peek = { chart: null, series: null, sym: null, timer: 0, cache: new Map() };
+const peekMouse = matchMedia("(hover: hover) and (pointer: fine)");
+async function peekBars(sym) {
+  const hit = peek.cache.get(sym);
+  if (hit && Date.now() - hit.at < PEEK_TTL) return hit.bars;
+  const get = (m) => api(`/candles?market_id=${m.id}&resolution=${PEEK_TF}&count=${PEEK_BARS}`);
+  const pr = pairOf(sym);
+  let bars;
+  if (pr) { // the ratio of the two markets' candles, where both have a bar
+    const [a, b] = await Promise.all([get(pr[0]), get(pr[1])]);
+    const bm = new Map(b.map((c) => [c.time, c]));
+    bars = a.filter((c) => bm.has(c.time) && bm.get(c.time).close).map((c) => {
+      const d = bm.get(c.time), open = c.open / d.open, close = c.close / d.close;
+      return { time: c.time, open, close, high: Math.max(open, close, c.high / d.low), low: Math.min(open, close, c.low / d.high) };
+    });
+  } else {
+    bars = await get(bySymbol[sym]);
+  }
+  peek.cache.set(sym, { at: Date.now(), bars });
+  return bars;
+}
+function peekHead(sym) {
+  const pr = pairOf(sym), m = bySymbol[sym];
+  let price = null, chg = null, dec = m;
+  if (pr) {
+    const [pa, pb] = [prices[pr[0].id], prices[pr[1].id]];
+    const xa = pa && (pa.last || pa.mark), xb = pb && (pb.last || pb.mark);
+    price = xa && xb ? xa / xb : null;
+    chg = pa && pb ? ((1 + pa.change / 100) / (1 + pb.change / 100) - 1) * 100 : null;
+    dec = price ? { price_decimals: ratioDecimals(price) } : null;
+  } else if (m && prices[m.id]) {
+    price = prices[m.id].last || prices[m.id].mark;
+    chg = prices[m.id].change;
+  }
+  const icon = pr ? `<span class="pair-ico">${ico(pr[0].symbol, "xs")}${ico(pr[1].symbol, "xs")}</span>` : ico(sym, "xs");
+  return `${icon}<b>${esc(sym)}</b><span class="num">${price ? fp(price, dec) : "—"}</span>`
+    + `<span class="chg ${chg !== null ? cls(chg) : ""}">${chg !== null ? fpct(chg) : ""}</span><span class="tf">24h · ${PEEK_TF}</span>`;
+}
+async function showPeek(el) {
+  const sym = el.dataset.sym, box = $("#tkPeek");
+  peek.sym = sym;
+  if (!peek.chart) {
+    peek.chart = LightweightCharts.createChart($(".tkp-chart", box), {
+      autoSize: true, handleScroll: false, handleScale: false,
+      layout: { background: { color: "transparent" }, fontSize: 10, fontFamily: "JetBrains Mono, monospace" },
+      rightPriceScale: { scaleMargins: { top: 0.08, bottom: 0.06 } },
+      timeScale: { timeVisible: true, secondsVisible: false, fixLeftEdge: true, fixRightEdge: true },
+      crosshair: { mode: 0, vertLine: { visible: false, labelVisible: false }, horzLine: { visible: false, labelVisible: false } },
+    });
+    peek.series = peek.chart.addCandlestickSeries({ borderVisible: false, priceLineStyle: 2, priceLineWidth: 1 });
+  }
+  peek.chart.applyOptions(chartTheme());
+  peek.series.applyOptions({ upColor: C.green, downColor: C.red, wickUpColor: C.green, wickDownColor: C.red });
+  $(".tkp-head", box).innerHTML = peekHead(sym);
+  const r = el.getBoundingClientRect();
+  box.style.left = Math.max(8, Math.min(r.left, innerWidth - 328)) + "px";
+  box.style.top = r.bottom + 6 + "px";
+  box.classList.add("loading");
+  box.classList.remove("hidden");
+  const bars = await peekBars(sym).catch(() => null);
+  if (peek.sym !== sym) return; // the pointer moved on meanwhile
+  if (!bars || !bars.length) { hidePeek(); return; }
+  const pr = pairOf(sym), m = bySymbol[sym], d = pr ? ratioDecimals(bars[bars.length - 1].close) : decimals(m);
+  peek.series.applyOptions({ priceFormat: { type: "price", precision: d, minMove: 1 / 10 ** d } });
+  peek.series.setData(bars);
+  peek.chart.timeScale().fitContent();
+  box.classList.remove("loading");
+}
+function hidePeek() {
+  clearTimeout(peek.timer);
+  peek.sym = null;
+  $("#tkPeek").classList.add("hidden");
+}
+function wireTickerPeek() {
+  const box = $("#ticker");
+  box.addEventListener("pointermove", (e) => {
+    if (!peekMouse.matches || e.pointerType !== "mouse" || tickerDrag) return;
+    const el = e.target.closest(".tk");
+    const sym = el && el.dataset.sym;
+    if (sym === (peek.sym || peek.pending)) return;
+    clearTimeout(peek.timer);
+    peek.pending = sym;
+    if (!sym) { hidePeek(); return; }
+    if (peek.sym) { showPeek(el); return; } // already open: it follows the pointer along the bar at once
+    // the bar is redrawn every second with the prices: the favourite is found again by its name
+    peek.timer = setTimeout(() => {
+      const now = box.querySelector(`.tk[data-sym="${CSS.escape(sym)}"]`);
+      if (peek.pending === sym && now) showPeek(now);
+    }, PEEK_DELAY);
+  });
+  box.addEventListener("pointerleave", () => { peek.pending = null; hidePeek(); });
+  box.addEventListener("pointerdown", () => { peek.pending = null; hidePeek(); }); // a click or a drag
+  box.addEventListener("scroll", hidePeek, { passive: true });
+}
+
 // favourites row: drag an item sideways to reorder (a plain click still selects the market)
 let tickerDrag = null, tickerDragEnd = 0;
 function wireTickerDrag() {
@@ -5067,6 +5166,7 @@ function wire() {
   $("#mktSelect").onclick = () => ($("#picker").classList.contains("hidden") ? openPalette() : closePalette());
   wireTickerDrag();
   wireTickerScroll();
+  wireTickerPeek();
   wireChangelog();
   wireAutoPage();
   wireToolbarFit();
