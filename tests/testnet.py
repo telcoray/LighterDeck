@@ -286,70 +286,11 @@ class Run:
 
     async def quote_batch(self):
         """Quote both sides, reprice once, cancel and verify exchange order state."""
+        from quote_cycle import quote_cycle
+
         mid = self.mids[0]
-        market = self.api.markets[mid]
-        size = self.size(mid)
-        first_id = self.api._coi()
-        client_ids = (first_id, first_id + 1)
+        await quote_cycle(self.api, mid, self.size(mid), self.position, info, check)
 
-        async def quotes(offset):
-            book = await self.api.orderbook(mid)
-            bid, ask = book["bids"][0][0], book["asks"][0][0]
-            prices = market.round_price(bid * (1 - offset)), market.round_price(ask * (1 + offset))
-            if not 0 < prices[0] < bid <= ask < prices[1]:
-                raise RuntimeError("book or tick size cannot support the test quotes")
-            return prices
-
-        async def resting(prices):
-            orders = {order["client_order_index"]: order for order in await self.orders(mid)}
-            pair = [orders.get(coi) for coi in client_ids]
-            if all(order and market.price_int(order["price"]) == market.price_int(price)
-                   and market.size_int(order["remaining"]) == market.size_int(size)
-                   and order["is_ask"] == bool(side)
-                   for side, (order, price) in enumerate(zip(pair, prices))):
-                return pair
-
-        async def submit(label, actions, confirm):
-            start = time.perf_counter()
-            hashes = await self.api.send_quote_batch(actions)
-            ack = time.perf_counter()
-            confirmed = await until(confirm, 15, every=1)
-            info(f"{label}: {len(hashes)} hashes in {(ack - start) * 1000:.0f} ms, "
-                 f"order state {'observed' if confirmed else 'unconfirmed'} after "
-                 f"{(time.perf_counter() - start) * 1000:.0f} ms")
-            if not confirmed:
-                raise RuntimeError(f"{label} not confirmed")
-            check(label, True)
-            return confirmed
-
-        async def canceled():
-            outcomes = [await self.api.order_outcome(mid, coi) for coi in client_ids]
-            return all(out and "cancel" in out["status"] and out["filled"] == 0 for out in outcomes)
-
-        if await self.position(mid) or await self.orders(mid):
-            raise RuntimeError("quote_batch requires a flat market with no active orders")
-        prices = await quotes(0.03)
-        try:
-            orders = await submit("both quotes resting", [
-                lighter_api.PlaceQuote(mid, client_ids[0], size, prices[0]),
-                lighter_api.PlaceQuote(mid, client_ids[1], -size, prices[1]),
-            ], lambda: resting(prices))
-            moved = await quotes(0.02)
-            if any(market.price_int(old) == market.price_int(new) for old, new in zip(prices, moved)):
-                moved = await quotes(0.04)
-            if any(market.price_int(old) == market.price_int(new) for old, new in zip(prices, moved)):
-                raise RuntimeError("book movement did not produce two distinct new quote prices")
-            await submit("both quote prices updated", [
-                lighter_api.ModifyQuote(mid, order["order_index"], size, price)
-                for order, price in zip(orders, moved)
-            ], lambda: resting(moved))
-            await submit("both quotes canceled without fills", [
-                lighter_api.CancelQuote(mid, order["order_index"]) for order in orders
-            ], canceled)
-        finally:
-            for order in await self.orders(mid):
-                if order["client_order_index"] in client_ids:
-                    await self.api.cancel_order(mid, order["order_index"])
 
     async def entry(self):
         """Market entry with SL and TP attached, the stop moved, the position closed"""

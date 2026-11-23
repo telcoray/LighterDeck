@@ -32,6 +32,7 @@ class PlaceQuote:
     client_order_index: int
     size: float  # positive for buys, negative for sells
     price: float
+    order_expiry: int | None = None
 
 
 @dataclass(frozen=True)
@@ -777,6 +778,8 @@ class LighterAPI:
                     params.update(client_order_index=action.client_order_index, is_ask=action.size < 0,
                                   order_type=lighter.SignerClient.ORDER_TYPE_LIMIT,
                                   time_in_force=lighter.SignerClient.ORDER_TIME_IN_FORCE_POST_ONLY)
+                    if action.order_expiry is not None:
+                        params["order_expiry"] = action.order_expiry
                     prepared.append((signer.sign_create_order, params))
                 elif isinstance(action, ModifyQuote):
                     params.update(order_index=action.order_index)
