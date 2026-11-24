@@ -1031,7 +1031,7 @@ const CHART_ELEMENTS = [
   ["labels", "Testo sulle linee del grafico"], ["orders", "Linee ordini"], ["stop", "Stop gestito"], ["position", "Linea posizione"],
   ["liq", "Prezzo di liquidazione"], ["mark", "Linea prezzo mark"], ["events", "Eventi macro"], ["fills", "I tuoi fill"], ["alerts", "Alert di prezzo"], ["zscore", "Z-score degli spread"], ["preview", "Anteprima ticket"],
 ];
-let chartEls = { labels: false, orders: true, stop: true, position: true, liq: true, mark: false, events: true, fills: true, alerts: true, zscore: true, preview: true, ...load("chartEls", {}) };
+let chartEls = { labels: false, orders: false, stop: false, position: false, liq: true, mark: false, events: true, fills: true, alerts: true, zscore: true, preview: false, ...load("chartEls", {}) };
 let openOrders = {}; // market id -> open orders on Lighter, shared by the chart lines and the Orders tab
 const fade = (c) => (/^#[0-9a-f]{6}$/i.test(c) ? c + "b0" : c); // hex colour at ~70% for provisional lines
 // a trigger order that isn't reduce-only opens a position: it is no SL or TP
