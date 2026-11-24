@@ -1751,7 +1751,7 @@ function wireTickerDrag() {
 // ---------- order book: live stream straight from Lighter's websocket ----------
 // Snapshot on subscribe, then deltas (size 0 removes a level). Each update's begin_nonce
 // must match the previous nonce; on a gap we resubscribe for a fresh snapshot.
-const book = { ws: null, market: null, asks: new Map(), bids: new Map(), nonce: null, dirty: false, live: false };
+const book = { ws: null, market: null, asks: new Map(), bids: new Map(), nonce: null, dirty: false, live: false, trades: [], liqs: [] };
 
 function bookConnect() {
   if (book.ws || !info.ws_url) return;
@@ -1761,6 +1761,7 @@ function bookConnect() {
   ws.onmessage = (ev) => {
     const msg = JSON.parse(ev.data);
     if (msg.type === "ping") { ws.send(JSON.stringify({ type: "pong" })); return; }
+    if (msg.type && msg.type.endsWith("/trade")) return bookTrades(msg);
     if (!msg.type || !msg.type.endsWith("order_book") || !book.market) return;
     if (msg.channel && msg.channel !== `order_book:${book.market.id}`) return;
     const ob = msg.order_book;
@@ -1788,12 +1789,16 @@ function bookSubscribe(m, resync = false) {
   if (!book.ws || book.ws.readyState !== 1 || !m) return;
   if (book.market && (book.market.id !== m.id || resync)) {
     book.ws.send(JSON.stringify({ type: "unsubscribe", channel: `order_book/${book.market.id}` }));
+    book.ws.send(JSON.stringify({ type: "unsubscribe", channel: `trade/${book.market.id}` }));
   }
   book.market = m;
   book.nonce = null;
   book.asks.clear();
   book.bids.clear();
+  book.trades = [];
+  book.liqs = [];
   book.ws.send(JSON.stringify({ type: "subscribe", channel: `order_book/${m.id}` }));
+  book.ws.send(JSON.stringify({ type: "subscribe", channel: `trade/${m.id}` }));
 }
 
 function loadBook() {
@@ -1826,6 +1831,7 @@ function bookLevels(map, asks, g, n) {
 function renderBook() {
   if (!book.dirty || !showBook || !book.market) return;
   book.dirty = false;
+  if (bookTab === "trades") return renderTape();
   const m = book.market, k = bookGroupK(m), d = Math.max(0, decimals(m) - k);
   const g = k ? 10 ** -decimals(m) * 10 ** k : 0;
   const fit = (el) => Math.max(1, Math.floor(el.clientHeight / BOOK_ROW) || 14);
@@ -1854,11 +1860,71 @@ function renderBook() {
   }
 }
 
+// ---------- the latest trades, from the same stream: the snapshot brings the last 50 and the recent
+// liquidations, updates bring the new ones. A buy is a taker buying (the maker was the ask).
+let bookTab = load("bookTab", "book"), tradeView = load("tradeView", "both"), tradeMin = load("tradeMin", 0), tradeKind = load("tradeKind", "all");
+const TRADE_KEEP = 200;
+function bookTrades(msg) {
+  const m = book.market;
+  if (!m || (msg.channel && msg.channel !== `trade:${m.id}`)) return;
+  const conv = (x) => ({ id: x.trade_id, price: +x.price / (m.multiplier || 1), size: +x.size * (m.multiplier || 1),
+    usd: +x.usd_amount, buy: !!x.is_maker_ask, liq: x.type === "liquidation" || x.type === "deleverage", at: x.timestamp });
+  const add = (list, xs) => {
+    const seen = new Set(list.map((x) => x.id));
+    const fresh = (xs || []).map(conv).filter((x) => !seen.has(x.id));
+    return [...fresh, ...list].sort((x, y) => y.at - x.at || y.id - x.id).slice(0, TRADE_KEEP);
+  };
+  if (msg.type === "subscribed/trade") { book.trades = []; book.liqs = []; }
+  book.trades = add(book.trades, msg.trades);
+  book.liqs = add(book.liqs, [...(msg.liquidation_trades || []), ...(msg.trades || []).filter((x) => x.type === "liquidation" || x.type === "deleverage")]);
+  book.dirty = true;
+}
+
+// the size filter: the market's coin, or dollars when the book shows dollars
+const tradeMins = () => (bookUnit === "usd" ? [0, 100, 1000, 10000, 100000, 1000000] : [0, 0.01, 0.02, 0.05, 0.1, 1, 10, 100]);
+const fminLabel = (v) => (!v ? t("Tutti") : "> " + (bookUnit === "usd" ? "$" + (v >= 1e6 ? v / 1e6 + "M" : v >= 1e3 ? v / 1e3 + "K" : v) : v));
+
+function renderTape() {
+  const m = book.market, el = $("#tradeList");
+  const usd = bookUnit === "usd";
+  const min = tradeMins().includes(tradeMin) ? tradeMin : 0;
+  $("#tradeMin span").textContent = fminLabel(min);
+  $("#tradeKind span").textContent = tradeKind === "liq" ? t("Liquidazioni") : t("Tutti");
+  $("#tradeSizeHead").textContent = `Size ${usd ? "USD" : m.symbol}`;
+  const n = Math.max(1, Math.floor(el.clientHeight / BOOK_ROW) || 20);
+  const today = new Date().toDateString();
+  const when = (ms) => {
+    const d = new Date(ms), p2 = (v) => String(v).padStart(2, "0");
+    return d.toDateString() === today ? `${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())}`
+      : `${p2(d.getMonth() + 1)}/${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())}`;
+  };
+  const list = (tradeKind === "liq" ? book.liqs : book.trades)
+    .filter((x) => (tradeView === "both" || (tradeView === "bids") === x.buy) && (usd ? x.usd : x.size) > min).slice(0, n);
+  el.innerHTML = list.length ? list.map((x) => `<div class="lvl tr ${x.buy ? "buy" : "sell"}${x.liq ? " liq" : ""}"><span>${fp(x.price, m)}</span>`
+    + `<span>${usd ? x.usd.toLocaleString("en-US", { maximumFractionDigits: x.usd >= 100 ? 0 : 2 }) : fsize(x.size, m)}</span><span>${when(x.at)}</span></div>`).join("")
+    : `<div class="trade-none">${book.live ? t("Nessun trade") : "—"}</div>`;
+}
+
+function setBookTab(tab) {
+  bookTab = tab;
+  store("bookTab", tab);
+  $("#book").dataset.tab = tab;
+  $$("#bookTabs button").forEach((b) => { b.classList.toggle("active", b.dataset.tab === tab); b.setAttribute("aria-selected", String(b.dataset.tab === tab)); });
+  closeBookMenu();
+  setBookView(tab === "trades" ? tradeView : bookView);
+}
+
 function setBookView(v) {
-  bookView = v;
-  store("bookView", v);
+  if (bookTab === "trades") { tradeView = v; store("tradeView", v); }
+  else { bookView = v; store("bookView", v); }
   $("#book").dataset.view = v;
-  $$("#bookViews button").forEach((b) => { b.classList.toggle("active", b.dataset.view === v); b.setAttribute("aria-checked", String(b.dataset.view === v)); });
+  const trades = bookTab === "trades";
+  const titles = { both: trades ? "Acquisti e vendite" : "Bid e ask", bids: trades ? "Solo acquisti" : "Solo bid", asks: trades ? "Solo vendite" : "Solo ask" };
+  $$("#bookViews button").forEach((b) => {
+    b.classList.toggle("active", b.dataset.view === v);
+    b.setAttribute("aria-checked", String(b.dataset.view === v));
+    b.title = t(titles[b.dataset.view]);
+  });
   book.dirty = true;
   renderBook();
 }
@@ -1884,7 +1950,19 @@ function openBookMenu(btn, items) {
 function closeBookMenu() { $("#bookMenu").classList.add("hidden"); }
 
 function wireBook() {
-  setBookView(["both", "bids", "asks"].includes(bookView) ? bookView : "both");
+  if (!["both", "bids", "asks"].includes(bookView)) bookView = "both";
+  if (!["both", "bids", "asks"].includes(tradeView)) tradeView = "both";
+  setBookTab(bookTab === "trades" ? "trades" : "book");
+  $("#bookTabs").onclick = (e) => { const b = e.target.closest("[data-tab]"); if (b) setBookTab(b.dataset.tab); };
+  $("#tradeMin").onclick = (e) => {
+    e.stopPropagation();
+    openBookMenu($("#tradeMin"), tradeMins().map((v) => [fminLabel(v), v === tradeMin || (!v && !tradeMins().includes(tradeMin)), () => { tradeMin = v; store("tradeMin", v); }]));
+  };
+  $("#tradeKind").onclick = (e) => {
+    e.stopPropagation();
+    const pick = (k) => () => { tradeKind = k; store("tradeKind", k); };
+    openBookMenu($("#tradeKind"), [[t("Tutti"), tradeKind !== "liq", pick("all")], [t("Liquidazioni"), tradeKind === "liq", pick("liq")]]);
+  };
   $("#bookViews").onclick = (e) => { const b = e.target.closest("[data-view]"); if (b) setBookView(b.dataset.view); };
   $("#bookUnit").onclick = (e) => {
     e.stopPropagation();

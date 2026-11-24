@@ -40,7 +40,7 @@
 </script>
 <style>html.i18n-pending body { visibility: hidden; }</style>
 <link rel="icon" href="favicon.svg?v=1" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=350">
+<link rel="stylesheet" href="style.css?v=351">
 <script src="vendor/lightweight-charts-4.2.0.standalone.production.js"></script>
 </head>
 <body>
@@ -162,20 +162,28 @@
       <div class="stage">
         <div class="charts" id="charts"></div>
         <aside class="book hidden" id="book">
+          <div class="book-tabs" id="bookTabs" role="tablist">
+            <button type="button" data-tab="book" role="tab">Order book</button>
+            <button type="button" data-tab="trades" role="tab">Ultimi trade</button>
+          </div>
           <div class="book-ctl">
             <div class="book-views" id="bookViews" role="radiogroup" aria-label="Vista del book">
               <button type="button" data-view="both" role="radio" title="Bid e ask"><i class="a"></i><i class="b"></i></button>
               <button type="button" data-view="bids" role="radio" title="Solo bid"><i class="b"></i><i class="b"></i></button>
               <button type="button" data-view="asks" role="radio" title="Solo ask"><i class="a"></i><i class="a"></i></button>
             </div>
-            <button type="button" class="book-dd" id="bookUnit" title="Size nella moneta del mercato o in dollari"><span>—</span><svg viewBox="0 0 10 10"><path d="M2 3.5l3 3 3-3"/></svg></button>
-            <button type="button" class="book-dd" id="bookGroup" title="Raggruppa i prezzi"><span>—</span><svg viewBox="0 0 10 10"><path d="M2 3.5l3 3 3-3"/></svg></button>
+            <button type="button" class="book-dd book-only" id="bookUnit" title="Size nella moneta del mercato o in dollari"><span>—</span><svg viewBox="0 0 10 10"><path d="M2 3.5l3 3 3-3"/></svg></button>
+            <button type="button" class="book-dd book-only" id="bookGroup" title="Raggruppa i prezzi"><span>—</span><svg viewBox="0 0 10 10"><path d="M2 3.5l3 3 3-3"/></svg></button>
+            <button type="button" class="book-dd trades-only" id="tradeMin" title="Solo i trade sopra questa size"><span>Tutti</span><svg viewBox="0 0 10 10"><path d="M2 3.5l3 3 3-3"/></svg></button>
+            <button type="button" class="book-dd trades-only" id="tradeKind" title="Tutti i trade o solo le liquidazioni"><span>Tutti</span><svg viewBox="0 0 10 10"><path d="M2 3.5l3 3 3-3"/></svg></button>
             <div class="book-menu hidden" id="bookMenu" role="menu"></div>
           </div>
-          <div class="book-head"><span>Prezzo</span><span>Size</span><span>Totale</span></div>
-          <div class="book-side asks" id="bookAsks"></div>
-          <div class="book-mid" id="bookMid">—</div>
-          <div class="book-side bids" id="bookBids"></div>
+          <div class="book-head book-only"><span>Prezzo</span><span>Size</span><span>Totale</span></div>
+          <div class="book-head trades-only"><span>Prezzo</span><span id="tradeSizeHead">Size</span><span>Ora</span></div>
+          <div class="trade-list trades-only" id="tradeList"></div>
+          <div class="book-side asks book-only" id="bookAsks"></div>
+          <div class="book-mid book-only" id="bookMid">—</div>
+          <div class="book-side bids book-only" id="bookBids"></div>
         </aside>
       </div>
 
@@ -847,13 +855,13 @@
 </div>
 
 <div class="toast hidden" id="toast" role="status" aria-live="polite"></div>
-<script src="i18n.js?v=350"></script>
-<script src="i18n-zh.js?v=350"></script>
-<script src="i18n-ko.js?v=350"></script>
-<script src="formulas.js?v=350"></script>
-<script src="paper.js?v=350"></script>
-<script src="live.js?v=350"></script>
-<script src="app.js?v=350"></script>
-<script src="picker.js?v=350"></script>
+<script src="i18n.js?v=351"></script>
+<script src="i18n-zh.js?v=351"></script>
+<script src="i18n-ko.js?v=351"></script>
+<script src="formulas.js?v=351"></script>
+<script src="paper.js?v=351"></script>
+<script src="live.js?v=351"></script>
+<script src="app.js?v=351"></script>
+<script src="picker.js?v=351"></script>
 </body>
 </html>

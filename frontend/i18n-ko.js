@@ -775,3 +775,4 @@ Object.assign(DICTS.ko, {
 });
 Object.assign(DICTS.ko, { "Switch to paper trading": "모의 거래로 전환", "Real trading is coming soon": "실거래는 곧 제공됩니다" });
 Object.assign(DICTS.ko, { "Book view": "호가창 보기", "Bids and asks": "매수와 매도", "Bids only": "매수만", "Asks only": "매도만", "Size in the market's coin or in dollars": "수량을 마켓 코인 또는 달러로 표시", "Group prices": "가격 묶기" });
+Object.assign(DICTS.ko, { "Latest trades": "최근 체결", "Only trades above this size": "이 수량 이상의 체결만", "All trades or liquidations only": "전체 체결 또는 청산만", "Liquidations": "청산", "Buys and sells": "매수와 매도", "Buys only": "매수만", "Sells only": "매도만", "No trades": "체결 없음" });
