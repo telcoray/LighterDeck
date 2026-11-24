@@ -13,6 +13,25 @@ const TF_SECS = { "1m": 60, "3m": 180, "5m": 300, "15m": 900, "30m": 1800, "1h":
 const DEFAULT_TFS = ["1m", "5m", "15m", "30m", "1h", "4h", "12h", "1d"];
 let shownTfs = load("tfs", DEFAULT_TFS).filter((t) => ALL_TFS.includes(t));
 
+// The charts' times in the computer's own time zone, like the calendar (the library alone writes UTC).
+// Only the labels change: the bars are still Lighter's UTC buckets, so a day's bar starts at midnight UTC.
+const pad2 = (n) => String(n).padStart(2, "0");
+const hhmm = (d, secs) => `${pad2(d.getHours())}:${pad2(d.getMinutes())}${secs ? ":" + pad2(d.getSeconds()) : ""}`;
+function localTick(time, type) {
+  if (typeof time !== "number") return null;
+  const d = new Date(time * 1000);
+  if (type === 0) return String(d.getFullYear());
+  if (type === 1) return d.toLocaleDateString(LOCALE, { month: "short" });
+  if (type === 2) return String(d.getDate());
+  return hhmm(d, type === 4);
+}
+function localStamp(time) {
+  if (typeof time !== "number") return typeof time === "string" ? time : `${time.year}-${pad2(time.month)}-${pad2(time.day)}`;
+  const d = new Date(time * 1000);
+  return `${d.getDate()} ${d.toLocaleDateString(LOCALE, { month: "short" })} '${String(d.getFullYear()).slice(2)}  ${hhmm(d)}`;
+}
+const LOCAL_TIME = { localization: { timeFormatter: localStamp }, timeScale: { tickMarkFormatter: localTick } };
+
 // start (UTC seconds) of the bar containing ts, matching the backend's buckets
 function barStart(tf, ts) {
   if (tf === "1w") { const day = Math.floor(ts / 86400); return (day - ((day + 3) % 7)) * 86400; }
@@ -206,6 +225,7 @@ class Panel {
       crosshair: { mode: 0, vertLine: { style: 2 }, horzLine: { style: 2 } },
     });
     this.chart.applyOptions(chartTheme());
+    this.chart.applyOptions(LOCAL_TIME);
     this.series = this.chart.addCandlestickSeries({
       upColor: C.green, downColor: C.red, borderVisible: false, wickUpColor: C.green, wickDownColor: C.red,
       priceLineStyle: 2, priceLineWidth: 1, // last-price line and label take the candle colour
@@ -1450,8 +1470,8 @@ function fundTip(p) {
   if (!rate) { tip.classList.add("hidden"); return; }
   const who = (v) => (v > 0 ? t("i long pagano gli short") : v < 0 ? t("gli short pagano i long") : "");
   const line = (label, v) => `<div class="ft-row"><span>${label}</span><b class="${v > 0 ? "up" : v < 0 ? "down" : ""}">${fpctf(v, 4)}</b></div>${v ? `<div class="ft-who">${who(v)}</div>` : ""}`;
-  // in UTC, like the chart's time axis
-  tip.innerHTML = `<div class="ft-time">${new Date(p.time * 1000).toLocaleString(LOCALE, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "UTC" })} UTC</div>`
+  // in local time, like the chart's time axis
+  tip.innerHTML = `<div class="ft-time">${new Date(p.time * 1000).toLocaleString(LOCALE, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</div>`
     + line(t("Funding dell'ora"), rate.value) + (cum ? line(t("Cumulato"), cum.value) : "");
   tip.classList.remove("hidden");
   // at the top, on the half away from the pointer: never over the hour being read
@@ -1479,6 +1499,7 @@ async function loadFundingHistory() {
       handleScroll: false, handleScale: false,
     });
     fundView.cum = fundView.chart.addLineSeries({ priceScaleId: "left", lineWidth: 1.5, priceFormat: pct, lastValueVisible: false, priceLineVisible: false });
+    fundView.chart.applyOptions(LOCAL_TIME);
     fundView.rate = fundView.chart.addBaselineSeries({ baseValue: { type: "price", price: 0 }, lineWidth: 1.5, priceFormat: pct, priceLineVisible: false });
     fundView.chart.subscribeCrosshairMove(fundTip);
   }
@@ -1642,6 +1663,7 @@ async function showPeek(el) {
       timeScale: { timeVisible: true, secondsVisible: false, fixLeftEdge: true, fixRightEdge: true },
       crosshair: { mode: 0, vertLine: { visible: false, labelVisible: false }, horzLine: { visible: false, labelVisible: false } },
     });
+    peek.chart.applyOptions(LOCAL_TIME);
     peek.series = peek.chart.addCandlestickSeries({ borderVisible: false, priceLineStyle: 2, priceLineWidth: 1 });
   }
   peek.chart.applyOptions(chartTheme());
@@ -4364,6 +4386,7 @@ function renderAccountChart() {
     handleScroll: false, handleScale: false,
   });
   acc.chart.applyOptions(chartTheme());
+  if (acc.days <= 7) acc.chart.applyOptions(LOCAL_TIME); // hours in local time; longer ranges are UTC days, as on Lighter
   const pnl = acc.mode === "pnl";
   // PnL: green above zero, red below; equity: one line
   acc.line = pnl
@@ -5806,7 +5829,7 @@ function utcOffset() {
 
 function clock() {
   const d = new Date();
-  $("#sbClock").textContent = d.toISOString().slice(11, 19) + " UTC";
+  $("#sbClock").textContent = `${hhmm(d, true)} ${utcOffset()}`;
   // "Live data" turns amber when no prices have come for a few seconds (the server sends them every second)
   const stale = !lastTick || Date.now() - lastTick > 5000, live = $(".statusbar .live");
   live.classList.toggle("stale", stale);
