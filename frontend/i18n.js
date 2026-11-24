@@ -255,7 +255,7 @@ const EN = {
   "Solo ask": "Asks only",
   "Size nella moneta del mercato o in dollari": "Size in the market's coin or in dollars",
   "Raggruppa i prezzi": "Group prices",
-  "Ultimi trade": "Latest trades",
+  "Vista dei trade": "Trades view",
   "Solo i trade sopra questa size": "Only trades above this size",
   "Tutti i trade o solo le liquidazioni": "All trades or liquidations only",
   "Liquidazioni": "Liquidations",

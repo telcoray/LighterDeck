@@ -305,7 +305,7 @@ body.reordering { cursor: grabbing; user-select: none; }
 .live { display: inline-flex; align-items: center; gap: 7px; color: var(--green); font-size: 11px; }
 .live .dot { width: 5px; height: 5px; box-shadow: none; }
 /* a narrow chart column (a computer window just above the phone layout): icons only, then a second line */
-.toolbar.tb-icons .sep, .toolbar.tb-icons #elBtn > span, .toolbar.tb-icons #obToggle > span { display: none; }
+.toolbar.tb-icons .sep, .toolbar.tb-icons #elBtn > span, .toolbar.tb-icons #obToggle > span, .toolbar.tb-icons #tapeToggle > span { display: none; }
 .toolbar.tb-wrap { height: auto; flex-wrap: wrap; row-gap: 4px; padding: 6px 10px; }
 .toolbar.tb-wrap .tfs { flex-wrap: wrap; }
 
@@ -376,12 +376,7 @@ body.reordering { cursor: grabbing; user-select: none; }
 .book-menu button:hover { background: var(--raised); color: var(--text); }
 .book-menu button.on { color: var(--text); }
 .book-menu b { font-weight: 400; color: var(--text-2); }
-/* Order book / Latest trades */
-.book-tabs { display: flex; gap: 2px; padding: 6px 6px 0; font-family: var(--ui); }
-.book-tabs button { height: 24px; padding: 0 9px; border-radius: 5px; color: var(--muted); font-size: 11px; font-weight: 500; }
-.book-tabs button:hover { color: var(--text); }
-.book-tabs button.active { color: var(--text); background: var(--raised); box-shadow: inset 0 0 0 1px var(--line-2); }
-.book[data-tab="trades"] .book-only, .book:not([data-tab="trades"]) .trades-only { display: none !important; }
+/* the trades panel */
 .trade-list { flex: 1; min-height: 0; overflow: hidden; padding-top: 2px; }
 .lvl.tr.buy span:first-child { color: var(--green); }
 .lvl.tr.sell span:first-child { color: var(--red); }
@@ -996,7 +991,7 @@ button.pill:hover { border-color: var(--line-3); color: var(--text); }
 
   /* toolbar wraps onto two lines instead of cutting timeframes off */
   .toolbar { height: auto; flex-wrap: wrap; row-gap: 4px; padding: 6px 8px; }
-  .toolbar .sep, .toolbar > .grow, .toolbar .layouts, #obToggle { display: none; }
+  .toolbar .sep, .toolbar > .grow, .toolbar .layouts, #obToggle, #tapeToggle { display: none; }
   .tfs { flex-wrap: wrap; }
   .tf-menu { left: auto; right: 0; }
 

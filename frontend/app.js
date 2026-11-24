@@ -85,7 +85,7 @@ let panelCfg = load("panels", [
 let layout = load("layout", matchMedia("(hover: none), (max-width: 768px)").matches ? "1" : "4");
 let activeIdx = Math.min(load("active", 0), 3);
 let favs = load("favs", ["BTC", "ETH", "LIT", "WTI", "XAU"]); // first visit
-let showBook = load("book", false);
+let showBook = load("book", false), showTape = load("tape", false);
 const ticket = { side: "buy", kind: "market" };
 
 function load(k, d) { try { const v = localStorage.getItem("ld." + k); return v === null ? d : JSON.parse(v); } catch { return d; } }
@@ -1204,7 +1204,7 @@ function setActive(i) {
   renderTicker();
   renderTitle();
   if (curView === "trade" && activeMarket()) syncUrl(false); // /trade/<market> follows the selected chart
-  if (showBook) loadBook();
+  loadBook();
   renderEcon(); // the calendar follows the selected market
 }
 
@@ -1781,7 +1781,7 @@ function bookConnect() {
   ws.onclose = () => {
     book.ws = null;
     book.live = false;
-    if (showBook) setTimeout(bookConnect, 2000);
+    if (showBook || showTape) setTimeout(bookConnect, 2000);
   };
 }
 
@@ -1801,8 +1801,9 @@ function bookSubscribe(m, resync = false) {
   book.ws.send(JSON.stringify({ type: "subscribe", channel: `trade/${m.id}` }));
 }
 
+// the stream is open while the book or the trades show
 function loadBook() {
-  if (!showBook) return;
+  if (!showBook && !showTape) return;
   if (!book.ws) bookConnect();
   else if (!book.market || book.market !== activeMarket()) bookSubscribe(activeMarket());
 }
@@ -1829,9 +1830,13 @@ function bookLevels(map, asks, g, n) {
 }
 
 function renderBook() {
-  if (!book.dirty || !showBook || !book.market) return;
+  if (!book.dirty || !book.market) return;
   book.dirty = false;
-  if (bookTab === "trades") return renderTape();
+  if (showTape) renderTape();
+  if (showBook) drawBook();
+}
+
+function drawBook() {
   const m = book.market, k = bookGroupK(m), d = Math.max(0, decimals(m) - k);
   const g = k ? 10 ** -decimals(m) * 10 ** k : 0;
   const fit = (el) => Math.max(1, Math.floor(el.clientHeight / BOOK_ROW) || 14);
@@ -1862,7 +1867,7 @@ function renderBook() {
 
 // ---------- the latest trades, from the same stream: the snapshot brings the last 50 and the recent
 // liquidations, updates bring the new ones. A buy is a taker buying (the maker was the ask).
-let bookTab = load("bookTab", "book"), tradeView = load("tradeView", "both"), tradeMin = load("tradeMin", 0), tradeKind = load("tradeKind", "all");
+let tradeView = load("tradeView", "both"), tradeUnit = load("tradeUnit", "base"), tradeMin = load("tradeMin", 0), tradeKind = load("tradeKind", "all");
 const TRADE_KEEP = 200;
 function bookTrades(msg) {
   const m = book.market;
@@ -1880,17 +1885,17 @@ function bookTrades(msg) {
   book.dirty = true;
 }
 
-// the size filter: the market's coin, or dollars when the book shows dollars
-const tradeMins = () => (bookUnit === "usd" ? [0, 100, 1000, 10000, 100000, 1000000] : [0, 0.01, 0.02, 0.05, 0.1, 1, 10, 100]);
-const fminLabel = (v) => (!v ? t("Tutti") : "> " + (bookUnit === "usd" ? "$" + (v >= 1e6 ? v / 1e6 + "M" : v >= 1e3 ? v / 1e3 + "K" : v) : v));
+// the size filter, in the unit the trades show: the market's coin or dollars
+const tradeMins = () => (tradeUnit === "usd" ? [0, 100, 1000, 10000, 100000, 1000000] : [0, 0.01, 0.02, 0.05, 0.1, 1, 10, 100]);
+const fminLabel = (v) => (!v ? t("Tutti") : "> " + (tradeUnit === "usd" ? "$" + (v >= 1e6 ? v / 1e6 + "M" : v >= 1e3 ? v / 1e3 + "K" : v) : v));
 
 function renderTape() {
   const m = book.market, el = $("#tradeList");
-  const usd = bookUnit === "usd";
+  const usd = tradeUnit === "usd";
   const min = tradeMins().includes(tradeMin) ? tradeMin : 0;
+  $("#tradeUnit span").textContent = usd ? "USD" : m.symbol;
   $("#tradeMin span").textContent = fminLabel(min);
   $("#tradeKind span").textContent = tradeKind === "liq" ? t("Liquidazioni") : t("Tutti");
-  $("#tradeSizeHead").textContent = `Size ${usd ? "USD" : m.symbol}`;
   const n = Math.max(1, Math.floor(el.clientHeight / BOOK_ROW) || 20);
   const today = new Date().toDateString();
   const when = (ms) => {
@@ -1905,33 +1910,29 @@ function renderTape() {
     : `<div class="trade-none">${book.live ? t("Nessun trade") : "—"}</div>`;
 }
 
-function setBookTab(tab) {
-  bookTab = tab;
-  store("bookTab", tab);
-  $("#book").dataset.tab = tab;
-  $$("#bookTabs button").forEach((b) => { b.classList.toggle("active", b.dataset.tab === tab); b.setAttribute("aria-selected", String(b.dataset.tab === tab)); });
-  closeBookMenu();
-  setBookView(tab === "trades" ? tradeView : bookView);
-}
-
+// both sides or one, for the book (bids / asks) and for the trades (buys / sells), each remembered
 function setBookView(v) {
-  if (bookTab === "trades") { tradeView = v; store("tradeView", v); }
-  else { bookView = v; store("bookView", v); }
-  $("#book").dataset.view = v;
-  const trades = bookTab === "trades";
-  const titles = { both: trades ? "Acquisti e vendite" : "Bid e ask", bids: trades ? "Solo acquisti" : "Solo bid", asks: trades ? "Solo vendite" : "Solo ask" };
-  $$("#bookViews button").forEach((b) => {
-    b.classList.toggle("active", b.dataset.view === v);
-    b.setAttribute("aria-checked", String(b.dataset.view === v));
-    b.title = t(titles[b.dataset.view]);
-  });
+  bookView = v;
+  store("bookView", v);
+  markViews("#book", v);
+}
+function setTapeView(v) {
+  tradeView = v;
+  store("tradeView", v);
+  markViews("#tape", v);
+}
+function markViews(panel, v) {
+  $(panel).dataset.view = v;
+  $$(panel + " .book-views button").forEach((b) => { b.classList.toggle("active", b.dataset.view === v); b.setAttribute("aria-checked", String(b.dataset.view === v)); });
   book.dirty = true;
   renderBook();
 }
 
-// the small menus under the unit and the grouping
+// the small menus under the panels' unit, grouping and filters (each panel has its own)
 function openBookMenu(btn, items) {
-  const menu = $("#bookMenu");
+  const menu = btn.parentElement.querySelector(".book-menu");
+  if (!menu.classList.contains("hidden") && menu.dataset.for === btn.id) return closeBookMenu();
+  closeBookMenu();
   if (!menu.classList.contains("hidden") && menu.dataset.for === btn.id) return closeBookMenu();
   menu.dataset.for = btn.id;
   menu.innerHTML = items.map(([label, on], i) => `<button type="button" role="menuitemradio" aria-checked="${on}" data-i="${i}"${on ? ' class="on"' : ""}><span>${esc(label)}</span>${on ? "<b>✓</b>" : ""}</button>`).join("");
@@ -1947,13 +1948,20 @@ function openBookMenu(btn, items) {
     renderBook();
   };
 }
-function closeBookMenu() { $("#bookMenu").classList.add("hidden"); }
+function closeBookMenu() { $$(".book-menu").forEach((x) => x.classList.add("hidden")); }
 
 function wireBook() {
   if (!["both", "bids", "asks"].includes(bookView)) bookView = "both";
   if (!["both", "bids", "asks"].includes(tradeView)) tradeView = "both";
-  setBookTab(bookTab === "trades" ? "trades" : "book");
-  $("#bookTabs").onclick = (e) => { const b = e.target.closest("[data-tab]"); if (b) setBookTab(b.dataset.tab); };
+  setBookView(bookView);
+  setTapeView(tradeView);
+  $("#tapeViews").onclick = (e) => { const b = e.target.closest("[data-view]"); if (b) setTapeView(b.dataset.view); };
+  $("#tradeUnit").onclick = (e) => {
+    e.stopPropagation();
+    const m = book.market || activeMarket();
+    const pick = (u) => () => { if (u !== tradeUnit) { tradeUnit = u; tradeMin = 0; store("tradeUnit", u); store("tradeMin", 0); } };
+    openBookMenu($("#tradeUnit"), [[m ? m.symbol : "Coin", tradeUnit !== "usd", pick("base")], ["USD", tradeUnit === "usd", pick("usd")]]);
+  };
   $("#tradeMin").onclick = (e) => {
     e.stopPropagation();
     openBookMenu($("#tradeMin"), tradeMins().map((v) => [fminLabel(v), v === tradeMin || (!v && !tradeMins().includes(tradeMin)), () => { tradeMin = v; store("tradeMin", v); }]));
@@ -1977,10 +1985,12 @@ function wireBook() {
     const tick = 10 ** -decimals(m), cur = bookGroupK(m);
     openBookMenu($("#bookGroup"), [0, 1, 2, 3, 4].map((k) => [(tick * 10 ** k).toFixed(Math.max(0, decimals(m) - k)), k === cur, () => { bookGroups[m.symbol] = k; store("bookGroup", bookGroups); }]));
   };
-  document.addEventListener("click", (e) => { if (!e.target.closest("#bookMenu")) closeBookMenu(); });
+  document.addEventListener("click", (e) => { if (!e.target.closest(".book-menu")) closeBookMenu(); });
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeBookMenu(); });
   // a taller or shorter column shows more or fewer levels
-  new ResizeObserver(() => { book.dirty = true; renderBook(); }).observe($("#book"));
+  const ro = new ResizeObserver(() => { book.dirty = true; renderBook(); });
+  ro.observe($("#book"));
+  ro.observe($("#tape"));
 }
 
 function toggleBook(v) {
@@ -1988,7 +1998,19 @@ function toggleBook(v) {
   store("book", v);
   $("#book").classList.toggle("hidden", !v);
   $("#obToggle").classList.toggle("active", v);
-  if (v) loadBook();
+  bookStream();
+}
+function toggleTape(v) {
+  showTape = v;
+  store("tape", v);
+  $("#tape").classList.toggle("hidden", !v);
+  $("#tapeToggle").classList.toggle("active", v);
+  bookStream();
+}
+// open the stream while either panel shows, close it when neither does
+function bookStream() {
+  book.dirty = true;
+  if (showBook || showTape) { loadBook(); renderBook(); }
   else if (book.ws) { book.ws.close(); book.market = null; }
 }
 
@@ -5363,6 +5385,7 @@ function wire() {
   $("#elMenu").onclick = (e) => { e.stopPropagation(); const b = e.target.closest("[data-el]"); if (b) toggleChartEl(b.dataset.el); };
   $$("#layouts button").forEach((b) => (b.onclick = () => { layout = b.dataset.layout; store("layout", layout); buildCharts(); }));
   $("#obToggle").onclick = () => toggleBook(!showBook);
+  $("#tapeToggle").onclick = () => toggleTape(!showTape);
   $("#mktSelect").onclick = () => ($("#picker").classList.contains("hidden") ? openPalette() : closePalette());
   wireTickerDrag();
   wireTickerScroll();
@@ -6764,6 +6787,7 @@ async function init() {
   if (route.sym && (bySymbol[route.sym] || pairOf(route.sym))) panelCfg[activeIdx].symbol = route.sym;
   buildCharts();
   toggleBook(showBook);
+  toggleTape(showTape);
   renderAccount();
   switchView(route.view || (location.pathname === "/" ? load("view", "trade") : "trade"), { fromUrl: true });
   syncUrl(false);
