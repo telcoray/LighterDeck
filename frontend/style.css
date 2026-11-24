@@ -864,10 +864,8 @@ kbd { font-family: var(--mono); font-size: 9.5px; border: 1px solid var(--line-2
 .table tr.leg td:first-child { padding-left: 26px; }
 .table tr.leg td { color: var(--text-2); }
 .qbtn button.unpair { margin-left: 6px; color: var(--muted); }
-.pair-add { margin-left: 6px; padding: 0 5px; border-radius: 8px; border: 1px solid var(--line-2); color: var(--faint); font-size: 9.5px; line-height: 14px; opacity: 0; }
-.table tr:hover .pair-add, .pair-add:focus { opacity: 1; }
+.pair-add { margin-left: 6px; padding: 0 5px; border-radius: 8px; border: 1px solid var(--line-2); color: var(--faint); font-size: 9.5px; line-height: 14px; }
 .pair-add:hover { color: var(--text); border-color: var(--line-3); }
-@media (hover: none) { .pair-add { opacity: 1; } }
 .ev-trade { margin-left: 6px; height: 20px; padding: 0 6px; border-radius: 10px; border: 1px solid var(--line-2); color: var(--amber); font-size: 11px; }
 .ev-trade:hover { border-color: var(--amber); background: color-mix(in srgb, var(--amber) 10%, transparent); }
 .ev-rule { display: inline-flex; align-items: center; gap: 6px; margin-top: 4px; padding: 2px 8px; border-radius: 10px; font-size: 10.5px; color: var(--amber); background: color-mix(in srgb, var(--amber) 10%, transparent); }
