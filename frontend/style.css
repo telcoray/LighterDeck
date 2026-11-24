@@ -442,7 +442,11 @@ body.resizing { cursor: row-resize; user-select: none; }
 .qbtn button.rev { margin-left: 6px; color: var(--amber); }
 /* a position's close buttons in two rows (25% 50% over 75% 100%), Reverse beside them; the phone keeps one row */
 @media (min-width: 641px) {
-  .qbtn:has(> .rev) { display: inline-grid; width: max-content; grid-template-columns: 1fr 1fr auto; grid-template-rows: auto auto; gap: 4px; vertical-align: middle; }
+  .qbtn:has(> .rev) { display: inline-grid; width: max-content; grid-template-columns: 1fr 1fr auto; grid-template-rows: auto auto; gap: 3px 4px; vertical-align: middle; }
+  /* smaller, so the two rows fit in the row's usual height */
+  .qbtn:has(> .rev) > button:not(.rev) { height: 16px; padding-left: 6px; padding-right: 6px; font-size: 10px; line-height: 1; }
+  .qbtn:has(> .rev) > button[data-key]:not(.rev, .confirming) { padding-right: 20px; }
+  .qbtn:has(> .rev) > button[data-key]:not(.rev)::after { font-size: 7.5px; padding: 0 3px; }
   .qbtn:has(> .rev) > button:nth-child(1) { grid-area: 1 / 1; }
   .qbtn:has(> .rev) > button:nth-child(2) { grid-area: 1 / 2; }
   .qbtn:has(> .rev) > button:nth-child(3) { grid-area: 2 / 1; }
