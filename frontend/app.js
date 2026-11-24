@@ -3794,6 +3794,19 @@ function renderPositions() {
 // its text isn't aligned to, so a wide column (the close buttons) got a far bigger gap than a narrow one.
 // Here the spare width goes evenly between the columns, as space after each one: the gaps stay equal and
 // still grow and shrink with the window.
+// A table that fits except for the few pixels the horizontal bar takes (its last row's bottom padding)
+// would get a vertical bar too: those pixels are hidden instead. Checked whenever a tab is redrawn or resized.
+function fitBtabY(b) {
+  const over = b.scrollHeight - b.clientHeight;
+  b.classList.toggle("fit-y", over > 0 && over <= 10);
+}
+function wireBtabY() {
+  $$(".btab").forEach((b) => {
+    new ResizeObserver(() => fitBtabY(b)).observe(b);
+    new MutationObserver(() => fitBtabY(b)).observe(b, { childList: true });
+  });
+}
+
 let evenColsRO = null;
 function evenCols(box) {
   if (!evenColsRO) { evenColsRO = new ResizeObserver(() => evenCols(box)); evenColsRO.observe(box); }
@@ -6849,6 +6862,7 @@ async function init() {
   setInterval(renderSessions, 30 * 1000);
   setInterval(renderEcon, 60 * 1000);
   wireBook();
+  wireBtabY();
   setInterval(renderBook, 200); // the stream updates ~20x/s; redraw at most 5x/s
   // the Orders tab refreshes every 5 s; with the tab closed the chart lines refresh every 10 s
   let orderPolls = 0;

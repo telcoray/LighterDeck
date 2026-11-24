@@ -135,6 +135,7 @@ input[type=checkbox] { width: 12px; height: 12px; margin: 0; accent-color: var(-
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-thumb { background: var(--line-2); border-radius: 8px; border: 2px solid transparent; background-clip: padding-box; }
 ::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-corner { background: transparent; } /* where two bars meet: no white square */
 
 /* ---------- top bar ---------- */
 /* public site */
@@ -400,6 +401,8 @@ body.resizing { cursor: row-resize; user-select: none; }
 .subtabs.small button { padding: 7px 0; font-size: 11px; }
 .count { color: var(--muted); font-family: var(--mono); font-size: 10px; margin-left: 3px; }
 .btab { flex: 1; overflow: auto; }
+/* the rows fit and only their bottom padding sits under the side bar: no vertical bar (fitBtabY in app.js) */
+@media (min-width: 641px) { .btab.fit-y { overflow-y: hidden; } }
 .table { width: 100%; border-collapse: collapse; }
 .table th { position: sticky; top: 0; background: var(--bg); text-align: left; font-weight: 400; font-size: 10px; color: var(--muted); padding: 9px 13px; border-bottom: 1px solid var(--line); white-space: nowrap; }
 .table th.r { text-align: right; }
