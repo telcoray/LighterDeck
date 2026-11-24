@@ -1802,27 +1802,107 @@ function loadBook() {
   else if (!book.market || book.market !== activeMarket()) bookSubscribe(activeMarket());
 }
 
+// the book's view (both sides, bids only, asks only), its size unit (the market's coin or dollars) and the price
+// grouping (the tick times 1, 10, 100…, kept per market), like Lighter's own book
+let bookView = load("bookView", "both"), bookUnit = load("bookUnit", "base"), bookGroups = load("bookGroup", {});
+const BOOK_ROW = 20; // a level's height in px (16 line + 4 padding): as many as fit are shown
+const bookGroupK = (m) => Math.min(4, Math.max(0, bookGroups[m.symbol] || 0));
+
+// the best n levels of one side, grouped into buckets of g: asks round up, bids down, so a bucket never shows
+// a better price than the levels inside it. Each is [price, size, dollars].
+function bookLevels(map, asks, g, n) {
+  const sorted = [...map].sort((x, y) => (asks ? x[0] - y[0] : y[0] - x[0]));
+  const out = [];
+  for (const [p, sz] of sorted) {
+    const q = g ? (asks ? Math.ceil(p / g - 1e-9) : Math.floor(p / g + 1e-9)) * g : p;
+    const last = out[out.length - 1];
+    if (last && Math.abs(last[0] - q) < (g || 0) / 2) { last[1] += sz; last[2] += sz * p; continue; }
+    if (out.length === n) break;
+    out.push([q, sz, sz * p]);
+  }
+  return out;
+}
+
 function renderBook() {
   if (!book.dirty || !showBook || !book.market) return;
   book.dirty = false;
-  const m = book.market;
-  const depth = 14;
-  const asks = [...book.asks].sort((a, b) => a[0] - b[0]).slice(0, depth);
-  const bids = [...book.bids].sort((a, b) => b[0] - a[0]).slice(0, depth);
+  const m = book.market, k = bookGroupK(m), d = Math.max(0, decimals(m) - k);
+  const g = k ? 10 ** -decimals(m) * 10 ** k : 0;
+  const fit = (el) => Math.max(1, Math.floor(el.clientHeight / BOOK_ROW) || 14);
+  const asks = bookLevels(book.asks, true, g, fit($("#bookAsks")));
+  const bids = bookLevels(book.bids, false, g, fit($("#bookBids")));
+  const usd = bookUnit === "usd";
+  // dollars short, so millions fit the narrow column: 840, 12.5K, 2.35M
+  const fq = (v) => (!usd ? fsize(v, m) : v >= 1e6 ? (v / 1e6).toFixed(2) + "M" : v >= 1e4 ? (v / 1e3).toFixed(1) + "K"
+    : v.toLocaleString("en-US", { maximumFractionDigits: v >= 100 ? 0 : 2 }));
   const rows = (lvls, rev) => {
     let tot = 0;
-    const withTot = lvls.map(([p, s]) => { tot += s; return [p, s, tot]; });
+    const withTot = lvls.map(([p, sz, dol]) => { const v = usd ? dol : sz; tot += v; return [p, v, tot]; });
     const max = tot || 1;
-    const html = withTot.map(([p, s, t]) => `<div class="lvl"><i style="width:${(t / max) * 100}%"></i><span>${fp(p, m)}</span><span>${fsize(s, m)}</span><span>${fsize(t, m)}</span></div>`);
+    const html = withTot.map(([p, v, t]) => `<div class="lvl"><i style="width:${(t / max) * 100}%"></i><span>${p.toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d })}</span><span>${fq(v)}</span><span>${fq(t)}</span></div>`);
     return (rev ? html.reverse() : html).join("");
   };
   $("#bookAsks").innerHTML = rows(asks, true);
   $("#bookBids").innerHTML = rows(bids, false);
+  $("#bookUnit span").textContent = usd ? "USD" : m.symbol;
+  $("#bookGroup span").textContent = (10 ** -decimals(m) * 10 ** k).toFixed(d);
   const a = asks[0] && asks[0][0], b = bids[0] && bids[0][0];
-  if (a && b) {
-    const spread = ((a - b) / ((a + b) / 2)) * 10000;
-    $("#bookMid").innerHTML = `<span>${fp((a + b) / 2, m)}</span><small>spread ${spread.toFixed(1)} bps · live</small>`;
+  const ra = [...book.asks.keys()].reduce((x, y) => Math.min(x, y), Infinity), rb = [...book.bids.keys()].reduce((x, y) => Math.max(x, y), -Infinity);
+  if (a && b && isFinite(ra) && isFinite(rb)) {
+    const spread = ((ra - rb) / ((ra + rb) / 2)) * 10000;
+    $("#bookMid").innerHTML = `<span>${fp((ra + rb) / 2, m)}</span><small>spread ${spread.toFixed(1)} bps</small>`;
   }
+}
+
+function setBookView(v) {
+  bookView = v;
+  store("bookView", v);
+  $("#book").dataset.view = v;
+  $$("#bookViews button").forEach((b) => { b.classList.toggle("active", b.dataset.view === v); b.setAttribute("aria-checked", String(b.dataset.view === v)); });
+  book.dirty = true;
+  renderBook();
+}
+
+// the small menus under the unit and the grouping
+function openBookMenu(btn, items) {
+  const menu = $("#bookMenu");
+  if (!menu.classList.contains("hidden") && menu.dataset.for === btn.id) return closeBookMenu();
+  menu.dataset.for = btn.id;
+  menu.innerHTML = items.map(([label, on], i) => `<button type="button" role="menuitemradio" aria-checked="${on}" data-i="${i}"${on ? ' class="on"' : ""}><span>${esc(label)}</span>${on ? "<b>✓</b>" : ""}</button>`).join("");
+  menu.style.left = "";
+  menu.style.right = `${btn.parentElement.offsetWidth - btn.offsetLeft - btn.offsetWidth}px`;
+  menu.classList.remove("hidden");
+  menu.onclick = (e) => {
+    const b = e.target.closest("[data-i]");
+    if (!b) return;
+    items[+b.dataset.i][2]();
+    closeBookMenu();
+    book.dirty = true;
+    renderBook();
+  };
+}
+function closeBookMenu() { $("#bookMenu").classList.add("hidden"); }
+
+function wireBook() {
+  setBookView(["both", "bids", "asks"].includes(bookView) ? bookView : "both");
+  $("#bookViews").onclick = (e) => { const b = e.target.closest("[data-view]"); if (b) setBookView(b.dataset.view); };
+  $("#bookUnit").onclick = (e) => {
+    e.stopPropagation();
+    const m = book.market || activeMarket();
+    const pick = (u) => () => { bookUnit = u; store("bookUnit", u); };
+    openBookMenu($("#bookUnit"), [[m ? m.symbol : "Coin", bookUnit !== "usd", pick("base")], ["USD", bookUnit === "usd", pick("usd")]]);
+  };
+  $("#bookGroup").onclick = (e) => {
+    e.stopPropagation();
+    const m = book.market || activeMarket();
+    if (!m) return;
+    const tick = 10 ** -decimals(m), cur = bookGroupK(m);
+    openBookMenu($("#bookGroup"), [0, 1, 2, 3, 4].map((k) => [(tick * 10 ** k).toFixed(Math.max(0, decimals(m) - k)), k === cur, () => { bookGroups[m.symbol] = k; store("bookGroup", bookGroups); }]));
+  };
+  document.addEventListener("click", (e) => { if (!e.target.closest("#bookMenu")) closeBookMenu(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeBookMenu(); });
+  // a taller or shorter column shows more or fewer levels
+  new ResizeObserver(() => { book.dirty = true; renderBook(); }).observe($("#book"));
 }
 
 function toggleBook(v) {
@@ -6638,6 +6718,7 @@ async function init() {
   setInterval(clock, 250);
   setInterval(renderSessions, 30 * 1000);
   setInterval(renderEcon, 60 * 1000);
+  wireBook();
   setInterval(renderBook, 200); // the stream updates ~20x/s; redraw at most 5x/s
   // the Orders tab refreshes every 5 s; with the tab closed the chart lines refresh every 10 s
   let orderPolls = 0;

@@ -774,3 +774,4 @@ Object.assign(DICTS.ko, {
   "Percentage of reducible position": "줄일 수 있는 포지션의 비율",
 });
 Object.assign(DICTS.ko, { "Switch to paper trading": "모의 거래로 전환", "Real trading is coming soon": "실거래는 곧 제공됩니다" });
+Object.assign(DICTS.ko, { "Book view": "호가창 보기", "Bids and asks": "매수와 매도", "Bids only": "매수만", "Asks only": "매도만", "Size in the market's coin or in dollars": "수량을 마켓 코인 또는 달러로 표시", "Group prices": "가격 묶기" });

@@ -358,6 +358,26 @@ body.reordering { cursor: grabbing; user-select: none; }
 .lvl span { position: relative; color: var(--text-2); }
 .book-mid { padding: 7px 10px; border-block: 1px solid var(--line); font-size: 13px; color: var(--text); display: flex; justify-content: space-between; }
 .book-mid small { color: var(--muted); font-size: 10px; align-self: center; }
+/* the book's controls: the view on the left, the size unit and the price grouping as small menus on the right */
+.book-ctl { position: relative; display: flex; align-items: center; gap: 2px; padding: 6px 6px 6px 8px; border-bottom: 1px solid var(--line); font-family: var(--ui); }
+.book-views { display: flex; gap: 2px; margin-right: auto; }
+.book-views button { display: flex; flex-direction: column; justify-content: center; gap: 2px; width: 22px; height: 22px; padding: 0 4px; border-radius: 4px; opacity: .5; }
+.book-views button i { display: block; height: 4px; border-radius: 1px; }
+.book-views button i.a { background: var(--red); }
+.book-views button i.b { background: var(--green); }
+.book-views button:hover { opacity: .8; }
+.book-views button.active { opacity: 1; background: var(--raised); }
+.book-dd { display: inline-flex; align-items: center; gap: 3px; min-width: 0; height: 22px; padding: 0 4px; border-radius: 4px; color: var(--text-2); font-family: var(--mono); font-size: 10.5px; }
+.book-dd span { max-width: 64px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.book-dd svg { flex: none; width: 9px; height: 9px; fill: none; stroke: currentColor; stroke-width: 1.4; }
+.book-dd:hover { color: var(--text); background: var(--raised); }
+.book-menu { position: absolute; top: calc(100% - 2px); z-index: 20; min-width: 110px; padding: 4px; background: var(--surface); border: 1px solid var(--float-border); border-radius: 8px; box-shadow: var(--float-shadow); }
+.book-menu button { display: flex; justify-content: space-between; align-items: center; gap: 12px; width: 100%; height: 26px; padding: 0 8px; border-radius: 5px; color: var(--text-2); font-family: var(--mono); font-size: 11px; text-align: left; }
+.book-menu button:hover { background: var(--raised); color: var(--text); }
+.book-menu button.on { color: var(--text); }
+.book-menu b { font-weight: 400; color: var(--text-2); }
+/* one side only: it takes the whole column */
+.book[data-view="bids"] .book-side.asks, .book[data-view="asks"] .book-side.bids { display: none; }
 
 /* ---------- bottom tables ---------- */
 .bottom { height: var(--bottom-h, 210px); flex: none; border-top: 1px solid var(--line); display: flex; flex-direction: column; }

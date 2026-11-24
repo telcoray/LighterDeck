@@ -249,6 +249,12 @@ const EN = {
   "prev. {f} · prec. {p}": "fcst. {f} · prev. {p}",
   // ---- order book ----
   "Prezzo": "Price",
+  "Vista del book": "Book view",
+  "Bid e ask": "Bids and asks",
+  "Solo bid": "Bids only",
+  "Solo ask": "Asks only",
+  "Size nella moneta del mercato o in dollari": "Size in the market's coin or in dollars",
+  "Raggruppa i prezzi": "Group prices",
   "Collega wallet": "Connect wallet",
   "Solo gli eventi di {c}": "Only {c}'s events",
   "Mostra tutti i paesi": "Show every country",
