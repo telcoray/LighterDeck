@@ -5923,7 +5923,8 @@ function openKeyDialog(justConnected = false) {
   keyReady();
   $("#keyShade").classList.remove("hidden");
   $("#keyModal").classList.remove("hidden");
-  if (!on) $(browser || info.account_index == null ? "#keyAddress" : "#keyIndex").focus();
+  // the cursor in the first field, but not on a phone or tablet, where it would pop the keyboard over the dialog
+  if (!on && !touchUI()) $(browser || info.account_index == null ? "#keyAddress" : "#keyIndex").focus();
 }
 
 // with a wallet, "or paste a key you already have" opens the paste fields (folded until then)
@@ -5934,7 +5935,7 @@ function pasteOpen(open) {
 $("#keyPasteBtn").onclick = () => {
   const open = $("#keyForm").classList.contains("paste-closed");
   pasteOpen(open);
-  if (open) $("#keyAddress").focus();
+  if (open && !touchUI()) $("#keyAddress").focus();
 };
 
 // Verify and connect lights up once it has what it needs: the key, an account (or an address to find it) and,
