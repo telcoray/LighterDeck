@@ -305,9 +305,7 @@ body.reordering { cursor: grabbing; user-select: none; }
 .live { display: inline-flex; align-items: center; gap: 7px; color: var(--green); font-size: 11px; }
 .live .dot { width: 5px; height: 5px; box-shadow: none; }
 /* a narrow chart column (a computer window just above the phone layout): icons only, then a second line */
-.toolbar.tb-icons .sep, .toolbar.tb-icons #elBtn > span, .toolbar.tb-icons #obToggle > span, .toolbar.tb-icons .live > span { display: none; }
-.toolbar.tb-icons .live { padding: 0 4px; }
-.toolbar.tb-tight > .live { display: none; } /* the status bar still says Live */
+.toolbar.tb-icons .sep, .toolbar.tb-icons #elBtn > span, .toolbar.tb-icons #obToggle > span { display: none; }
 .toolbar.tb-wrap { height: auto; flex-wrap: wrap; row-gap: 4px; padding: 6px 10px; }
 .toolbar.tb-wrap .tfs { flex-wrap: wrap; }
 
@@ -967,7 +965,7 @@ button.pill:hover { border-color: var(--line-3); color: var(--text); }
 
   /* toolbar wraps onto two lines instead of cutting timeframes off */
   .toolbar { height: auto; flex-wrap: wrap; row-gap: 4px; padding: 6px 8px; }
-  .toolbar .sep, .toolbar > .grow, .toolbar .layouts, #obToggle, .toolbar > .live { display: none; }
+  .toolbar .sep, .toolbar > .grow, .toolbar .layouts, #obToggle { display: none; }
   .tfs { flex-wrap: wrap; }
   .tf-menu { left: auto; right: 0; }
 

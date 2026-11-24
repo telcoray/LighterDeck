@@ -1576,10 +1576,9 @@ function wireTickerScroll() {
 function fitToolbar() {
   const tb = document.querySelector(".toolbar");
   if (!tb || !tb.offsetWidth) return;
-  tb.classList.remove("tb-icons", "tb-tight", "tb-wrap");
+  tb.classList.remove("tb-icons", "tb-wrap");
   const over = () => tb.scrollWidth > tb.clientWidth + 1;
   if (over()) tb.classList.add("tb-icons");
-  if (over()) tb.classList.add("tb-tight");
   if (over()) tb.classList.add("tb-wrap");
 }
 function wireToolbarFit() {
