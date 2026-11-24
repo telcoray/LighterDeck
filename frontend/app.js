@@ -1531,15 +1531,19 @@ function updateTickerArrows() {
 }
 
 // on a computer the favourites wrap onto as many rows as they need; the arrow at the end folds them to one
-// scrolling row (remembered) and back. It shows only when there is more than one row's worth.
+// scrolling row (remembered) and back. A tablet has the arrow too but starts on one row, to keep the screen for
+// the chart; a phone only scrolls the row with the finger. The arrow shows only when there is more than one row's worth.
 const tickerMouse = matchMedia("(hover: hover) and (pointer: fine)");
-let tickerOneRow = load("tickerOneRow", false);
+// a touch screen whose short side is at least 600px is a tablet (phones stay under it, also turned sideways)
+const tickerTablet = () => !tickerMouse.matches && Math.min(screen.width, screen.height) >= 600;
+let tickerOneRow = load("tickerOneRow", null);
 function updateTickerFold() {
   const bar = $(".ticker"), box = $("#ticker"), fold = $("#tickerFold");
-  const wrap = tickerMouse.matches && !tickerOneRow;
+  const folds = tickerMouse.matches || tickerTablet();
+  const wrap = folds && !(tickerOneRow ?? !tickerMouse.matches);
   bar.classList.toggle("wrap", wrap);
   const items = box.children, last = items[items.length - 1];
-  const more = tickerMouse.matches && !!last && (wrap ? last.offsetTop > items[0].offsetTop : box.scrollWidth > box.clientWidth + 2);
+  const more = folds && !!last && (wrap ? last.offsetTop > items[0].offsetTop : box.scrollWidth > box.clientWidth + 2);
   fold.classList.toggle("hidden", !more);
   bar.classList.toggle("has-fold", more);
   const label = t(wrap ? "Riduci a una riga" : "Mostra tutti i preferiti");
@@ -1550,7 +1554,7 @@ function updateTickerFold() {
 function wireTickerScroll() {
   const box = $("#ticker");
   $("#tickerFold").onclick = () => {
-    tickerOneRow = !tickerOneRow;
+    tickerOneRow = $(".ticker").classList.contains("wrap");
     store("tickerOneRow", tickerOneRow);
     box.scrollLeft = 0;
     updateTickerArrows();
