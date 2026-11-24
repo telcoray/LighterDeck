@@ -3786,7 +3786,34 @@ function renderPositions() {
         <td><span class="qbtn">${[25, 50, 75, 100].map((f) => `<button data-close="${p.market_id}" data-f="${f}"${f === 100 ? ` class="all" data-ck="close:${p.market_id}" data-key="F" title="${t("Chiudi tutto · F")}"` : ` data-ck="close:${p.market_id}:${f}"${f === 50 ? ` title="${t("Chiudi metà · H")}"` : ""}`}>${f}%</button>`).join("")}<button class="rev" data-reverse="${p.market_id}" data-ck="reverse:${p.market_id}" data-key="R" title="${t("Reverse: chiude e apre il lato opposto, stessa size · R")}">⇄ Reverse</button></span></td>
         <td class="pair-cell"><button class="pair-add" data-pairfrom="${p.market_id}" title="${t("Fai una coppia con una posizione dal lato opposto")}">+ ${t("Coppia")}</button></td></tr>`;
     }).join("")}</tbody></table>`;
+  evenCols(box);
   markConfirm();
+}
+
+// A full table spreads the width it doesn't need in proportion to each column's content, and on the side
+// its text isn't aligned to, so a wide column (the close buttons) got a far bigger gap than a narrow one.
+// Here the spare width goes evenly between the columns, as space after each one: the gaps stay equal and
+// still grow and shrink with the window.
+let evenColsRO = null;
+function evenCols(box) {
+  if (!evenColsRO) { evenColsRO = new ResizeObserver(() => evenCols(box)); evenColsRO.observe(box); }
+  const tb = box.querySelector("table");
+  if (!tb || !tb.tHead) return;
+  const ths = [...tb.tHead.rows[0].cells];
+  tb.classList.remove("even");
+  ths.forEach((th) => (th.style.width = ""));
+  if (getComputedStyle(tb.tHead).display === "none") return; // the phone's cards have no columns
+  tb.style.width = "auto";
+  const nat = ths.map((th) => th.getBoundingClientRect().width);
+  tb.style.width = "";
+  const extra = box.clientWidth - nat.reduce((a, b) => a + b, 0) - 1;
+  if (extra <= 0 || ths.length < 2) return;
+  ths.forEach((th, i) => {
+    const cs = getComputedStyle(th);
+    th.style.width = `${nat[i] - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)}px`;
+  });
+  tb.style.setProperty("--even", `${extra / (ths.length - 1)}px`);
+  tb.classList.add("even");
 }
 
 // Cross or isolated next to the side: with cross, all the account's collateral backs the position, so
