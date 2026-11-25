@@ -4517,6 +4517,14 @@ function saveCp() { store("cp", { scope: cp.scope, types: cp.types, impacts: cp.
 // The calendar's market panel: the picker's tabs and categories over the markets' names, A to Z in two
 // columns; typing in the box searches all of them
 const cpPop = { tab: "all", cat: "", typing: false };
+// The Calendar's own favourites: the Trade page's until the first star is changed here, then a list of their own
+let calFavs = load("calFavs", null);
+const calFavList = () => calFavs || favs;
+function toggleCalFav(sym) {
+  const cur = calFavList();
+  calFavs = cur.includes(sym) ? cur.filter((x) => x !== sym) : [...cur, sym];
+  store("calFavs", calFavs);
+}
 function openCpPop() { if (!$("#cpMkPop").classList.contains("hidden")) return; cpPop.typing = false; $("#cpMkPop").classList.remove("hidden"); renderCpPop(); }
 function closeCpPop() { $("#cpMkPop").classList.add("hidden"); }
 function renderCpPop() {
@@ -4524,7 +4532,7 @@ function renderCpPop() {
   if (pop.classList.contains("hidden")) return;
   const typed = $("#cpMarket").value.trim().toUpperCase();
   const q = cpPop.typing ? typed : ""; // until something is typed, the chosen market's name lists everything
-  const inTab = (m) => (cpPop.tab === "favs" ? favs.includes(m.symbol) : cpPop.tab === "all" ? true : m.asset_type === cpPop.tab);
+  const inTab = (m) => (cpPop.tab === "favs" ? calFavList().includes(m.symbol) : cpPop.tab === "all" ? true : m.asset_type === cpPop.tab);
   const scope = markets.filter(inTab);
   const cats = CATEGORIES.filter(([k]) => scope.some((m) => (m.categories || []).includes(k)));
   if (cpPop.cat && !cats.some(([k]) => k === cpPop.cat)) cpPop.cat = "";
@@ -4536,7 +4544,8 @@ function renderCpPop() {
   const on = cp.scope === "mkt" ? cp.market : null;
   pop.innerHTML = `<div class="cp-pop-tabs${q ? " off" : ""}">${TABS.filter(([k]) => k !== "spread").map(([k, label]) => `<button type="button" data-cptab="${k}" class="${cpPop.tab === k ? "active" : ""}">${t(label)}</button>`).join("")}</div>`
     + (q ? "" : `<div class="cp-pop-cats"><button type="button" data-cpcat="" class="${cpPop.cat ? "" : "active"}">${t("Tutte")}</button>${cats.map(([k, label]) => `<button type="button" data-cpcat="${k}" class="${cpPop.cat === k ? "active" : ""}">${t(label)}</button>`).join("")}</div>`)
-    + `<div class="cp-pop-list">${list.map((m) => `<button type="button" data-cpmk="${m.symbol}" class="${m.symbol === on ? "on" : ""}">${ico(m.symbol, "xs")}<b>${esc(m.symbol)}</b></button>`).join("") || `<div class="empty">${t("Nessun mercato trovato.")}</div>`}</div>`;
+    + `<div class="cp-pop-list">${list.map((m) => `<div class="cp-mk${m.symbol === on ? " on" : ""}"><button type="button" data-cpmk="${m.symbol}">${ico(m.symbol, "xs")}<b>${esc(m.symbol)}</b></button><button type="button" class="star${calFavList().includes(m.symbol) ? " on" : ""}" data-cpstar="${m.symbol}" title="${t("Preferito")}">★</button></div>`).join("")
+      || `<div class="empty">${t(cpPop.tab === "favs" && !q ? "Nessun preferito: tocca la stella accanto a un mercato." : "Nessun mercato trovato.")}</div>`}</div>`;
 }
 
 function renderCalPage() {
@@ -5720,6 +5729,7 @@ function wire() {
     e.stopPropagation();
     const b = e.target.closest("button");
     if (!b) return;
+    if (b.dataset.cpstar) { toggleCalFav(b.dataset.cpstar); return renderCpPop(); } // the panel stays open
     if (b.dataset.cpmk) return cpChoose(b.dataset.cpmk);
     if (b.dataset.cptab !== undefined) { cpPop.tab = b.dataset.cptab; cpPop.cat = ""; }
     if (b.dataset.cpcat !== undefined) cpPop.cat = b.dataset.cpcat;

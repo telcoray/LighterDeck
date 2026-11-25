@@ -982,6 +982,7 @@ const EN = {
   "Cerca evento": "Search event",
   "Uno": "One",
   "Scrivi un mercato…": "Type a market…",
+  "Nessun preferito: tocca la stella accanto a un mercato.": "No favourites: tap the star next to a market.",
   "Tipo": "Type",
   "Impatto": "Impact",
   "Periodo": "Period",

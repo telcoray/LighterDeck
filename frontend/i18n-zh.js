@@ -777,3 +777,4 @@ Object.assign(DICTS.zh, { "Switch to paper trading": "切换到模拟交易", "R
 Object.assign(DICTS.zh, { "Book view": "订单簿视图", "Bids and asks": "买单和卖单", "Bids only": "仅买单", "Asks only": "仅卖单", "Size in the market's coin or in dollars": "数量以市场币种或美元显示", "Group prices": "合并价格" });
 Object.assign(DICTS.zh, { "Trades view": "成交视图", "Trades": "成交", "Only trades above this size": "仅显示超过此数量的成交", "All trades or liquidations only": "全部成交或仅强平", "Liquidations": "强平", "Buys and sells": "买入和卖出", "Buys only": "仅买入", "Sells only": "仅卖出", "No trades": "暂无成交" });
 Object.assign(DICTS.zh, { "Type a market…": "输入市场…" });
+Object.assign(DICTS.zh, { "No favourites: tap the star next to a market.": "还没有收藏：点击市场旁的星标。" });
