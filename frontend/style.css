@@ -643,7 +643,8 @@ body.dragging-line, body.dragging-line * { cursor: ns-resize !important; user-se
 .cp-block { display: flex; flex-direction: column; gap: 7px; }
 .cp-block .chipsel { margin: 0; }
 .cp-select { height: 30px; padding: 0 8px; border: 1px solid var(--line-2); border-radius: 6px; background: var(--surface); font-size: 11.5px; }
-.cp-select:disabled { opacity: .45; }
+.cp-select::placeholder { color: var(--faint); }
+.cp-select:focus { outline: none; border-color: var(--line-3); }
 .cp-count { font-size: 11px; margin-bottom: 4px; }
 .cp-count .cp-country { padding: 1px 8px; margin-left: 2px; border: 1px solid var(--line-2); border-radius: 9px; font-size: 11px; color: var(--text); }
 .cp-count .cp-country:hover { border-color: var(--line-3); }

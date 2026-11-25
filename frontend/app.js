@@ -4520,9 +4520,9 @@ function renderCalPage() {
   $$("#cpTypes button").forEach((b) => b.classList.toggle("active", cp.types.includes(b.dataset.type)));
   $$("#cpImpacts button").forEach((b) => b.classList.toggle("active", cp.impacts.includes(b.dataset.imp)));
   $$("#cpRange button").forEach((b) => b.classList.toggle("active", b.dataset.range === cp.range));
-  const sel = $("#cpMarket");
-  sel.disabled = cp.scope !== "mkt";
-  if (sel.value !== sym && sym) sel.value = sym;
+  // the market box shows the chosen market, empty for all of them; not rewritten while being typed in
+  const box = $("#cpMarket");
+  if (document.activeElement !== box) box.value = sym || "";
   const endOfToday = new Date().setHours(24, 0, 0, 0) / 1000;
   const inRange = (e) => cp.range === "past" ? e.ts < now
     : e.ts >= now - 3 * 3600 && (cp.range === "all" || e.ts < (cp.range === "today" ? endOfToday : now + +cp.range * 86400));
@@ -5673,7 +5673,16 @@ function wire() {
     saveCp();
     renderCalPage();
   };
-  $("#cpMarket").onchange = (e) => { cp.market = e.target.value; saveCp(); renderCalPage(); };
+  // typing a market's name picks it (and the "One" filter); emptying the box goes back to all markets
+  const cpPick = (v, final) => {
+    v = v.trim().toUpperCase();
+    if (!v) { if (final || cp.scope === "mkt") { cp.scope = "all"; saveCp(); renderCalPage(); } return; }
+    if (bySymbol[v]) { cp.scope = "mkt"; cp.market = v; saveCp(); renderCalPage(); }
+    else if (final) { $("#cpMarket").value = cp.scope === "mkt" ? cp.market || "" : ""; } // not a market: back to the chosen one
+  };
+  $("#cpMarket").oninput = (e) => cpPick(e.target.value, false);
+  $("#cpMarket").onchange = (e) => cpPick(e.target.value, true);
+  $("#cpMarket").onkeydown = (e) => { if (e.key === "Enter") e.target.blur(); if (e.key === "Escape") { e.target.value = ""; cpPick("", true); e.target.blur(); } };
   $("#cpSearch").oninput = renderCalPage;
   $("#cpList").onclick = (e) => {
     const s = e.target.closest("[data-cpsym]");
@@ -6814,7 +6823,7 @@ async function init() {
   panelCfg = panelCfg.map((c) => (bySymbol[c.symbol] ? c : { ...c, symbol: "BTC" }));
   const opts = markets.map((m) => `<option value="${m.id}">${m.symbol}</option>`).join("");
   $$(".marketSelect").forEach((s) => (s.innerHTML = opts));
-  $("#cpMarket").innerHTML = markets.map((m) => `<option value="${m.symbol}">${m.symbol}</option>`).join("");
+  $("#cpMarketList").innerHTML = markets.map((m) => `<option value="${m.symbol}">`).join("");
   renderEventSelect();
   const net = info.network === "testnet" ? "Testnet" : "Mainnet";
   $("#netBadge").textContent = net;

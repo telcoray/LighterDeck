@@ -981,6 +981,7 @@ const EN = {
   "Prossimi eventi per {sym}": "Next events for {sym}",
   "Cerca evento o mercato…": "Search event or market…",
   "Uno": "One",
+  "Scrivi un mercato…": "Type a market…",
   "Tipo": "Type",
   "Impatto": "Impact",
   "Periodo": "Period",
