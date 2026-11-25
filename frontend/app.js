@@ -3826,6 +3826,13 @@ function wireBtabY() {
   $$(".btab").forEach((b) => {
     new ResizeObserver(() => fitBtabY(b)).observe(b);
     new MutationObserver(() => fitBtabY(b)).observe(b, { childList: true });
+    // a table wider than the panel scrolls sideways with the mouse wheel, unless it has rows to scroll down to
+    b.addEventListener("wheel", (e) => {
+      if (e.shiftKey || b.scrollWidth <= b.clientWidth || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return; // a sideways swipe scrolls by itself
+      if (!b.classList.contains("fit-y") && b.scrollHeight > b.clientHeight) return;
+      e.preventDefault();
+      b.scrollLeft += e.deltaY;
+    }, { passive: false });
   });
 }
 
