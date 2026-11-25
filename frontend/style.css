@@ -670,9 +670,8 @@ body.dragging-line, body.dragging-line * { cursor: ns-resize !important; user-se
 .cp-mk:hover [data-cpmk] { color: var(--text); }
 .cp-mk.on [data-cpmk] { color: var(--green); }
 .cp-mk .star { flex: none; height: 100%; padding: 0 8px; }
-.cp-mk .star:not(.on) { opacity: 0; } /* the empty star shows on the row under the pointer */
-.cp-mk:hover .star, .cp-mk .star:focus-visible { opacity: 1; }
-@media (hover: none) { .cp-mk .star:not(.on) { opacity: .6; } }
+.cp-mk .star:hover { color: var(--text-2); }
+.cp-mk .star.on:hover { color: var(--amber); }
 .cp-pop-list .empty { grid-column: 1 / -1; padding: 12px 4px; }
 .cp-count { font-size: 11px; margin-bottom: 4px; }
 .cp-count .cp-country { padding: 1px 8px; margin-left: 2px; border: 1px solid var(--line-2); border-radius: 9px; font-size: 11px; color: var(--text); }
