@@ -4723,10 +4723,27 @@ async function loadCalendar() {
 
 // ================= markets page =================
 let mktSort = { key: "volume", dir: -1 };
+// the market picker's tabs (all, favourites, crypto, RWA) and categories, remembered; a search looks in every market
+let mktTab = load("mktTab", "all"), mktCat = load("mktCat", "");
+const mktInTab = (m) => (mktTab === "favs" ? favs.includes(m.symbol) : mktTab === "all" ? true : m.asset_type === mktTab);
+function renderMarketFilters(q) {
+  const scope = markets.filter(mktInTab);
+  const cats = CATEGORIES.filter(([k]) => scope.some((m) => (m.categories || []).includes(k)));
+  if (mktCat && !cats.some(([k]) => k === mktCat)) mktCat = "";
+  $("#mktTabs").classList.toggle("off", !!q);
+  $("#mktTabs").innerHTML = TABS.filter(([k]) => k !== "spread").map(([k, label]) => {
+    const n = k === "all" ? markets.length : k === "favs" ? favs.filter((x) => bySymbol[x]).length : markets.filter((m) => m.asset_type === k).length;
+    return `<button data-mtab="${k}" class="${mktTab === k ? "active" : ""}">${t(label)}<span>${n}</span></button>`;
+  }).join("");
+  $("#mktCats").innerHTML = `<button data-mcat="" class="${mktCat ? "" : "active"}">${t("Tutte")}</button>` +
+    cats.map(([k, label, group], i) => (i && group !== cats[i - 1][2] ? '<i class="pk-cat-sep" aria-hidden="true"></i>' : "")
+      + `<button data-mcat="${k}" class="${mktCat === k ? "active" : ""}">${t(label)}</button>`).join("");
+}
 function renderMarkets() {
   loadFarmRecent(); // the last 6 hours' funding
   const q = $("#mktSearch").value.trim().toUpperCase();
-  const rows = markets.filter((m) => !q || m.symbol.includes(q)).map((m) => {
+  renderMarketFilters(q);
+  const rows = markets.filter((m) => (q ? m.symbol.includes(q) : mktInTab(m) && (!mktCat || (m.categories || []).includes(mktCat)))).map((m) => {
     const p = prices[m.id] || {};
     const x = farmOf(m);
     return { m, symbol: m.symbol, price: p.last || p.mark || 0, change: p.change || 0, volume: p.volume || m.volume_usd, oi: p.oi || 0, funding: p.funding || 0,
@@ -5764,6 +5781,14 @@ function wire() {
 
   // markets page
   $("#mktSearch").oninput = renderMarkets;
+  $(".mkt-filters").onclick = (e) => {
+    const b = e.target.closest("[data-mtab], [data-mcat]");
+    if (!b) return;
+    if (b.dataset.mtab) { mktTab = b.dataset.mtab; mktCat = ""; store("mktTab", mktTab); }
+    if (b.dataset.mcat !== undefined) mktCat = b.dataset.mcat;
+    store("mktCat", mktCat);
+    renderMarkets();
+  };
   $$("#mktTable th[data-sort]").forEach((th) => (th.onclick = () => {
     const k = th.dataset.sort;
     mktSort = { key: k, dir: mktSort.key === k ? -mktSort.dir : k === "symbol" ? 1 : -1 };

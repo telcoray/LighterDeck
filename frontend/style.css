@@ -767,6 +767,11 @@ tr:hover .open-btn { color: var(--green); }
 .pk-sort button { width: 24px; height: 24px; border: 1px solid var(--line-2); border-radius: 4px; color: var(--text-2); }
 #pkViews button { display: grid; place-items: center; }
 .pk-cats-wrap { position: relative; border-bottom: 1px solid var(--line); }
+/* the Markets page: the picker's tabs and categories over the table */
+.mkt-filters { margin-bottom: 4px; }
+.mkt-filters .pk-tabs { border-bottom: 1px solid var(--line); }
+.mkt-filters .pk-tabs.off button.active { color: var(--muted); border-color: transparent; } /* a search looks in every market */
+.mkt-filters .pk-cats { flex-wrap: wrap; padding: 8px 0; overflow: visible; }
 .pk-cats { display: flex; gap: 4px; padding: 8px 12px; overflow-x: auto; scrollbar-width: none; scroll-behavior: smooth; }
 /* arrows over the ends of the category row, with a fade so the cut-off button reads as "more" */
 .pk-arrow { position: absolute; top: 0; bottom: 0; width: 44px; display: flex; align-items: center; color: var(--text-2); z-index: 1; }
