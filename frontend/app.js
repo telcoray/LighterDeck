@@ -4512,6 +4512,31 @@ function evMarkets(e) {
 const cp = { scope: "all", types: ["macro", "energy", "earnings", "crypto", "mine"], impacts: ["High", "Medium"], range: "7", ...load("cp", {}) };
 function saveCp() { store("cp", { scope: cp.scope, types: cp.types, impacts: cp.impacts, range: cp.range, market: cp.market }); }
 
+// The calendar's market panel: the picker's tabs and categories over the markets' names, A to Z in two
+// columns; typing in the box searches all of them
+const cpPop = { tab: "all", cat: "", typing: false };
+function openCpPop() { if (!$("#cpMkPop").classList.contains("hidden")) return; cpPop.typing = false; $("#cpMkPop").classList.remove("hidden"); renderCpPop(); }
+function closeCpPop() { $("#cpMkPop").classList.add("hidden"); }
+function renderCpPop() {
+  const pop = $("#cpMkPop");
+  if (pop.classList.contains("hidden")) return;
+  const typed = $("#cpMarket").value.trim().toUpperCase();
+  const q = cpPop.typing ? typed : ""; // until something is typed, the chosen market's name lists everything
+  const inTab = (m) => (cpPop.tab === "favs" ? favs.includes(m.symbol) : cpPop.tab === "all" ? true : m.asset_type === cpPop.tab);
+  const scope = markets.filter(inTab);
+  const cats = CATEGORIES.filter(([k]) => scope.some((m) => (m.categories || []).includes(k)));
+  if (cpPop.cat && !cats.some(([k]) => k === cpPop.cat)) cpPop.cat = "";
+  const list = (q ? markets.filter((m) => m.symbol.toUpperCase().includes(q) || (m.name || "").toUpperCase().includes(q))
+    : scope.filter((m) => !cpPop.cat || (m.categories || []).includes(cpPop.cat)))
+    .sort((a, b) => a.symbol.localeCompare(b.symbol));
+  // a search: names starting with what was typed first, then those containing it, then matches on the full name
+  if (q) { const rank = (m) => (m.symbol.startsWith(q) ? 0 : m.symbol.includes(q) ? 1 : 2); list.sort((a, b) => rank(a) - rank(b)); }
+  const on = cp.scope === "mkt" ? cp.market : null;
+  pop.innerHTML = `<div class="cp-pop-tabs${q ? " off" : ""}">${TABS.filter(([k]) => k !== "spread").map(([k, label]) => `<button type="button" data-cptab="${k}" class="${cpPop.tab === k ? "active" : ""}">${t(label)}</button>`).join("")}</div>`
+    + (q ? "" : `<div class="cp-pop-cats"><button type="button" data-cpcat="" class="${cpPop.cat ? "" : "active"}">${t("Tutte")}</button>${cats.map(([k, label]) => `<button type="button" data-cpcat="${k}" class="${cpPop.cat === k ? "active" : ""}">${t(label)}</button>`).join("")}</div>`)
+    + `<div class="cp-pop-list">${list.map((m) => `<button type="button" data-cpmk="${m.symbol}" class="${m.symbol === on ? "on" : ""}">${ico(m.symbol, "xs")}<b>${esc(m.symbol)}</b></button>`).join("") || `<div class="empty">${t("Nessun mercato trovato.")}</div>`}</div>`;
+}
+
 function renderCalPage() {
   if ($("#view-cal").classList.contains("hidden")) return;
   const now = Date.now() / 1000, q = $("#cpSearch").value.trim().toLowerCase();
@@ -5680,9 +5705,27 @@ function wire() {
     if (bySymbol[v]) { cp.scope = "mkt"; cp.market = v; saveCp(); renderCalPage(); }
     else if (final) { $("#cpMarket").value = cp.scope === "mkt" ? cp.market || "" : ""; } // not a market: back to the chosen one
   };
-  $("#cpMarket").oninput = (e) => cpPick(e.target.value, false);
-  $("#cpMarket").onchange = (e) => cpPick(e.target.value, true);
-  $("#cpMarket").onkeydown = (e) => { if (e.key === "Enter") e.target.blur(); if (e.key === "Escape") { e.target.value = ""; cpPick("", true); e.target.blur(); } };
+  const mbox = $("#cpMarket"), pop = $("#cpMkPop");
+  const cpChoose = (sym) => { cp.scope = "mkt"; cp.market = sym; saveCp(); mbox.value = sym; closeCpPop(); mbox.blur(); renderCalPage(); };
+  mbox.onfocus = () => { mbox.select(); openCpPop(); };
+  mbox.onclick = () => openCpPop();
+  mbox.oninput = (e) => { cpPop.typing = true; cpPick(e.target.value, false); openCpPop(); renderCpPop(); };
+  mbox.onchange = (e) => cpPick(e.target.value, true);
+  mbox.onkeydown = (e) => {
+    if (e.key === "Enter") { const first = $("#cpMkPop [data-cpmk]"); if (first && !bySymbol[mbox.value.trim().toUpperCase()]) cpChoose(first.dataset.cpmk); else { closeCpPop(); mbox.blur(); } }
+    if (e.key === "Escape") { mbox.value = ""; cpPick("", true); closeCpPop(); mbox.blur(); }
+  };
+  pop.onmousedown = (e) => e.preventDefault(); // the box keeps the focus while the panel is used
+  pop.onclick = (e) => {
+    e.stopPropagation();
+    const b = e.target.closest("button");
+    if (!b) return;
+    if (b.dataset.cpmk) return cpChoose(b.dataset.cpmk);
+    if (b.dataset.cptab !== undefined) { cpPop.tab = b.dataset.cptab; cpPop.cat = ""; }
+    if (b.dataset.cpcat !== undefined) cpPop.cat = b.dataset.cpcat;
+    renderCpPop();
+  };
+  document.addEventListener("mousedown", (e) => { if (!e.target.closest("#cpMkPop, #cpMarket")) closeCpPop(); });
   $("#cpSearch").oninput = renderCalPage;
   $("#cpList").onclick = (e) => {
     const s = e.target.closest("[data-cpsym]");
@@ -6823,7 +6866,6 @@ async function init() {
   panelCfg = panelCfg.map((c) => (bySymbol[c.symbol] ? c : { ...c, symbol: "BTC" }));
   const opts = markets.map((m) => `<option value="${m.id}">${m.symbol}</option>`).join("");
   $$(".marketSelect").forEach((s) => (s.innerHTML = opts));
-  $("#cpMarketList").innerHTML = markets.map((m) => `<option value="${m.symbol}">`).join("");
   renderEventSelect();
   const net = info.network === "testnet" ? "Testnet" : "Mainnet";
   $("#netBadge").textContent = net;
