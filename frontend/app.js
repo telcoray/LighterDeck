@@ -4724,16 +4724,20 @@ async function loadCalendar() {
 // ================= markets page =================
 let mktSort = { key: "volume", dir: -1 };
 function renderMarkets() {
+  loadFarmRecent(); // the last 6 hours' funding, as on the Farming page
   const q = $("#mktSearch").value.trim().toUpperCase();
   const rows = markets.filter((m) => !q || m.symbol.includes(q)).map((m) => {
     const p = prices[m.id] || {};
-    return { m, symbol: m.symbol, price: p.last || p.mark || 0, change: p.change || 0, volume: p.volume || m.volume_usd, oi: p.oi || 0, funding: p.funding || 0 };
+    const past = farmRecent.rates[m.id] || [];
+    return { m, symbol: m.symbol, price: p.last || p.mark || 0, change: p.change || 0, volume: p.volume || m.volume_usd, oi: p.oi || 0, funding: p.funding || 0,
+      past, hot: past.filter((x) => Math.abs(x) >= FARM_MIN).length };
   });
   rows.sort((a, b) => (a[mktSort.key] > b[mktSort.key] ? 1 : -1) * mktSort.dir);
   $("#mktTable tbody").innerHTML = rows.slice(0, 250).map((r) => `<tr data-sym="${r.symbol}">
       <td><button class="star${favs.includes(r.symbol) ? " on" : ""}" data-star="${r.symbol}">★</button></td>
       <td class="mk"><span class="sym">${ico(r.symbol)}${r.symbol}</span></td><td class="r">${fp(r.price, r.m)}</td><td class="r ${cls(r.change)}">${fpct(r.change)}</td>
       <td class="r">${fcompact(r.volume)}</td><td class="r">${fcompact(r.oi)}</td><td class="r ${r.funding < 0 ? "down" : ""}">${r.funding.toFixed(4)}%</td>
+      <td class="r">${farmHours(r.past, r.hot)}</td>
       <td class="r"><span class="open-btn">${t("Apri nel grafico →")}</span></td></tr>`).join("");
 }
 
@@ -4751,7 +4755,13 @@ let farmRecent = { at: 0, hours: 6, rates: {} }, farmRecentAt = 0;
 function loadFarmRecent() {
   if (Date.now() - farmRecentAt < 5 * 60000) return;
   farmRecentAt = Date.now();
-  api("/funding_recent").then((r) => { farmRecent = r; if (curView === "farm") renderFarm(); }).catch(() => { farmRecentAt = 0; });
+  api("/funding_recent").then((r) => { farmRecent = r; if (curView === "farm") renderFarm(); if (curView === "markets") renderMarkets(); }).catch(() => { farmRecentAt = 0; });
+}
+
+// one mark per past hour, oldest first: filled when past FARM_MIN, in the colour of who collected it; then how many
+function farmHours(past, hot) {
+  const marks = past.map((x) => `<i class="${Math.abs(x) >= FARM_MIN ? (x > 0 ? "hot dn" : "hot up") : ""}" title="${x >= 0 ? "+" : "−"}${Math.abs(x).toFixed(4)}%"></i>`).join("");
+  return `<span class="farm-hours">${marks}</span><span class="farm-hot">${past.length ? `${hot}/${past.length}` : "—"}</span>`;
 }
 
 function renderFarm() {
@@ -4774,13 +4784,11 @@ function renderFarm() {
   $("#farmTable tbody").innerHTML = rows.map((r) => {
     const earn = r.short ? "sell" : "buy";
     const apr = r.earn * 24 * 365, day = 1000 * r.earn / 100 * 24;
-    // one mark per past hour, oldest first: filled when past FARM_MIN, in the colour of who collected it
-    const hours = r.past.map((x) => `<i class="${Math.abs(x) >= FARM_MIN ? (x > 0 ? "hot dn" : "hot up") : ""}" title="${x >= 0 ? "+" : "−"}${Math.abs(x).toFixed(4)}%"></i>`).join("");
     return `<tr class="${r.now ? "" : "farm-past"}" data-sym="${esc(r.symbol)}" data-side="${earn}" title="${t("Apri {sym} con il lato che incassa già scelto", { sym: r.symbol })}">
       <td><button class="star${favs.includes(r.symbol) ? " on" : ""}" data-star="${esc(r.symbol)}">★</button></td>
       <td class="mk"><span class="sym">${ico(r.symbol)}${esc(r.symbol)}</span></td>
       <td class="r ${r.now ? (r.f < 0 ? "down" : "up") : ""}">${r.f > 0 ? "+" : r.f < 0 ? "−" : ""}${r.rate.toFixed(4)}%</td>
-      <td class="r"><span class="farm-hours">${hours}</span><span class="farm-hot">${r.past.length ? `${r.hot}/${r.past.length}` : "—"}</span></td>
+      <td class="r">${farmHours(r.past, r.hot)}</td>
       <td class="r main${apr < 0 ? " down" : ""}">${apr < 0 ? "−" : ""}${Math.abs(apr).toFixed(Math.abs(apr) < 100 ? 1 : 0)}%</td>
       <td class="r"><span class="farm-side ${earn === "buy" ? "up" : "down"}">${earn === "buy" ? "Long" : "Short"}</span></td>
       <td class="r ${day < 0 ? "down" : "up"}">${day < 0 ? "−" : "+"}${fusd(Math.abs(day))}</td>
