@@ -120,6 +120,8 @@ button, input, select { font: inherit; color: inherit; }
 button { background: none; border: 0; padding: 0; cursor: pointer; }
 input, select { background: var(--bg); border: 1px solid var(--line-2); border-radius: var(--r); padding: 7px 9px; width: 100%; outline: none; }
 input:focus, select:focus { border-color: var(--line-3); }
+/* placeholders in the theme's own muted text (the browser's grey ignores the theme and is too faint on dark ones) */
+input::placeholder, textarea::placeholder { color: var(--muted); opacity: 1; }
 input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
 input[type=checkbox] { width: 12px; height: 12px; margin: 0; accent-color: var(--green); }
 .hidden { display: none !important; }

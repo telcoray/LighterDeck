@@ -145,7 +145,7 @@ DICTS.zh = {
   "Hong Kong": "香港",
   "Australia": "澳大利亚",
   "Corea del Sud": "韩国",
-  "Search symbol…": "搜索代码…",
+  "Search symbol": "搜索代码",
   "Open in chart →": "在图表中打开 →",
   "Managed stop": "托管止损",
   "initial stop → breakeven → trailing": "初始止损 → 保本 → 追踪",

@@ -491,7 +491,7 @@ const EN = {
   "Australia": "Australia",
   "Corea del Sud": "South Korea",
   // ---- markets page ----
-  "Cerca simbolo…": "Search symbol…",
+  "Cerca simbolo": "Search symbol",
   "Apri nel grafico →": "Open in chart →",
   // ---- automations ----
   "Stop gestito": "Managed stop",
