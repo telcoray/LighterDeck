@@ -4514,7 +4514,7 @@ function evMarkets(e) {
 const cp = { scope: "all", types: ["macro", "energy", "earnings", "crypto", "mine"], impacts: ["High", "Medium"], range: "7", ...load("cp", {}) };
 function saveCp() { store("cp", { scope: cp.scope, types: cp.types, impacts: cp.impacts, range: cp.range, market: cp.market }); }
 
-// The calendar's market panel: the picker's tabs and categories over the markets' names, A to Z in two
+// The calendar's market panel: the picker's tabs and categories over the markets' names, A to Z in three
 // columns; typing in the box searches all of them
 const cpPop = { tab: "all", cat: "", typing: false };
 // The Calendar's own favourites: the Trade page's until the first star is changed here, then a list of their own

@@ -649,9 +649,9 @@ body.dragging-line, body.dragging-line * { cursor: ns-resize !important; user-se
 .cp-select { height: 30px; padding: 0 8px; border: 1px solid var(--line-2); border-radius: 6px; background: var(--surface); font-size: 11.5px; }
 .cp-select::placeholder { color: var(--faint); }
 .cp-select:focus { outline: none; border-color: var(--line-3); }
-/* the market panel under the box: tabs, categories, then the names A to Z in two columns */
+/* the market panel under the box: tabs, categories, then the names A to Z in three columns */
 .cp-block:has(#cpMarket) { position: relative; }
-.cp-mk-pop { position: absolute; top: calc(100% + 4px); left: 0; z-index: 30; width: 380px; max-width: calc(100vw - 24px); padding: 6px 8px 8px;
+.cp-mk-pop { position: absolute; top: calc(100% + 4px); left: 0; z-index: 30; width: 500px; max-width: calc(100vw - 24px); padding: 6px 8px 8px;
   background: var(--surface); border: 1px solid var(--float-border); border-radius: var(--float-radius); box-shadow: var(--float-shadow); }
 .cp-pop-tabs { display: flex; gap: 14px; border-bottom: 1px solid var(--line); }
 .cp-pop-tabs button { padding: 6px 0 7px; margin-bottom: -1px; border-bottom: 1px solid transparent; color: var(--muted); font-size: 12px; }
@@ -662,7 +662,7 @@ body.dragging-line, body.dragging-line * { cursor: ns-resize !important; user-se
 .cp-pop-cats button { height: 22px; padding: 0 7px; border-radius: 4px; color: var(--muted); font-size: 10.5px; }
 .cp-pop-cats button:hover { color: var(--text-2); }
 .cp-pop-cats button.active { color: var(--text); background: var(--raised); }
-.cp-pop-list { display: grid; grid-template-columns: 1fr 1fr; gap: 1px 6px; max-height: 300px; overflow-y: auto; padding-top: 6px; }
+.cp-pop-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px 6px; max-height: 300px; overflow-y: auto; padding-top: 6px; }
 .cp-mk { display: flex; align-items: center; min-width: 0; height: 28px; border-radius: 5px; }
 .cp-mk:hover { background: var(--raised); }
 .cp-mk [data-cpmk] { flex: 1; display: flex; align-items: center; gap: 7px; min-width: 0; height: 100%; padding: 0 7px; color: var(--text-2); font-size: 12px; text-align: left; }
