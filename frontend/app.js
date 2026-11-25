@@ -4145,9 +4145,11 @@ const SESSIONS = [
   { name: "Cina", ex: "SSE Shanghai", code: "XSHG", ccy: "CNY", tz: "Asia/Shanghai", open: [9, 30], close: [15, 0], lunch: [[11, 30], [13, 0]] },
   { name: "Hong Kong", ex: "HKEX", code: "XHKG", ccy: "HKD", tz: "Asia/Hong_Kong", open: [9, 30], close: [16, 0], lunch: [[12, 0], [13, 0]] },
   { name: "Corea del Sud", ex: "KRX", code: "XKRX", ccy: "KRW", tz: "Asia/Seoul", open: [9, 0], close: [15, 30] },
+  // the Calendar page only: the trade sidebar keeps the exchanges behind Lighter's markets
+  { name: "Australia", ex: "ASX", code: "XASX", ccy: "AUD", tz: "Australia/Sydney", open: [10, 0], close: [16, 0], calOnly: true },
 ];
 let exchangeHours = null;
-fetch("exchange_hours.json?v=2").then((r) => r.json()).then((d) => { exchangeHours = d.exchanges; renderSessions(); }).catch(() => {});
+fetch("exchange_hours.json?v=3").then((r) => r.json()).then((d) => { exchangeHours = d.exchanges; renderSessions(); }).catch(() => {});
 
 function zoned(ts, tz) {
   const parts = Object.fromEntries(new Intl.DateTimeFormat("en-US", { timeZone: tz, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", weekday: "short" })
@@ -4216,13 +4218,13 @@ function renderSessions() {
     : st.state === "lunch" ? t("pausa pranzo · riprende {t}", { t: hm(st.at) })
     : `${st.holiday ? t("festività") + " · " : ""}${t("apre")} ${st.at ? local(st.at) : ""}`;
   // a country's row filters the Calendar page to its releases (Germany: the euro area's)
-  const html = rows.map(({ s, st }) => `<div class="cal-row${cp.country === s.ccy ? " on" : ""}" data-cc="${s.ccy}" role="button" tabindex="0" title="${t("Solo gli eventi di {c}", { c: t(s.name) })}">
+  const row = ({ s, st }) => `<div class="cal-row${cp.country === s.ccy ? " on" : ""}" data-cc="${s.ccy}" role="button" tabindex="0" title="${t("Solo gli eventi di {c}", { c: t(s.name) })}">
       <div><div class="t">${t(s.name)}</div><div class="s">${s.ex} · ${line(st)}</div></div>
       <div class="w ${st.state === "open" ? "open" : st.state === "lunch" || st.at - now < 3600000 ? "soon" : ""}">${
         st.state === "open" ? t("aperto · {d}", { d: dur(st.at - now) }) : st.state === "lunch" ? t("pausa · {d}", { d: dur(st.at - now) }) : t("tra {d}", { d: dur(st.at - now) })}</div>
-    </div>`).join("");
-  $("#ctab-sessions").innerHTML = html;
-  $("#cpSessions").innerHTML = html;
+    </div>`;
+  $("#ctab-sessions").innerHTML = rows.filter((r) => !r.s.calOnly).map(row).join("");
+  $("#cpSessions").innerHTML = rows.map(row).join("");
 }
 
 // Trade sidebar: the next events that move the selected market; the Calendar page has everything
