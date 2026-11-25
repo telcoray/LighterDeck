@@ -5342,7 +5342,7 @@ function wireAutoPage() {
 let changelog = null;
 function loadChangelog() {
   if (changelog) { renderChangelog(); return; }
-  fetch("changelog.json?v=3").then((r) => r.json()).then((d) => { changelog = d; renderChangelog(); }).catch(() => {});
+  fetch("changelog.json?v=4").then((r) => r.json()).then((d) => { changelog = d; renderChangelog(); }).catch(() => {});
 }
 // **bold**, *highlight*, `code`
 const logMd = (s) => esc(s).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>").replace(/\*(.+?)\*/g, "<i>$1</i>").replace(/`(.+?)`/g, "<code>$1</code>");

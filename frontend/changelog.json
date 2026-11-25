@@ -6,17 +6,17 @@
  },
  "releases": [
   {
-   "v": null,
-   "date": "2026-11-22",
-   "from": "2026-11-15",
-   "intro": "Everything since 0.7.0, on its way to the next release. Connecting is now one signature in your wallet, the site starts in paper trading, the calendar learns South Korea, and there is a Discord.",
+   "v": "0.8.0",
+   "date": "2026-11-25",
+   "intro": "Connecting is one signature in your wallet, the site starts in paper with a Paper / Live switch in the top bar, the Account page is open to everyone, the order book gets its own controls and Lighter's latest trades, Markets takes over from the Farming page, and charts follow your own time zone.",
    "tags": [
     "Key from your wallet",
-    "Automations & latency",
-    "Security page",
-    "South Korea",
-    "Favourites on rows",
-    "Discord"
+    "Paper / Live",
+    "Account page",
+    "Order book & trades",
+    "Markets & funding",
+    "Local time",
+    "Calendar"
    ],
    "groups": [
     {
@@ -31,41 +31,45 @@
       },
       "**Pasting a key you already have** still works: the paste fields fold under *or paste a key you already have*, open with one click, and **Verify** finds the account and the key index on its own.",
       "**A clearer dialog.** The three safety points come first, under the title: the key stays in this browser, it signs with Lighter's official signer, and it can't send funds to anyone else. *Connect wallet* says what the button does; the terms line is one short sentence.",
-      "The account and key index fields are always in view, with no fold to open."
-     ]
-    },
-    {
-     "h": "Automations",
-     "items": [
-      "**The Automations page is open to everyone**, paper and public site included: every automation LighterDeck runs, what it does, and how to switch it on from where you are.",
-      {
-       "t": "**Latency, measured live:**",
-       "sub": [
-        "LighterDeck's server → Lighter, from the keepalive ping of its open connection;",
-        "how long Lighter's API takes to answer the server;",
-        "your browser → Lighter and your browser → LighterDeck, measured when the page opens."
-       ]
-      },
-      "**Why it is so low:** the server sits next to Lighter's own, so an automatic order reaches Lighter in a few milliseconds without going through your computer, and the page compares it with your own connection."
+      "The account and key index fields are always in view, with no fold to open.",
+      "On phones and tablets the key dialog no longer opens the keyboard by itself.",
+      "With the key in the browser, a server that is restarting is waited for instead of falling back to paper."
      ]
     },
     {
      "h": "Paper first",
      "items": [
       "**The public site starts in paper trading.** Closing the key dialog with the X (or Esc) brings you back to paper, so a visitor who connects nothing trades simulated money.",
-      "The account pill reads just **Paper**, without a balance.",
+      "**Paper / Live** as one split pill in the top bar, like Cross / Isolated: amber border in paper, green in live, with the side you are on marked by a dot. The account card shows it too while in paper, and opens the paper window.",
       "**Paper dialog:** *Start over* sits next to the $100K balance and *Switch to live* at the end of the row, green on hover, as *Start over* turns red.",
       "The paper notice under the trade button is muted instead of amber.",
-      "The connected-key dialog keeps only *Disconnect*; the X closes it."
+      "The connected-key dialog keeps only *Disconnect*; the X closes it.",
+      "The ticket's switch-to-live line is gone: the pill does it."
      ]
     },
     {
-     "h": "Security",
+     "h": "Account page",
      "items": [
-      "**A Security page** (`/security`) explains how LighterDeck handles the API key, step by step.",
-      "**Private vulnerability reporting** through GitHub; `SECURITY.md` and the Security page point to it.",
-      "**Security headers:** a Content-Security-Policy on every page, the charts library served from LighterDeck itself instead of a CDN, and the key no longer remembered by default.",
-      "**Network badge:** green when orders are real, grey otherwise. Click it to switch between Mainnet and Testnet."
+      "**Open to everyone**, after Automations in the top bar; the account card opens it.",
+      "The PnL curve, the period's performance and the PnL calendar work in paper and with a key in the browser too.",
+      "*Start over* and *Switch to live* as two buttons, *Switch to live* always green."
+     ]
+    },
+    {
+     "h": "Order book and trades",
+     "items": [
+      "**The order book fills its column**, with a view of both sides, bids only or asks only, size in coin or USD, and price grouping chosen per market.",
+      "**Latest trades**, from Lighter's trade stream, in their own panel next to the order book (a toolbar button shows it): buys and sells, a minimum size, liquidations only, and their own coin / USD switch."
+     ]
+    },
+    {
+     "h": "Positions",
+     "items": [
+      "The Cross / Isolated tag stays on the side's line instead of wrapping under it.",
+      "**+ Pair** has its own titled column after the close buttons, always visible and sized like *+ Trailing*.",
+      "Equal gaps between all the columns, which still follow the window's width.",
+      "The leverage next to the market is brighter; the unrealized PnL is in regular weight, its percentage a little larger.",
+      "No white square where the two scrollbars meet, and no vertical scrollbar when the rows already fit."
      ]
     },
     {
@@ -76,6 +80,23 @@
       "An empty TP distance is green, its cursor too.",
       "The ticket's answer goes away as soon as you change the ticket, and a success fades by itself.",
       "**Margin bar:** the maintenance tick is amber like the liquidation price, and red when it gets close."
+     ]
+    },
+    {
+     "h": "Charts",
+     "items": [
+      "**Your own time zone:** the time axis, the crosshair and the status-bar clock use the computer's time instead of UTC (the clock shows the offset). Bars are still Lighter's UTC buckets.",
+      "**New defaults in Elements:** liquidation, macro events, fills, alerts and the spread z-score on; the rest off.",
+      "Charts reload after the computer sleeps, not only after a hidden tab.",
+      "No static *Live* tag in the chart toolbar: the status bar's *Live data* is the real check."
+     ]
+    },
+    {
+     "h": "Markets and funding",
+     "items": [
+      "**The Farming page is gone; Markets has what mattered.** *Funding* becomes *Funding 1h*, and two sortable columns follow it: the **last 6 hours** (a dot per hour, filled when past 0.01%, in the colour of the side that collected) and **per day on $1,000** for the side that collects, from the 6 hours' average. Old `/farming` links open Markets.",
+      "**Markets has the picker's tabs and categories** above the table, remembered; a search looks in every market.",
+      "**Funding popover:** a tidier legend that shows only the sign the rate has now."
      ]
     },
     {
@@ -90,7 +111,10 @@
         "the Bank of Korea's rate decisions, high impact for Korean markets (Samsung, SK Hynix, Hyundai, EWY, USD/KRW)."
        ]
       },
-      "**Market hours:** South Korea (KRX) replaces Australia.",
+      "**Market hours:** South Korea (KRX) on every page; Australia (ASX) on the Calendar page.",
+      "**The market filter is a box you type in.** It opens a panel like the market picker, with its tabs and categories and the markets A to Z in three columns; typing searches every market.",
+      "**Favourites of its own:** a star next to every market in that panel. They start as the Trade page's and live apart once you change one here.",
+      "The header reads Calendar, the time zone, *Search event* (in line with the events column) and *+ Event*.",
       "**Click a country** in the market hours to see only its events; a chip on top of the list clears it.",
       "One-off events added by hand, such as a notable listing day.",
       "An earnings report no longer shows twice when Nasdaq changes its time.",
@@ -98,19 +122,41 @@
      ]
     },
     {
-     "h": "Farming and funding",
+     "h": "Automations",
      "items": [
-      "**Farming looks at the last 6 hours:** a market shows if its funding passed 0.01% an hour in any of them, with a dot for each hour. The annualized rate and the pay per day on $1,000 come from the 6 hours' average, and so does the side that collects when the rate is below the threshold right now.",
-      "A one-line intro: just the selection rule.",
-      "**Funding popover:** a tidier legend that shows only the sign the rate has now."
+      "**The Automations page is open to everyone**, paper and public site included: every automation LighterDeck runs, what it does, and how to switch it on from where you are.",
+      {
+       "t": "**Latency, measured live:**",
+       "sub": [
+        "LighterDeck's server → Lighter, from the keepalive ping of its open connection;",
+        "how long Lighter's API takes to answer the server;",
+        "your browser → Lighter and your browser → LighterDeck, measured when the page opens."
+       ]
+      },
+      "**Why it is so low:** the server sits next to Lighter's own, so an automatic order reaches Lighter in a few milliseconds without going through your computer, and the page compares it with your own connection.",
+      "**Status bar:** the server's round trip to Lighter; *Live data* turns amber when prices stop coming.",
+      "**For your own deck:** `ENGINE_FAST=1` makes automations react to the order book instead of checking every 3 seconds, and `ENGINE_GO=1` runs them in a new Go engine with the same rules. Both are off by default; try them on testnet first."
+     ]
+    },
+    {
+     "h": "Security",
+     "items": [
+      "**A Security page** (`/security`) explains how LighterDeck handles the API key, step by step.",
+      "**Private vulnerability reporting** through GitHub; `SECURITY.md` and the Security page point to it.",
+      "**Security headers:** a Content-Security-Policy on every page, the charts library served from LighterDeck itself instead of a CDN, and the key no longer remembered by default.",
+      "**Network badge:** green when orders are real, grey otherwise. Click it to switch between Mainnet and Testnet."
      ]
     },
     {
      "h": "Layout",
      "items": [
       "**Favourites on as many rows as needed** on a computer, so every favourite is in view. An arrow at the end folds the bar to one scrolling row and back, and the choice is remembered. Dragging to reorder works across rows.",
+      "Tablets get the favourites' fold arrow too (one row to start); phones keep the scrolling row. The first row stays put when the bar folds.",
+      "**Hovering a favourite** shows its last 24 hours.",
       "The chart toolbar fits a narrow chart column instead of running under the ticket: icons first, then a second line.",
       "The language menu names each language in its own language.",
+      "Search boxes' placeholders in the theme's muted colour, readable in every theme.",
+      "Slightly smaller timeframe buttons on the chart on phones.",
       "**Discord:** a link in the status bar, between the shortcuts key and the clock.",
       "**This page.**"
      ]
