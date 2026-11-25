@@ -4728,16 +4728,16 @@ function renderMarkets() {
   const q = $("#mktSearch").value.trim().toUpperCase();
   const rows = markets.filter((m) => !q || m.symbol.includes(q)).map((m) => {
     const p = prices[m.id] || {};
-    const past = farmRecent.rates[m.id] || [];
+    const x = farmOf(m);
     return { m, symbol: m.symbol, price: p.last || p.mark || 0, change: p.change || 0, volume: p.volume || m.volume_usd, oi: p.oi || 0, funding: p.funding || 0,
-      past, hot: past.filter((x) => Math.abs(x) >= FARM_MIN).length };
+      past: x.past, hot: x.hot, x, day: farmDay(x.earn) };
   });
   rows.sort((a, b) => (a[mktSort.key] > b[mktSort.key] ? 1 : -1) * mktSort.dir);
   $("#mktTable tbody").innerHTML = rows.slice(0, 250).map((r) => `<tr data-sym="${r.symbol}">
       <td><button class="star${favs.includes(r.symbol) ? " on" : ""}" data-star="${r.symbol}">★</button></td>
       <td class="mk"><span class="sym">${ico(r.symbol)}${r.symbol}</span></td><td class="r">${fp(r.price, r.m)}</td><td class="r ${cls(r.change)}">${fpct(r.change)}</td>
       <td class="r">${fcompact(r.volume)}</td><td class="r">${fcompact(r.oi)}</td><td class="r ${r.funding < 0 ? "down" : ""}">${r.funding.toFixed(4)}%</td>
-      <td class="r">${farmHours(r.past, r.hot)}</td>
+      <td class="r">${farmHours(r.past, r.hot)}</td>${farmDayCell(r.x)}
       <td class="r"><span class="open-btn">${t("Apri nel grafico →")}</span></td></tr>`).join("");
 }
 
@@ -4764,16 +4764,25 @@ function farmHours(past, hot) {
   return `<span class="farm-hours">${marks}</span><span class="farm-hot">${past.length ? `${hot}/${past.length}` : "—"}</span>`;
 }
 
+// a market's funding now and in the last 6 hours: which side collects and what it got on average (% per hour)
+function farmOf(m) {
+  const p = prices[m.id] || {}, f = p.funding || 0, past = farmRecent.rates[m.id] || [];
+  const hot = past.filter((x) => Math.abs(x) >= FARM_MIN).length;
+  const avg = past.length ? past.reduce((s, x) => s + x, 0) / past.length : f;
+  // positive funding: the shorts collect. Below FARM_MIN now, the rate now is too small to tell: the hours' average says
+  const short = Math.abs(f) >= FARM_MIN || !past.length ? f > 0 : avg > 0;
+  return { f, past, hot, short, earn: short ? avg : -avg };
+}
+// what the collecting side gets in a day on $1,000 (before fees)
+const farmDay = (earn) => (1000 * earn / 100) * 24;
+const farmDayCell = (x) => { const day = farmDay(x.earn);
+  return `<td class="r ${day < 0 ? "down" : "up"}" title="${t("Lato che incassa")}: ${x.short ? "Short" : "Long"}">${day < 0 ? "−" : "+"}${fusd(Math.abs(day))}</td>`; };
+
 function renderFarm() {
   loadFarmRecent();
   const rows = markets.map((m) => {
-    const p = prices[m.id] || {}, f = p.funding || 0, past = farmRecent.rates[m.id] || [];
-    const hot = past.filter((x) => Math.abs(x) >= FARM_MIN).length;
-    const avg = past.length ? past.reduce((s, x) => s + x, 0) / past.length : f;
-    // positive funding: the shorts collect. Below FARM_MIN now, the rate now is too small to tell: the hours' average says
-    const short = Math.abs(f) >= FARM_MIN || !past.length ? f > 0 : avg > 0;
-    return { m, symbol: m.symbol, f, rate: Math.abs(f), past, hot, now: Math.abs(f) >= FARM_MIN, short,
-      earn: short ? avg : -avg, // % per hour the collecting side got on average
+    const p = prices[m.id] || {}, x = farmOf(m);
+    return { m, symbol: m.symbol, ...x, rate: Math.abs(x.f), now: Math.abs(x.f) >= FARM_MIN,
       oi: p.oi || 0, volume: p.volume || m.volume_usd || 0 };
   }).filter((r) => r.now || r.hot);
   rows.sort((a, b) => (a[farmSort.key] > b[farmSort.key] ? 1 : -1) * farmSort.dir);
@@ -4783,7 +4792,7 @@ function renderFarm() {
   $("#farmTable").classList.toggle("hidden", !rows.length);
   $("#farmTable tbody").innerHTML = rows.map((r) => {
     const earn = r.short ? "sell" : "buy";
-    const apr = r.earn * 24 * 365, day = 1000 * r.earn / 100 * 24;
+    const apr = r.earn * 24 * 365, day = farmDay(r.earn);
     return `<tr class="${r.now ? "" : "farm-past"}" data-sym="${esc(r.symbol)}" data-side="${earn}" title="${t("Apri {sym} con il lato che incassa già scelto", { sym: r.symbol })}">
       <td><button class="star${favs.includes(r.symbol) ? " on" : ""}" data-star="${esc(r.symbol)}">★</button></td>
       <td class="mk"><span class="sym">${ico(r.symbol)}${esc(r.symbol)}</span></td>
