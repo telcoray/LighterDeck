@@ -357,7 +357,7 @@ async def fills_between(start: int, end: int):
 
 _funding_cache = {}  # (market, days) -> (fetched at, rows); funding changes once an hour
 
-# The Farming page's history: the last RECENT_HOURS hourly fundings of every market (% per hour, positive when
+# The Markets page's funding history: the last RECENT_HOURS hourly fundings of every market (% per hour, positive when
 # longs pay), oldest first. Funding changes once an hour, so a new round starts a few minutes past each hour and
 # reads the markets one at a time, one every RECENT_PACE seconds (about half an hour for all of them): a burst of
 # a couple of hundred requests gets the server's IP challenged by the firewall in front of Lighter's API. A market
@@ -387,7 +387,7 @@ async def recent_funding_loop():
 
 @app.get("/api/funding_recent")
 async def funding_recent():
-    """The last hourly fundings of every market, for the Farming page: {at, hours, rates: {market id: [% per hour]}}."""
+    """The last hourly fundings of every market, for the Markets page: {at, hours, rates: {market id: [% per hour]}}."""
     return {"at": _recent_funding["at"], "hours": RECENT_HOURS, "rates": _recent_funding["rates"]}
 
 
@@ -1658,7 +1658,7 @@ async def security():
 
 # Pages have their own addresses (lighterdeck.xyz/trade/WTI, /calendar, /account…): they all load the
 # same page, which reads the path and opens that view and market.
-PAGES = ("trade", "markets", "calendar", "farming", "changelog", "account", "automations", "activity")
+PAGES = ("trade", "markets", "calendar", "farming", "changelog", "account", "automations", "activity")  # farming: old links, open Markets
 
 
 def _market_by_symbol(symbol):

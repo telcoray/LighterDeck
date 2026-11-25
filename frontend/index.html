@@ -40,7 +40,7 @@
 </script>
 <style>html.i18n-pending body { visibility: hidden; }</style>
 <link rel="icon" href="favicon.svg?v=1" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=373">
+<link rel="stylesheet" href="style.css?v=374">
 <script src="vendor/lightweight-charts-4.2.0.standalone.production.js"></script>
 </head>
 <body>
@@ -63,7 +63,6 @@
     <button data-view="trade" class="active">Trade</button>
     <button data-view="markets">Mercati</button>
     <button data-view="cal">Calendario</button>
-    <button data-view="farm">Farming</button>
     <button data-view="auto">Automazioni</button>
     <button data-view="account">Account</button>
     <button data-view="activity">Attività</button>
@@ -451,25 +450,6 @@
       </tr></thead>
       <tbody></tbody>
     </table>
-  </div>
-</section>
-
-<!-- ============ FARMING VIEW: markets paying a high funding ============ -->
-<section class="view hidden" id="view-farm">
-  <div class="page farm-page">
-    <div class="page-head">
-      <h1>Farming</h1>
-      <span class="muted" id="farmCount"></span>
-    </div>
-    <p class="farm-intro">Mercati con un funding di almeno 0,01% all'ora, in un senso o nell'altro, in una delle ultime 6 ore.</p>
-    <table class="table" id="farmTable">
-      <thead><tr>
-        <th></th><th data-sort="symbol">Mercato</th><th data-sort="rate" class="r">Funding 1h</th><th data-sort="hot" class="r" title="Ore delle ultime 6 con un funding di almeno 0,01%, dalla più vecchia">Ultime 6 ore</th><th data-sort="earn" class="r" title="Media delle ultime 6 ore per il lato che incassa, su un anno">Annualizzato</th>
-        <th class="r">Lato che incassa</th><th data-sort="earn" class="r" title="Media delle ultime 6 ore per il lato che incassa, su una posizione da $1.000 (senza commissioni)">Al giorno su $1.000</th><th data-sort="oi" class="r">Open interest</th><th data-sort="volume" class="r">Volume 24h</th><th></th>
-      </tr></thead>
-      <tbody></tbody>
-    </table>
-    <p class="muted farm-empty hidden" id="farmEmpty">Nessun mercato oltre lo 0,01% all'ora, adesso o nelle ultime 6 ore.</p>
   </div>
 </section>
 
@@ -864,13 +844,13 @@
 </div>
 
 <div class="toast hidden" id="toast" role="status" aria-live="polite"></div>
-<script src="i18n.js?v=373"></script>
-<script src="i18n-zh.js?v=373"></script>
-<script src="i18n-ko.js?v=373"></script>
-<script src="formulas.js?v=373"></script>
-<script src="paper.js?v=373"></script>
-<script src="live.js?v=373"></script>
-<script src="app.js?v=373"></script>
-<script src="picker.js?v=373"></script>
+<script src="i18n.js?v=374"></script>
+<script src="i18n-zh.js?v=374"></script>
+<script src="i18n-ko.js?v=374"></script>
+<script src="formulas.js?v=374"></script>
+<script src="paper.js?v=374"></script>
+<script src="live.js?v=374"></script>
+<script src="app.js?v=374"></script>
+<script src="picker.js?v=374"></script>
 </body>
 </html>

@@ -4724,7 +4724,7 @@ async function loadCalendar() {
 // ================= markets page =================
 let mktSort = { key: "volume", dir: -1 };
 function renderMarkets() {
-  loadFarmRecent(); // the last 6 hours' funding, as on the Farming page
+  loadFarmRecent(); // the last 6 hours' funding
   const q = $("#mktSearch").value.trim().toUpperCase();
   const rows = markets.filter((m) => !q || m.symbol.includes(q)).map((m) => {
     const p = prices[m.id] || {};
@@ -4741,21 +4741,18 @@ function renderMarkets() {
       <td class="r"><span class="open-btn">${t("Apri nel grafico →")}</span></td></tr>`).join("");
 }
 
-// ================= farming: markets whose funding is worth collecting =================
+// ================= funding over the last 6 hours (the Markets page's columns) =================
 // Lighter's funding is a % per hour, paid every hour: positive, longs pay shorts; negative, shorts pay longs.
-// The page lists the markets past FARM_MIN either way, the side that collects it and what it adds up to.
-// Besides the rate now, the page shows the last 6 hours (from the server, read once an hour): how many of them
-// were past FARM_MIN, and markets below it now that were past it in one of those hours.
-// The annualized rate and the day's pay come from the average of those hours (the rate now until they arrive),
-// for the side that collects: a steadier guess than one hour, and below zero when the side mostly paid.
+// Besides the rate now, Markets shows the last 6 hours (from the server, read once an hour): how many of them
+// were past FARM_MIN, and what the side that collects got a day on $1,000 on their average (the rate now
+// until they arrive): a steadier guess than one hour, and below zero when the side mostly paid.
 const FARM_MIN = 0.01; // % per hour
-let farmSort = { key: "rate", dir: -1 };
 let farmRecent = { at: 0, hours: 6, rates: {} }, farmRecentAt = 0;
 
 function loadFarmRecent() {
   if (Date.now() - farmRecentAt < 5 * 60000) return;
   farmRecentAt = Date.now();
-  api("/funding_recent").then((r) => { farmRecent = r; if (curView === "farm") renderFarm(); if (curView === "markets") renderMarkets(); }).catch(() => { farmRecentAt = 0; });
+  api("/funding_recent").then((r) => { farmRecent = r; if (curView === "markets") renderMarkets(); }).catch(() => { farmRecentAt = 0; });
 }
 
 // one mark per past hour, oldest first: filled when past FARM_MIN, in the colour of who collected it; then how many
@@ -4777,34 +4774,6 @@ function farmOf(m) {
 const farmDay = (earn) => (1000 * earn / 100) * 24;
 const farmDayCell = (x) => { const day = farmDay(x.earn);
   return `<td class="r ${day < 0 ? "down" : "up"}" title="${t("Lato che incassa")}: ${x.short ? "Short" : "Long"}">${day < 0 ? "−" : "+"}${fusd(Math.abs(day))}</td>`; };
-
-function renderFarm() {
-  loadFarmRecent();
-  const rows = markets.map((m) => {
-    const p = prices[m.id] || {}, x = farmOf(m);
-    return { m, symbol: m.symbol, ...x, rate: Math.abs(x.f), now: Math.abs(x.f) >= FARM_MIN,
-      oi: p.oi || 0, volume: p.volume || m.volume_usd || 0 };
-  }).filter((r) => r.now || r.hot);
-  rows.sort((a, b) => (a[farmSort.key] > b[farmSort.key] ? 1 : -1) * farmSort.dir);
-  const loading = Object.keys(farmRecent.rates).length < markets.length * 0.9; // the server reads them slowly after a restart
-  $("#farmCount").textContent = [rows.length ? t("{n} mercati", { n: rows.length }) : "", loading ? t("storico delle 6 ore in caricamento") : ""].filter(Boolean).join(" · ");
-  $("#farmEmpty").classList.toggle("hidden", rows.length > 0);
-  $("#farmTable").classList.toggle("hidden", !rows.length);
-  $("#farmTable tbody").innerHTML = rows.map((r) => {
-    const earn = r.short ? "sell" : "buy";
-    const apr = r.earn * 24 * 365, day = farmDay(r.earn);
-    return `<tr class="${r.now ? "" : "farm-past"}" data-sym="${esc(r.symbol)}" data-side="${earn}" title="${t("Apri {sym} con il lato che incassa già scelto", { sym: r.symbol })}">
-      <td><button class="star${favs.includes(r.symbol) ? " on" : ""}" data-star="${esc(r.symbol)}">★</button></td>
-      <td class="mk"><span class="sym">${ico(r.symbol)}${esc(r.symbol)}</span></td>
-      <td class="r ${r.now ? (r.f < 0 ? "down" : "up") : ""}">${r.f > 0 ? "+" : r.f < 0 ? "−" : ""}${r.rate.toFixed(4)}%</td>
-      <td class="r">${farmHours(r.past, r.hot)}</td>
-      <td class="r main${apr < 0 ? " down" : ""}">${apr < 0 ? "−" : ""}${Math.abs(apr).toFixed(Math.abs(apr) < 100 ? 1 : 0)}%</td>
-      <td class="r"><span class="farm-side ${earn === "buy" ? "up" : "down"}">${earn === "buy" ? "Long" : "Short"}</span></td>
-      <td class="r ${day < 0 ? "down" : "up"}">${day < 0 ? "−" : "+"}${fusd(Math.abs(day))}</td>
-      <td class="r">${fcompact(r.oi)}</td><td class="r">${fcompact(r.volume)}</td>
-      <td class="r"><span class="open-btn">${t("Apri nel grafico →")}</span></td></tr>`;
-  }).join("");
-}
 
 // ================= automations =================
 // events of the market chosen in the event-trade form, high impact for it first among those of the same day
@@ -5235,10 +5204,6 @@ function connect() {
       renderMarkets.at = Date.now();
       renderMarkets();
     }
-    if (!$("#view-farm").classList.contains("hidden") && Date.now() - (renderFarm.at || 0) > 2000) {
-      renderFarm.at = Date.now();
-      renderFarm();
-    }
   };
   ws.onclose = () => { setStatus(false); setTimeout(connect, 2000); };
 }
@@ -5414,12 +5379,12 @@ function wireChangelog() {
 // ---------- addresses ----------
 // every page has its own path and the trade page names its market (/trade/WTI), so a link opens the
 // same view, the browser's back button walks between pages, and a market can be shared directly
-const ROUTES = { trade: "trade", markets: "markets", calendar: "cal", farming: "farm", changelog: "log", account: "account", automations: "auto", activity: "activity" };
+const ROUTES = { trade: "trade", markets: "markets", calendar: "cal", changelog: "log", account: "account", automations: "auto", activity: "activity" };
 const PATH_OF = Object.fromEntries(Object.entries(ROUTES).map(([path, view]) => [view, path]));
 let curView = "trade";
 function routeFromUrl() {
   const [, page, sym] = location.pathname.split("/");
-  return { view: ROUTES[page] || null, sym: sym ? symFromUrl(decodeURIComponent(sym).toUpperCase()) : null };
+  return { view: ROUTES[page] || (page === "farming" ? "markets" : null), sym: sym ? symFromUrl(decodeURIComponent(sym).toUpperCase()) : null };
 }
 // the market in the address: a symbol, or "ETH-BTC" for a spread
 const symFromUrl = (s) => (s && s.includes("-") && pairOf(s.replace("-", "/")) ? s.replace("-", "/") : s);
@@ -5436,7 +5401,6 @@ function switchView(v, opts = {}) {
   $$(".view").forEach((s) => s.classList.toggle("hidden", s.id !== "view-" + v));
   if (v === "markets") renderMarkets();
   if (v === "cal") renderCalPage();
-  if (v === "farm") renderFarm();
   if (v === "log") loadChangelog();
   if (v === "account") loadAccountPage();
   if (v === "auto") { renderAutoPage(); measureLatency(); if (autoOpsShown()) { loadRules(); loadLimits(); } }
@@ -5800,28 +5764,6 @@ function wire() {
 
   // markets page
   $("#mktSearch").oninput = renderMarkets;
-  $$("#farmTable th[data-sort]").forEach((th) => (th.onclick = () => {
-    const k = th.dataset.sort;
-    farmSort = { key: k, dir: farmSort.key === k ? -farmSort.dir : k === "symbol" ? 1 : -1 };
-    renderFarm();
-  }));
-  $("#farmTable tbody").onclick = (e) => {
-    const star = e.target.closest("[data-star]");
-    if (star) {
-      const s = star.dataset.star;
-      favs = favs.includes(s) ? favs.filter((x) => x !== s) : [...favs, s];
-      store("favs", favs);
-      renderFarm();
-      renderTicker();
-      return;
-    }
-    const tr = e.target.closest("tr[data-sym]");
-    if (!tr) return;
-    setSymbol(tr.dataset.sym);
-    switchView("trade");
-    ticket.side = tr.dataset.side; // the side that collects the funding
-    renderTicket();
-  };
   $$("#mktTable th[data-sort]").forEach((th) => (th.onclick = () => {
     const k = th.dataset.sort;
     mktSort = { key: k, dir: mktSort.key === k ? -mktSort.dir : k === "symbol" ? 1 : -1 };
@@ -6921,7 +6863,8 @@ async function init() {
   toggleBook(showBook);
   toggleTape(showTape);
   renderAccount();
-  switchView(route.view || (location.pathname === "/" ? load("view", "trade") : "trade"), { fromUrl: true });
+  const lastView = load("view", "trade");
+  switchView(route.view || (location.pathname === "/" && $("#view-" + lastView) ? lastView : "trade"), { fromUrl: true }); // a page since removed: trade
   syncUrl(false);
   window.addEventListener("popstate", () => {
     const r = routeFromUrl();

@@ -1535,14 +1535,6 @@ option { background: var(--surface); color: var(--text); }
 .ticket .kv dd.down { color: var(--red); }
 .ticket .kv dd.warn { color: var(--amber); }
 
-/* the Farming page */
-.farm-intro { max-width: 720px; margin: -6px 0 16px; color: var(--text-2); font-size: 12px; line-height: 1.55; }
-.farm-empty { margin: 24px 0; }
-.farm-page tbody tr { cursor: pointer; }
-.farm-page tbody tr:hover { background: var(--raised); }
-.farm-side { font-family: var(--ui); font-weight: 500; }
-.farm-side.up { color: var(--green); } .farm-side.down { color: var(--red); }
-
 /* notices look like the theme's other floating panels (the menus): same surface, its text colour, its accents */
 .toast { background: var(--surface); color: var(--text-2); }
 .toast.ok .toast-ico { color: var(--green); }
@@ -1591,15 +1583,13 @@ option { background: var(--surface); color: var(--text); }
 
 /* the key dialog's Done right after a key is connected: solid green, the obvious next click */
 
-/* Farming: the last 6 hours as six marks (filled past 0.01%, green when longs collected, red when shorts did),
-   then how many; markets below the line now are greyed */
+/* Markets: the last 6 hours' funding as six marks (filled past 0.01%, green when longs collected, red when shorts did),
+   then how many */
 .farm-hours { display: inline-flex; gap: 2px; margin-right: 8px; vertical-align: -1px; }
 .farm-hours i { width: 6px; height: 10px; border-radius: 1.5px; background: var(--line-2); }
 .farm-hours i.hot.up { background: var(--green); }
 .farm-hours i.hot.dn { background: var(--red); }
 .farm-hot { display: inline-block; min-width: 26px; text-align: right; }
-.farm-page tr.farm-past td { color: var(--muted); }
-.farm-page tr.farm-past .sym { opacity: .75; }
 
 /* ================= changelog page: a timeline of the releases, newest first ================= */
 .log-page .page-head .link { white-space: nowrap; text-decoration: none; }
