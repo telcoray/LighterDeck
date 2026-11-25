@@ -778,3 +778,4 @@ Object.assign(DICTS.zh, { "Book view": "订单簿视图", "Bids and asks": "买�
 Object.assign(DICTS.zh, { "Trades view": "成交视图", "Trades": "成交", "Only trades above this size": "仅显示超过此数量的成交", "All trades or liquidations only": "全部成交或仅强平", "Liquidations": "强平", "Buys and sells": "买入和卖出", "Buys only": "仅买入", "Sells only": "仅卖出", "No trades": "暂无成交" });
 Object.assign(DICTS.zh, { "Type a market…": "输入市场…" });
 Object.assign(DICTS.zh, { "No favourites: tap the star next to a market.": "还没有收藏：点击市场旁的星标。" });
+Object.assign(DICTS.zh, { "Pick a percentage or type the price.": "选择百分比或输入价格。", "At this price": "在此价格", "of margin": "保证金", "It would trigger at once: the price is already past it.": "会立即触发：价格已越过。", "Past the liquidation ({price}): the position would be liquidated first.": "超过强平价（{price}）：仓位会先被强平。", "Distance in % of the initial margin, leverage included": "以初始保证金的百分比表示的距离（含杠杆）", "Percentage of margin": "保证金百分比" });

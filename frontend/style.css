@@ -433,6 +433,18 @@ body.resizing { cursor: row-resize; user-select: none; }
 .sltp-v.tp { color: var(--green); } .sltp-v.sl { color: var(--red); }
 .sltp-v.none { color: var(--muted); }
 .sltp-v:hover { background: var(--raised); color: var(--text); }
+/* TP / SL window from the positions table */
+.sltp-pop { width: min(300px, calc(100vw - 24px)); }
+.sltp-pop .chips button.on { border-color: var(--green); color: var(--green); }
+.sltp-pop.sl .chips button.on { border-color: var(--red); color: var(--red); }
+.sltp-pop.sl .pct-track input[type="range"] { --c: var(--red); }
+.sltp-pop .size-pct { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.sltp-pop .sltp-price { margin-bottom: 8px; }
+.sltp-pop .sltp-price input { font-family: var(--mono); }
+.sltp-info { min-height: 18px; margin-bottom: 12px; font-size: 11.5px; color: var(--text-2); }
+.sltp-info b { font-family: var(--mono); font-weight: 500; }
+.sltp-info .muted { color: var(--muted); }
+.sltp-info .warn { margin-top: 4px; color: var(--amber); }
 .sltp-in { width: 78px; height: 22px; padding: 0 6px; border: 1px solid var(--line-3); border-radius: 4px; background: var(--surface); color: var(--text); font-family: var(--mono); font-size: 11.5px; text-align: right; }
 .sltp-in.tp:focus { border-color: var(--green); outline: none; } .sltp-in.sl:focus { border-color: var(--red); outline: none; }
 .qbtn { display: inline-flex; gap: 4px; }

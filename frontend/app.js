@@ -3738,40 +3738,103 @@ function sltpCell(p, m) {
   return `${steps}${one("tp")}<span class="sltp-sep">/</span>${one("sl")}`;
 }
 
-// TP / SL edited in the row: Enter sends, Esc or clicking away cancels, an empty value removes it
-let posEdit = null;
-function editPositionStop(btn) {
-  const [mid, k] = btn.dataset.psl.split(":");
-  const p = account && account.positions.find((x) => x.market_id === +mid);
-  if (!p) return;
-  const cur = positionStops(p)[k];
-  posEdit = { mid: +mid, k };
-  const input = document.createElement("input");
-  input.className = "sltp-in " + k;
-  input.inputMode = "decimal";
-  input.autocomplete = "off";
-  input.placeholder = k.toUpperCase();
-  input.value = cur ? cur.trigger_price : "";
-  btn.replaceWith(input);
-  input.focus();
-  input.select();
-  const end = () => { posEdit = null; renderPositions(); };
-  input.onkeydown = async (e) => {
-    if (e.key === "Escape") return end();
-    if (e.key !== "Enter") return;
-    const price = +input.value.trim();
-    if ((!price && !cur) || (cur && price === cur.trigger_price)) return end();
-    input.onblur = null;
-    input.disabled = true;
-    try {
-      await api("/position_sltp", { method: "POST", body: JSON.stringify({ market_id: +mid, kind: k, price: price || null, order_index: cur ? cur.order_index : null }) });
-      toast(price ? t("{kind} a {price}", { kind: k.toUpperCase(), price: fp(price, byId[+mid]) }) : t("{kind} rimosso", { kind: k.toUpperCase() }));
-      posEdit = null;
-      await fetchOpenOrders(true).catch(() => {});
-    } catch (err) { toast(err.message, true); }
-    end();
+// TP / SL from the positions table: a small window over the cell with 25 / 50 / 75 / 100% of the initial margin
+// (leverage included, as the PnL column counts it), a slider and the price itself; Enter saves, Esc closes,
+// Remove (or an empty price) takes the order away
+let posEdit = null; // a pair's stop being typed in its row
+const sltpPop = { mid: null, k: null };
+function sltpPos() { return account && sltpPop.mid != null && account.positions.find((x) => x.market_id === sltpPop.mid); }
+// what a % of the initial margin means for this position: the price that gives it, and back
+function sltpMath(p) {
+  const m = byId[p.market_id], lev = p.leverage || (m && m.default_leverage) || 1;
+  const dir = (p.size > 0 ? 1 : -1) * (sltpPop.k === "tp" ? 1 : -1);
+  return {
+    m,
+    price: (pct) => +(p.entry * (1 + (dir * pct) / 100 / lev)).toFixed(decimals(m)),
+    pct: (price) => ((price / p.entry - 1) * lev * 100) / dir,
   };
-  input.onblur = end;
+}
+function openSltpPop(btn) {
+  const [mid, k] = btn.dataset.psl.split(":");
+  sltpPop.mid = +mid; sltpPop.k = k;
+  const p = sltpPos();
+  if (!p) return;
+  const cur = positionStops(p)[k], m = byId[p.market_id];
+  const pop = $("#sltpPop");
+  pop.classList.toggle("sl", k === "sl");
+  $("#sltpPopTitle").textContent = `${k === "tp" ? "Take profit" : "Stop loss"} · ${m.symbol}`;
+  $("#sltpChips").innerHTML = [25, 50, 75, 100].map((x) => `<button type="button" data-sltppct="${x}">${k === "tp" ? "+" : "−"}${x}%</button>`).join("");
+  $("#sltpPrice").value = cur ? cur.trigger_price : "";
+  $("#sltpPopRemove").classList.toggle("hidden", !cur);
+  $("#sltpPopError").classList.add("hidden");
+  sltpFromPrice();
+  pop.classList.remove("hidden");
+  // above the cell, kept inside the window
+  const r = btn.getBoundingClientRect(), w = pop.offsetWidth, h = pop.offsetHeight;
+  pop.style.left = Math.max(12, Math.min(r.left + r.width / 2 - w / 2, innerWidth - w - 12)) + "px";
+  pop.style.top = Math.max(12, r.top - h - 8 < 12 ? r.bottom + 8 : r.top - h - 8) + "px";
+}
+function closeSltpPop() { $("#sltpPop").classList.add("hidden"); sltpPop.mid = null; }
+// a % chosen (chip, slider or box): the price from it
+function sltpSetPct(pct, fromBox) {
+  const p = sltpPos();
+  if (!p) return;
+  if (!fromBox) $("#sltpPctIn").value = pct ? +pct.toFixed(1) : "";
+  $("#sltpPrice").value = pct > 0 ? sltpMath(p).price(pct) : "";
+  sltpShow(pct);
+}
+// a price typed: the % from it
+function sltpFromPrice() {
+  const p = sltpPos(), price = +$("#sltpPrice").value;
+  const pct = p && price > 0 ? sltpMath(p).pct(price) : 0;
+  $("#sltpPctIn").value = price > 0 ? +pct.toFixed(1) : "";
+  sltpShow(pct);
+}
+function sltpShow(pct) {
+  const p = sltpPos();
+  if (!p) return;
+  const m = byId[p.market_id], k = sltpPop.k, price = +$("#sltpPrice").value;
+  const sl = $("#sltpPct");
+  sl.value = Math.max(0, Math.min(100, pct || 0));
+  sl.style.setProperty("--p", sl.value + "%");
+  $$("#sltpChips button").forEach((b) => b.classList.toggle("on", price > 0 && Math.abs(+b.dataset.sltppct - pct) < 0.05));
+  const mark = prices[p.market_id] ? prices[p.market_id].mark : p.entry, long = p.size > 0;
+  // a TP on the wrong side of the price, or a SL the price has already passed, would trigger at once
+  const now = price > 0 && (k === "tp" ? (long ? price <= mark : price >= mark) : (long ? price >= mark : price <= mark));
+  const pastLiq = k === "sl" && price > 0 && p.liq && (long ? price <= p.liq : price >= p.liq);
+  const usd = price > 0 ? (price - p.entry) * p.size : 0;
+  $("#sltpInfo").innerHTML = !(price > 0) ? `<span class="muted">${t("Scegli una percentuale o scrivi il prezzo.")}</span>`
+    : `${t("Al prezzo")}: <b class="${usd >= 0 ? "up" : "down"}">${usd >= 0 ? "+" : "−"}${fusd(Math.abs(usd))}</b> <span class="muted">(${fpct(k === "tp" ? pct : -pct, 1)} ${t("del margine")})</span>`
+      + (now ? `<div class="warn">${t("Si attiverebbe subito: il prezzo è già oltre.")}</div>` : "")
+      + (pastLiq ? `<div class="warn">${t("Oltre la liquidazione ({price}): la posizione verrebbe liquidata prima.", { price: fp(p.liq, m) })}</div>` : "");
+}
+async function saveSltp(remove) {
+  const p = sltpPos();
+  if (!p) return closeSltpPop();
+  const k = sltpPop.k, cur = positionStops(p)[k], price = remove ? 0 : +$("#sltpPrice").value;
+  if ((!price && !cur) || (cur && price === cur.trigger_price)) return closeSltpPop();
+  const mid = p.market_id;
+  $("#sltpPopSave").disabled = true;
+  try {
+    await api("/position_sltp", { method: "POST", body: JSON.stringify({ market_id: mid, kind: k, price: price || null, order_index: cur ? cur.order_index : null }) });
+    toast(price ? t("{kind} a {price}", { kind: k.toUpperCase(), price: fp(price, byId[mid]) }) : t("{kind} rimosso", { kind: k.toUpperCase() }));
+    closeSltpPop();
+    await fetchOpenOrders(true).catch(() => {});
+    renderPositions();
+  } catch (err) { $("#sltpPopError").textContent = err.message; $("#sltpPopError").classList.remove("hidden"); }
+  $("#sltpPopSave").disabled = false;
+}
+function wireSltpPop() {
+  $("#sltpChips").onclick = (e) => { const b = e.target.closest("[data-sltppct]"); if (b) sltpSetPct(+b.dataset.sltppct); };
+  $("#sltpPct").oninput = (e) => sltpSetPct(+e.target.value);
+  $("#sltpPctIn").oninput = (e) => sltpSetPct(+e.target.value, true);
+  $("#sltpPrice").oninput = sltpFromPrice;
+  $("#sltpPopClose").onclick = $("#sltpPopCancel").onclick = closeSltpPop;
+  $("#sltpPopSave").onclick = () => saveSltp(false);
+  $("#sltpPopRemove").onclick = () => saveSltp(true);
+  $("#sltpPop").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); saveSltp(false); } });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeSltpPop(); });
+  document.addEventListener("mousedown", (e) => { if (!e.target.closest("#sltpPop, [data-psl]")) closeSltpPop(); });
 }
 
 function renderPositions() {
@@ -5636,7 +5699,7 @@ function wire() {
     const gb = e.target.closest("[data-pairfrom]");
     if (gb) { e.stopPropagation(); return openPairGroup(gb, +gb.dataset.pairfrom); }
     const v = e.target.closest("[data-psl]");
-    if (v && info.trading) return editPositionStop(v);
+    if (v && info.trading) { e.stopPropagation(); return openSltpPop(v); }
     const r = e.target.closest("[data-reverse]");
     if (r) return reversePosition(+r.dataset.reverse);
     const b = e.target.closest("[data-close]");
@@ -6065,6 +6128,7 @@ function wireTrail() {
   $("#tkTrail").onchange = renderTicketTrail;
   wireTpLevels();
   wireBadges();
+  wireSltpPop();
   wireCardTables();
   wireAdvOrders();
   wirePairGroup();
@@ -6571,7 +6635,7 @@ function wireHotkeys() {
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape" && !$("#hkModal").classList.contains("hidden")) return toggleHotkeys(false);
     const typing = e.target.closest && e.target.closest("input, textarea, select, [contenteditable]");
-    const dialog = $$(".modal, .picker, #trailPop").some((x) => !x.classList.contains("hidden"));
+    const dialog = $$(".modal, .picker, #trailPop, #sltpPop").some((x) => !x.classList.contains("hidden"));
     // Ctrl (Cmd on a Mac) with the arrows: through the timeframes shown in the toolbar, up or right to a larger one.
     // Held down it keeps stepping; in a field the arrows keep moving the cursor by word.
     const step = { ArrowUp: 1, ArrowRight: 1, ArrowDown: -1, ArrowLeft: -1 }[e.key];

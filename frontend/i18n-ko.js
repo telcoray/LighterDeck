@@ -778,3 +778,4 @@ Object.assign(DICTS.ko, { "Book view": "호가창 보기", "Bids and asks": "매
 Object.assign(DICTS.ko, { "Trades view": "체결 보기", "Trades": "체결", "Only trades above this size": "이 수량 이상의 체결만", "All trades or liquidations only": "전체 체결 또는 청산만", "Liquidations": "청산", "Buys and sells": "매수와 매도", "Buys only": "매수만", "Sells only": "매도만", "No trades": "체결 없음" });
 Object.assign(DICTS.ko, { "Type a market…": "마켓 입력…" });
 Object.assign(DICTS.ko, { "No favourites: tap the star next to a market.": "즐겨찾기 없음: 마켓 옆의 별을 누르세요." });
+Object.assign(DICTS.ko, { "Pick a percentage or type the price.": "비율을 고르거나 가격을 입력하세요.", "At this price": "이 가격에서", "of margin": "증거금 대비", "It would trigger at once: the price is already past it.": "즉시 실행됩니다: 가격이 이미 넘어섰습니다.", "Past the liquidation ({price}): the position would be liquidated first.": "청산가({price}) 너머: 포지션이 먼저 청산됩니다.", "Distance in % of the initial margin, leverage included": "초기 증거금 대비 % 거리 (레버리지 포함)", "Percentage of margin": "증거금 비율" });
