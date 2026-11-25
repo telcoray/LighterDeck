@@ -632,6 +632,8 @@ body.dragging-line, body.dragging-line * { cursor: ns-resize !important; user-se
 }
 /* calendar page */
 .cal-page .page-head .search { width: min(280px, 100%); }
+/* the title takes the filters' column, so the search starts where the events do (254px column + 28px gap, less the head's 16px gap) */
+.cp-title { display: flex; align-items: center; gap: 16px; flex: none; width: 266px; min-width: 0; }
 .ev-add-btn { height: 30px; padding: 0 12px; border: 1px dashed var(--line-3); border-radius: 6px; color: var(--text-2); font-size: 11.5px; white-space: nowrap; }
 .ev-add-btn:hover { color: var(--text); border-style: solid; }
 .cal-page .ev-form { max-width: 520px; margin: 0 0 16px; }
@@ -690,6 +692,7 @@ body.dragging-line, body.dragging-line * { cursor: ns-resize !important; user-se
 .cp-day:first-child { padding-top: 4px; }
 @media (max-width: 860px) {
   .cp-layout { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  .cp-title { width: auto; }
   .cp-filters { position: static; padding: 14px 0 12px; border-right: 0; }
   .cp-main { padding: 0; }
   .cp-sessions { display: none; }
