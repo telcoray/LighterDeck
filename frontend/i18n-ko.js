@@ -610,7 +610,7 @@ DICTS.ko = {
   "Orders": "주문",
   "A trade's PnL counts when you close: positions still open are in the unrealized PnL at the top.": "거래 손익은 청산할 때 반영됩니다: 아직 열린 포지션은 위의 미실현 손익에 있습니다.",
   "Next events for {sym}": "{sym} 다음 이벤트",
-  "Search event or market…": "이벤트 또는 마켓 검색…",
+  "Search event": "이벤트 검색",
   "One": "하나",
   "Impact": "영향",
   "Period": "기간",

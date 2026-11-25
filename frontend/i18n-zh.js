@@ -610,7 +610,7 @@ DICTS.zh = {
   "Orders": "委托",
   "A trade's PnL counts when you close: positions still open are in the unrealized PnL at the top.": "交易的盈亏在平仓时计入：仍持有的仓位计入上方的未实现盈亏。",
   "Next events for {sym}": "{sym} 接下来的事件",
-  "Search event or market…": "搜索事件或市场…",
+  "Search event": "搜索事件",
   "One": "单个",
   "Impact": "影响",
   "Period": "期间",

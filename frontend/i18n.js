@@ -979,7 +979,7 @@ const EN = {
   "Ordini": "Orders",
   "Il PnL di un trade si conta quando chiudi: le posizioni ancora aperte sono nel PnL non realizzato in alto.": "A trade's PnL counts when you close: positions still open are in the unrealized PnL at the top.",
   "Prossimi eventi per {sym}": "Next events for {sym}",
-  "Cerca evento o mercato…": "Search event or market…",
+  "Cerca evento": "Search event",
   "Uno": "One",
   "Scrivi un mercato…": "Type a market…",
   "Tipo": "Type",
