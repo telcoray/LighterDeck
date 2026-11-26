@@ -155,7 +155,14 @@ async def auth(request: Request, call_next):
             return JSONResponse({"detail": L("Questa è la versione pubblica in sola lettura di LighterDeck",
                                              "This is the public read-only version of LighterDeck")}, status_code=403)
     response = await call_next(request)
-    # always revalidate the UI files, so an update shows up on the next reload
+    # the scripts and styles the page names with a version (app.js?v=413) and the vendored libraries never
+    # change under the same address: the browser and Cloudflare keep them, so a reload, or the first visit
+    # after a deploy once anyone has loaded it, doesn't wait on this server for them. Everything else, the
+    # page itself and its data files included, is revalidated, so an update shows up on the next reload.
+    path = request.url.path
+    if (response.status_code == 200 and not path.startswith("/api/") and path.endswith((".js", ".css"))
+            and ("v" in request.query_params or path.startswith("/vendor/"))):
+        response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
     response.headers.setdefault("Cache-Control", "no-cache")
     for k, v in SECURITY_HEADERS.items():  # a response that sets its own (the logos) keeps it
         response.headers.setdefault(k, v)
