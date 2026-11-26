@@ -3803,9 +3803,11 @@ function sltpShow(pct) {
   const now = price > 0 && (k === "tp" ? (long ? price <= mark : price >= mark) : (long ? price >= mark : price <= mark));
   const pastLiq = k === "sl" && price > 0 && p.liq && (long ? price <= p.liq : price >= p.liq);
   const usd = price > 0 ? (price - p.entry) * p.size : 0;
+  const out = $("#sltpUsd");
+  out.textContent = price > 0 ? `${usd >= 0 ? "+" : "−"}${fusd(Math.abs(usd))}` : "";
+  out.className = "sltp-usd " + (usd >= 0 ? "up" : "down");
   $("#sltpInfo").innerHTML = !(price > 0) ? ""
-    : `${t("Al prezzo")}: <b class="${usd >= 0 ? "up" : "down"}">${usd >= 0 ? "+" : "−"}${fusd(Math.abs(usd))}</b>`
-      + (now ? `<div class="warn">${t("Si attiverebbe subito: il prezzo è già oltre.")}</div>` : "")
+    : (now ? `<div class="warn">${t("Si attiverebbe subito: il prezzo è già oltre.")}</div>` : "")
       + (pastLiq ? `<div class="warn">${t("Oltre la liquidazione ({price}): la posizione verrebbe liquidata prima.", { price: fp(p.liq, m) })}</div>` : "");
   // the result line and its warnings make it taller: still inside the window
   const pop = $("#sltpPop"), over = pop.getBoundingClientRect().bottom - (innerHeight - 12);

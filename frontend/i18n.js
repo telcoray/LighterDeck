@@ -983,7 +983,7 @@ const EN = {
   "Uno": "One",
   "Scrivi un mercato…": "Type a market…",
   "Scegli una percentuale o scrivi il prezzo.": "Pick a percentage or type the price.",
-  "Al prezzo": "At this price",
+  "Risultato al prezzo scelto": "Result at the chosen price",
   "del margine": "of margin",
   "Si attiverebbe subito: il prezzo è già oltre.": "It would trigger at once: the price is already past it.",
   "Oltre la liquidazione ({price}): la posizione verrebbe liquidata prima.": "Past the liquidation ({price}): the position would be liquidated first.",

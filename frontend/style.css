@@ -445,7 +445,9 @@ body.resizing { cursor: row-resize; user-select: none; }
 .sltp-row .key-actions { flex: none; }
 .sltp-head-r { display: flex; align-items: center; gap: 8px; }
 .sltp-head-r .ghost { height: 26px; padding: 0 10px; font-size: 11.5px; }
-.sltp-info { margin-top: 8px; }
+.sltp-info { margin-top: 4px; }
+.sltp-pop .size-pct .pct-track { flex: 1; min-width: 0; }
+.sltp-usd { flex: none; width: 82px; font-family: var(--mono); font-size: 12px; font-weight: 500; text-align: right; white-space: nowrap; }
 .sltp-info:empty { display: none; }
 .sltp-pop .sltp-price input { font-family: var(--mono); }
 .sltp-info { font-size: 11.5px; color: var(--text-2); }
