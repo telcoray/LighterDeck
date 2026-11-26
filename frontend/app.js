@@ -244,7 +244,9 @@ class Panel {
       let lo = r.priceRange.minValue, hi = r.priceRange.maxValue;
       // the mouse wheel over the price scale stretches or squeezes the prices around the middle
       if (this.yZoom !== 1) { const mid = (lo + hi) / 2, half = (hi - lo) / 2 * this.yZoom; lo = mid - half; hi = mid + half; }
-      return { ...r, priceRange: { minValue: lo, maxValue: hi } };
+      // no room added for the marks (fills, event dots): showing or hiding them doesn't resize the candles;
+      // they sit in the scale's own top and bottom margins
+      return { priceRange: { minValue: lo, maxValue: hi } };
     } });
     this.yZoom = 1;
     this.wireDrag();
