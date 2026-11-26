@@ -3804,7 +3804,7 @@ function sltpShow(pct) {
   const pastLiq = k === "sl" && price > 0 && p.liq && (long ? price <= p.liq : price >= p.liq);
   const usd = price > 0 ? (price - p.entry) * p.size : 0;
   $("#sltpInfo").innerHTML = !(price > 0) ? `<span class="muted">${t("Scegli una percentuale o scrivi il prezzo.")}</span>`
-    : `${t("Al prezzo")}: <b class="${usd >= 0 ? "up" : "down"}">${usd >= 0 ? "+" : "−"}${fusd(Math.abs(usd))}</b> <span class="muted">(${fpct(k === "tp" ? pct : -pct, 1)} ${t("del margine")})</span>`
+    : `${t("Al prezzo")}: <b class="${usd >= 0 ? "up" : "down"}">${usd >= 0 ? "+" : "−"}${fusd(Math.abs(usd))}</b>`
       + (now ? `<div class="warn">${t("Si attiverebbe subito: il prezzo è già oltre.")}</div>` : "")
       + (pastLiq ? `<div class="warn">${t("Oltre la liquidazione ({price}): la posizione verrebbe liquidata prima.", { price: fp(p.liq, m) })}</div>` : "");
 }
