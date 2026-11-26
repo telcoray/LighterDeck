@@ -4273,7 +4273,7 @@ const SESSIONS = [
   { name: "Australia", ex: "ASX", code: "XASX", ccy: "AUD", tz: "Australia/Sydney", open: [10, 0], close: [16, 0], calOnly: true },
 ];
 let exchangeHours = null;
-fetch("exchange_hours.json?v=3").then((r) => r.json()).then((d) => { exchangeHours = d.exchanges; renderSessions(); }).catch(() => {});
+fetch("exchange_hours.json?v=4").then((r) => r.json()).then((d) => { exchangeHours = d.exchanges; renderSessions(); }).catch(() => {});
 
 function zoned(ts, tz) {
   const parts = Object.fromEntries(new Intl.DateTimeFormat("en-US", { timeZone: tz, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", weekday: "short" })
@@ -4313,12 +4313,29 @@ function sessionStatus(s, now) {
       const weekday = today.wd !== "Sat" && today.wd !== "Sun";
       const holiday = weekday && (today.y !== next.y || today.mo !== next.mo || today.d !== next.d)
         && !days.some(([o]) => { const z = zoned(o, s.tz); return z.y === today.y && z.mo === today.mo && z.d === today.d; });
-      return { state: "closed", at: open, holiday };
+      const key = `${today.y}-${pad2(today.mo)}-${pad2(today.d)}`;
+      return { state: "closed", at: open, holiday, holidayName: holiday && data && data.holidays ? data.holidays[key] || "" : "" };
     }
     if (bs && now >= bs && now < be) return { state: "lunch", at: be };
     return { state: "open", at: bs && now < bs ? bs : close, lunchNext: !!(bs && now < bs), close };
   }
   return { state: "closed", at: null };
+}
+
+// a holiday's name with a small picture when there is a fitting one (first match wins)
+const HOLIDAY_EMOJI = [
+  [/chinese new year|lunar new year|spring festival|seollal/i, "🐉"], [/^thanksgiving/i, "🦃"], [/chuseok|mid-autumn/i, "🥮"],
+  [/halloween/i, "🎃"], [/christmas/i, "🎄"], [/boxing day/i, "🎁"], [/new year's eve|end of year/i, "🥂"], [/new year/i, "🎆"],
+  [/good friday|easter/i, "🐣"], [/buddha/i, "🪷"], [/dragon boat/i, "🛶"], [/tomb-sweeping|ching ming|qingming/i, "🌿"],
+  [/double ninth|mountain/i, "⛰️"], [/juneteenth|martin luther king/i, "✊"], [/july 4th|^independence day/i, "🎆"],
+  [/constitution/i, "📜"], [/memorial day|anzac/i, "🎖️"], [/president/i, "🏛️"], [/labou?r/i, "🛠️"], [/bank holiday/i, "🏦"], [/children/i, "🎏"],
+  [/coming of age/i, "👘"], [/emperor|king's birthday/i, "👑"], [/equinox/i, "🍂"], [/marine/i, "🌊"], [/respect for the aged/i, "🍵"],
+  [/culture/i, "🎨"], [/sports/i, "🏅"], [/greenery|showa/i, "🌳"], [/australia day/i, "🦘"],
+  [/hangul/i, "✍️"], [/national|foundation|liberation|independence|establishment/i, "🎉"],
+];
+function holidayLabel(name) {
+  const hit = HOLIDAY_EMOJI.find(([re]) => re.test(name));
+  return (hit ? hit[1] + " " : "") + esc(name);
 }
 
 function dur(ms) {
@@ -4340,7 +4357,7 @@ function renderSessions() {
   const line = (st) => st.state === "open"
     ? (st.lunchNext ? t("pausa pranzo alle {t} · chiude {c}", { t: hm(st.at), c: hm(st.close) }) : `${t("chiude")} ${local(st.at)}`)
     : st.state === "lunch" ? t("pausa pranzo · riprende {t}", { t: hm(st.at) })
-    : `${st.holiday ? t("festività") + " · " : ""}${t("apre")} ${st.at ? local(st.at) : ""}`;
+    : `${st.holiday ? (st.holidayName ? holidayLabel(st.holidayName) : t("festività")) + " · " : ""}${t("apre")} ${st.at ? local(st.at) : ""}`;
   // a country's row filters the Calendar page to its releases (Germany: the euro area's)
   const row = ({ s, st }) => `<div class="cal-row${cp.country === s.ccy ? " on" : ""}" data-cc="${s.ccy}" role="button" tabindex="0" title="${t("Solo gli eventi di {c}", { c: t(s.name) })}">
       <div><div class="t">${t(s.name)}</div><div class="s">${s.ex} · ${line(st)}</div></div>
