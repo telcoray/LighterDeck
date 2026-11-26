@@ -3870,7 +3870,7 @@ function wireSltpPop() {
     sltpFromPrice();
   };
   $("#sltpLimit").oninput = () => { sltpPop.limitTyped = $("#sltpLimit").value !== ""; sltpFromPrice(); };
-  $("#sltpPopClose").onclick = $("#sltpPopCancel").onclick = closeSltpPop;
+  $("#sltpPopClose").onclick = closeSltpPop;
   $("#sltpPopSave").onclick = () => saveSltp(false);
   $("#sltpPopRemove").onclick = () => saveSltp(true);
   $("#sltpPop").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); saveSltp(false); } });
