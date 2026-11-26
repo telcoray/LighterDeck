@@ -429,6 +429,8 @@ body.resizing { cursor: row-resize; user-select: none; }
 .table td.r { text-align: right; }
 /* positions: the spare width as equal space after each column (evenCols in app.js) */
 .table.even th:not(:last-child), .table.even td:not(:last-child) { padding-right: calc(var(--pad-x, 13px) + var(--even, 0px)); }
+/* the widths evenCols sets are the widths, whatever the rows hold (a column keeps the widest it has been) */
+.table.even { table-layout: fixed; }
 .table td.up { color: var(--green); } .table td.down { color: var(--red); }
 /* positions: PnL first, mark and value next, entry plain, liquidation as a warning */
 .table td.main { color: var(--text); }

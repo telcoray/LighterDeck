@@ -3356,7 +3356,7 @@ let hoverPanel = null; // the chart under the pointer, for the A key
 function saveAlerts() {
   store("alerts", alerts);
   store("alertsFired", alertsFired);
-  $("#alertCount").textContent = alerts.length || "";
+  $("#alertCount").textContent = alerts.length;
   panels.forEach((p) => p.drawLines());
   if (!$("#btab-alerts").classList.contains("hidden")) renderAlerts();
 }
@@ -3884,7 +3884,7 @@ function renderPositions() {
   if (posEdit) return; // don't rebuild the row under a TP/SL being typed
   const box = $("#btab-positions");
   const list = account ? account.positions : [];
-  $("#posCount").textContent = list.length || "";
+  $("#posCount").textContent = list.length; // 0 too: the tabs after it never move
   if (!list.length) {
     box.innerHTML = `<div class="empty">${info.trading ? t("Nessuna posizione aperta.") : t("Sola lettura: collega un'API key per vedere posizioni e ordini.")}</div>`;
     return;
@@ -3943,6 +3943,7 @@ function wireBtabY() {
 }
 
 let evenColsRO = null;
+const evenColsMax = {};
 const WIDE_SPARE = 12; // the roomier positions layout once every gap still gets this much more
 function evenCols(box) {
   if (!evenColsRO) { evenColsRO = new ResizeObserver(() => evenCols(box)); evenColsRO.observe(box); }
@@ -3962,9 +3963,20 @@ function evenCols(box) {
   const room = (w) => box.clientWidth - w.reduce((a, b) => a + b, 0) - 1;
   // with room to spare, the roomier layout: side and margin on the market's line, PnL $ and % on one line,
   // Reverse in full and the shortcut keys on their buttons
+  // a column keeps the widest it has been (in each layout), so opening or closing a position, or a price
+  // with one more digit, doesn't nudge the titles after it; unless that would no longer fit
+  const keep = (w, mode) => {
+    const k = (evenColsMax[mode] ||= []);
+    if (k.length !== w.length) k.length = 0;
+    const kept = w.map((x, i) => Math.max(x, k[i] || 0));
+    if (room(kept) < 0) { w.forEach((x, i) => (k[i] = x)); return w; }
+    kept.forEach((x, i) => (k[i] = x));
+    return kept;
+  };
   tb.classList.add("wide");
   let nat = measure();
-  if (room(nat) < WIDE_SPARE * (ths.length - 1)) { tb.classList.remove("wide"); nat = measure(); }
+  if (room(nat) < WIDE_SPARE * (ths.length - 1)) { tb.classList.remove("wide"); nat = keep(measure(), "compact"); }
+  else nat = keep(nat, "wide");
   const extra = room(nat);
   if (extra <= 0 || ths.length < 2) return;
   ths.forEach((th, i) => {
@@ -6205,7 +6217,7 @@ function wireTrail() {
   wirePairGroup();
   wireEventTrades();
   $("#mktSpread").onclick = openSpreadPicker;
-  $("#alertCount").textContent = alerts.length || "";
+  $("#alertCount").textContent = alerts.length;
   $("#tkReduce").addEventListener("change", renderTicketTrail);
   $("#btab-positions").addEventListener("click", (e) => {
     const b = e.target.closest("[data-trail]");
