@@ -3909,7 +3909,7 @@ function renderPositions() {
         <td class="r liq" title="${p.cross === false ? t("Isolated: si liquida quando la perdita si mangia il margine di questa posizione.") : t("Cross: si liquida solo quando la perdita si mangia il collaterale di tutto l'account, non solo il margine di questa posizione. Per questo può essere molto lontana.")}">${fp(p.liq, m)}</td><td class="r pnl ${cls(p.upnl)}">${fusd(p.upnl)}<small>${isFinite(pct) ? fpct(pct) : ""}</small></td>
         <td class="r sltp">${sltpCell(p, m)}</td>
         <td>${trailButton(p.market_id, m)}</td>
-        <td><span class="qbtn">${[25, 50, 75, 100].map((f) => `<button data-close="${p.market_id}" data-f="${f}"${f === 100 ? ` class="all" data-ck="close:${p.market_id}" data-key="F" title="${t("Chiudi tutto · F")}"` : ` data-ck="close:${p.market_id}:${f}"${f === 50 ? ` title="${t("Chiudi metà · H")}"` : ""}`}>${f}%</button>`).join("")}<button class="rev" data-reverse="${p.market_id}" data-ck="reverse:${p.market_id}" data-key="R" title="${t("Reverse: chiude e apre il lato opposto, stessa size · R")}">⇄ Rev</button></span></td>
+        <td><span class="qbtn">${[25, 50, 75, 100].map((f) => `<button data-close="${p.market_id}" data-f="${f}"${f === 100 ? ` class="all" data-ck="close:${p.market_id}" data-key="F" title="${t("Chiudi tutto · F")}"` : ` data-ck="close:${p.market_id}:${f}"${f === 50 ? ` title="${t("Chiudi metà · H")}"` : ""}`}>${f}%</button>`).join("")}<button class="rev" data-reverse="${p.market_id}" data-ck="reverse:${p.market_id}" data-key="R" title="${t("Reverse: chiude e apre il lato opposto, stessa size · R")}">⇄ Rev<span class="wide-only">erse</span></button></span></td>
         <td class="pair-cell"><button class="pair-add" data-pairfrom="${p.market_id}" title="${t("Fai una coppia con una posizione dal lato opposto")}">+ ${t("Coppia")}</button></td></tr>`;
     }).join("")}</tbody></table>`;
   evenCols(box);
@@ -3941,18 +3941,29 @@ function wireBtabY() {
 }
 
 let evenColsRO = null;
+const WIDE_SPARE = 12; // the roomier positions layout once every gap still gets this much more
 function evenCols(box) {
   if (!evenColsRO) { evenColsRO = new ResizeObserver(() => evenCols(box)); evenColsRO.observe(box); }
   const tb = box.querySelector("table");
   if (!tb || !tb.tHead) return;
   const ths = [...tb.tHead.rows[0].cells];
-  tb.classList.remove("even");
+  tb.classList.remove("even", "wide");
   ths.forEach((th) => (th.style.width = ""));
   if (getComputedStyle(tb.tHead).display === "none") return; // the phone's cards have no columns
-  tb.style.width = "auto";
-  const nat = ths.map((th) => th.getBoundingClientRect().width);
-  tb.style.width = "";
-  const extra = box.clientWidth - nat.reduce((a, b) => a + b, 0) - 1;
+  // each column's own width, the table as wide as its content
+  const measure = () => {
+    tb.style.width = "max-content";
+    const w = ths.map((th) => th.getBoundingClientRect().width);
+    tb.style.width = "";
+    return w;
+  };
+  const room = (w) => box.clientWidth - w.reduce((a, b) => a + b, 0) - 1;
+  // with room to spare, the roomier layout: side and margin on the market's line, PnL $ and % on one line,
+  // Reverse in full and the shortcut keys on their buttons
+  tb.classList.add("wide");
+  let nat = measure();
+  if (room(nat) < WIDE_SPARE * (ths.length - 1)) { tb.classList.remove("wide"); nat = measure(); }
+  const extra = room(nat);
   if (extra <= 0 || ths.length < 2) return;
   ths.forEach((th, i) => {
     const cs = getComputedStyle(th);

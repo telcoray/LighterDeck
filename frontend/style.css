@@ -405,8 +405,13 @@ body.resizing { cursor: row-resize; user-select: none; }
 .bottom .subtabs button { padding: 7px 0 6px; }
 .btab .table { --pad-x: 6px; }
 .btab .table th:first-child, .btab .table td:first-child { padding-left: 14px; } /* in line with the tabs */
-.btab .qbtn button, .btab .qbtn button[data-key] { padding: 0 6px; }
-.btab .qbtn button[data-key]::after { display: none; } /* the key stays in the tooltip: the row fits a narrower window */
+.btab .table:not(.wide) .qbtn button, .btab .table:not(.wide) .qbtn button[data-key] { padding: 0 6px; }
+.btab .table:not(.wide) .qbtn button[data-key]::after { display: none; } /* the key stays in the tooltip: the row fits a narrower window */
+/* a wide panel: side and margin on the market's line, PnL $ and % on one line, Reverse in full, keys shown */
+.table .wide-only { display: none; }
+.table.wide .wide-only { display: inline; }
+.btab .table.wide td.mk small { display: inline; margin: 0 0 0 8px; }
+.btab .table.wide td.pnl small { display: inline; margin: 0 0 0 6px; }
 .btab .qbtn button.rev { margin-left: 2px; }
 .btab .trail-btn { padding: 0 6px; }
 .btab .table th { padding: 6px var(--pad-x); }
