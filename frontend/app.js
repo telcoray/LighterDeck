@@ -3941,7 +3941,6 @@ function wireBtabY() {
 }
 
 let evenColsRO = null;
-const EVEN_MAX = 20;
 function evenCols(box) {
   if (!evenColsRO) { evenColsRO = new ResizeObserver(() => evenCols(box)); evenColsRO.observe(box); }
   const tb = box.querySelector("table");
@@ -3959,10 +3958,7 @@ function evenCols(box) {
     const cs = getComputedStyle(th);
     th.style.width = `${nat[i] - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)}px`;
   });
-  // at most EVEN_MAX more per gap: on a wide window the table stays compact and leaves the rest empty
-  const per = extra / (ths.length - 1);
-  tb.style.setProperty("--even", `${Math.min(per, EVEN_MAX)}px`);
-  tb.style.width = per > EVEN_MAX ? "auto" : "";
+  tb.style.setProperty("--even", `${extra / (ths.length - 1)}px`);
   tb.classList.add("even");
 }
 
