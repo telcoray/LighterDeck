@@ -408,6 +408,7 @@ body.resizing { cursor: row-resize; user-select: none; }
 .btab .table:not(.wide) .qbtn button, .btab .table:not(.wide) .qbtn button[data-key] { padding: 0 6px; }
 .btab .table:not(.wide) .qbtn button[data-key]::after { display: none; } /* the key stays in the tooltip: the row fits a narrower window */
 /* a wide panel: side and margin on the market's line, PnL $ and % on one line, Reverse in full, keys shown */
+#btab-positions .table th.r { text-align: left; } /* every title at the start of its column */
 .table .wide-only { display: none; }
 .table.wide .wide-only { display: inline; }
 .btab .table.wide td.mk small { display: inline; margin: 0 0 0 8px; }
