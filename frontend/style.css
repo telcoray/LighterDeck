@@ -403,7 +403,12 @@ body.resizing { cursor: row-resize; user-select: none; }
 .subtabs.small button { padding: 7px 0; font-size: 11px; }
 /* the bottom panel, a little more compact */
 .bottom .subtabs button { padding: 7px 0 6px; }
-.btab .table { --pad-x: 10px; }
+.btab .table { --pad-x: 6px; }
+.btab .table th:first-child, .btab .table td:first-child { padding-left: 14px; } /* in line with the tabs */
+.btab .qbtn button, .btab .qbtn button[data-key] { padding: 0 6px; }
+.btab .qbtn button[data-key]::after { display: none; } /* the key stays in the tooltip: the row fits a narrower window */
+.btab .qbtn button.rev { margin-left: 2px; }
+.btab .trail-btn { padding: 0 6px; }
 .btab .table th { padding: 6px var(--pad-x); }
 .btab .table td { padding: 6px var(--pad-x); }
 .btab .table td.mk small, .btab .table td.pnl small, .btab .table td small.pos-lev { margin-top: 1px; }

@@ -3895,7 +3895,7 @@ function renderPositions() {
   // a position wholly inside pairs is shown by them; one partly in pairs stays, with how much is paired
   const whole = (p) => paired[p.market_id] && paired[p.market_id] >= Math.abs(p.size) - 10 ** -(byId[p.market_id] ? byId[p.market_id].size_decimals : 8);
   const rows = [...live.map((x) => pairRow(x)), ...list.filter((p) => !whole(p))];
-  box.innerHTML = `<table class="table"><thead><tr><th>${t("Mercato")}</th><th class="r">Size</th><th class="r">${t("Valore")}</th><th class="r" title="${t("Il tuo capitale impegnato: valore all'entrata diviso la leva.")}">${t("Margine")}</th><th class="r">Entry</th><th class="r">Mark</th><th class="r">${t("Liquidazione")}</th><th class="r" title="${t("La percentuale è calcolata sul margine iniziale.")}">${t("PnL non realizzato")}</th><th class="r">TP / SL</th><th>${t("Trailing")}</th><th>${t("Chiudi a mercato")}</th><th>${t("Coppia")}</th></tr></thead><tbody>${
+  box.innerHTML = `<table class="table"><thead><tr><th>${t("Mercato")}</th><th class="r">Size</th><th class="r">${t("Valore")}</th><th class="r" title="${t("Il tuo capitale impegnato: valore all'entrata diviso la leva.")}">${t("Margine")}</th><th class="r">Entry</th><th class="r">Mark</th><th class="r">${t("Liquidazione")}</th><th class="r" title="${t("PnL non realizzato")} · ${t("La percentuale è calcolata sul margine iniziale.")}">PnL</th><th class="r">TP / SL</th><th>${t("Trailing")}</th><th>${t("Chiudi a mercato")}</th><th>${t("Coppia")}</th></tr></thead><tbody>${
     rows.map((p) => {
       if (typeof p === "string") return p; // a pair's own row
       const m = byId[p.market_id];
