@@ -3772,7 +3772,7 @@ function openSltpPop(btn) {
   // above the cell, kept inside the window
   const r = btn.getBoundingClientRect(), w = pop.offsetWidth, h = pop.offsetHeight;
   pop.style.left = Math.max(12, Math.min(r.left + r.width / 2 - w / 2, innerWidth - w - 12)) + "px";
-  pop.style.top = Math.max(12, r.top - h - 8 < 12 ? r.bottom + 8 : r.top - h - 8) + "px";
+  pop.style.top = Math.max(12, Math.min(r.top - h - 8 < 12 ? r.bottom + 8 : r.top - h - 8, innerHeight - h - 12)) + "px";
 }
 function closeSltpPop() { $("#sltpPop").classList.add("hidden"); sltpPop.mid = null; }
 // a % chosen (chip, slider or box): the price from it
@@ -3803,10 +3803,13 @@ function sltpShow(pct) {
   const now = price > 0 && (k === "tp" ? (long ? price <= mark : price >= mark) : (long ? price >= mark : price <= mark));
   const pastLiq = k === "sl" && price > 0 && p.liq && (long ? price <= p.liq : price >= p.liq);
   const usd = price > 0 ? (price - p.entry) * p.size : 0;
-  $("#sltpInfo").innerHTML = !(price > 0) ? `<span class="muted">${t("Scegli una percentuale o scrivi il prezzo.")}</span>`
+  $("#sltpInfo").innerHTML = !(price > 0) ? ""
     : `${t("Al prezzo")}: <b class="${usd >= 0 ? "up" : "down"}">${usd >= 0 ? "+" : "−"}${fusd(Math.abs(usd))}</b>`
       + (now ? `<div class="warn">${t("Si attiverebbe subito: il prezzo è già oltre.")}</div>` : "")
       + (pastLiq ? `<div class="warn">${t("Oltre la liquidazione ({price}): la posizione verrebbe liquidata prima.", { price: fp(p.liq, m) })}</div>` : "");
+  // the result line and its warnings make it taller: still inside the window
+  const pop = $("#sltpPop"), over = pop.getBoundingClientRect().bottom - (innerHeight - 12);
+  if (over > 0 && !pop.classList.contains("hidden")) pop.style.top = Math.max(12, parseFloat(pop.style.top) - over) + "px";
 }
 async function saveSltp(remove) {
   const p = sltpPos();
