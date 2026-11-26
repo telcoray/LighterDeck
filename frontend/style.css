@@ -403,8 +403,9 @@ body.resizing { cursor: row-resize; user-select: none; }
 .subtabs.small button { padding: 7px 0; font-size: 11px; }
 /* the bottom panel, a little more compact */
 .bottom .subtabs button { padding: 7px 0 6px; }
-.btab .table th { padding-top: 6px; padding-bottom: 6px; }
-.btab .table td { padding-top: 6px; padding-bottom: 6px; }
+.btab .table { --pad-x: 10px; }
+.btab .table th { padding: 6px var(--pad-x); }
+.btab .table td { padding: 6px var(--pad-x); }
 .btab .table td.mk small, .btab .table td.pnl small, .btab .table td small.pos-lev { margin-top: 1px; }
 .count { color: var(--muted); font-family: var(--mono); font-size: 10px; margin-left: 3px; }
 .btab { flex: 1; overflow: auto; }
@@ -416,7 +417,7 @@ body.resizing { cursor: row-resize; user-select: none; }
 .table td { padding: 9px 13px; border-bottom: 1px solid var(--line); white-space: nowrap; font-family: var(--mono); font-size: 11.5px; color: var(--text-2); }
 .table td.r { text-align: right; }
 /* positions: the spare width as equal space after each column (evenCols in app.js) */
-.table.even th:not(:last-child), .table.even td:not(:last-child) { padding-right: calc(13px + var(--even, 0px)); }
+.table.even th:not(:last-child), .table.even td:not(:last-child) { padding-right: calc(var(--pad-x, 13px) + var(--even, 0px)); }
 .table td.up { color: var(--green); } .table td.down { color: var(--red); }
 /* positions: PnL first, mark and value next, entry plain, liquidation as a warning */
 .table td.main { color: var(--text); }
