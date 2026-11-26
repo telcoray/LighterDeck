@@ -3904,7 +3904,7 @@ function renderPositions() {
       const margin = p.leverage ? (Math.abs(p.size) * p.entry) / p.leverage : 0;
       const pct = margin ? (p.upnl / margin) * 100 : 0;
       return `<tr><td class="mk">${gotoBtn(p.symbol)}${p.leverage ? `<span class="mk-lev">${p.leverage}x</span>` : ""}<small class="${p.size > 0 ? "up" : "down"}">${p.size > 0 ? "Long" : "Short"}${marginTag(p)}</small></td>
-        <td class="r ${p.size > 0 ? "up" : "down"}">${fsize(p.size, m)} <span class="unit-sym">${esc(p.symbol)}</span>${paired[p.market_id] ? `<small class="pos-lev">${t("di cui {q} in coppia", { q: fsize(paired[p.market_id], m) })}</small>` : ""}</td><td class="r main">${fusd(p.value)}</td>
+        <td class="r ${p.size > 0 ? "up" : "down"}">${fsize(p.size, m)}${paired[p.market_id] ? `<small class="pos-lev">${t("di cui {q} in coppia", { q: fsize(paired[p.market_id], m) })}</small>` : ""}</td><td class="r main">${fusd(p.value)}</td>
         <td class="r">${margin ? fusd(margin) : "—"}</td><td class="r">${fp(p.entry, m)}</td><td class="r main">${fp(mark, m)}</td>
         <td class="r liq" title="${p.cross === false ? t("Isolated: si liquida quando la perdita si mangia il margine di questa posizione.") : t("Cross: si liquida solo quando la perdita si mangia il collaterale di tutto l'account, non solo il margine di questa posizione. Per questo può essere molto lontana.")}">${fp(p.liq, m)}</td><td class="r pnl ${cls(p.upnl)}">${fusd(p.upnl)}<small>${isFinite(pct) ? fpct(pct) : ""}</small></td>
         <td class="r sltp">${sltpCell(p, m)}</td>
@@ -3997,7 +3997,7 @@ function pairRow(x) {
   const gap = (g) => { const l = liqOf(g.m); return l && g.mark ? { m: g.m, pct: Math.abs(g.mark - l) / g.mark * 100 } : null; };
   const near = legs.map(gap).filter(Boolean).sort((a, b) => a.pct - b.pct)[0];
   const legRow = (g) => `<tr class="leg"><td class="mk">${esc(g.m.symbol)}<small class="${g.side > 0 ? "up" : "down"}">${g.side > 0 ? "Long" : "Short"}</small></td>
-    <td class="r ${g.side > 0 ? "up" : "down"}">${fsize(g.qty, g.m)} <span class="unit-sym">${esc(g.m.symbol)}</span></td><td class="r">${fusd(g.value)}</td><td class="r">${fusd(g.margin)}</td>
+    <td class="r ${g.side > 0 ? "up" : "down"}">${fsize(g.qty, g.m)}</td><td class="r">${fusd(g.value)}</td><td class="r">${fusd(g.margin)}</td>
     <td class="r">${fp(g.entry, g.m)}</td><td class="r">${fp(g.mark, g.m)}</td><td class="r liq">${fp(liqOf(g.m), g.m)}</td><td class="r pnl ${cls(g.upnl)}">${fusd(g.upnl)}</td><td></td><td></td><td></td><td></td></tr>`;
   const stop = (k) => `<button class="sltp-v ${k}${x[k] ? "" : " none"}" data-pstop="${x.id}:${k}" title="${t(k === "tp" ? "Take-profit della coppia sul rapporto" : "Stop-loss della coppia sul rapporto")}">${x[k] ? fmt(x[k]) : "—"}</button>`;
   return `<tr class="pair-row"><td class="mk">${gotoBtn(sym)}<small class="up">${t("Coppia")}</small></td>
