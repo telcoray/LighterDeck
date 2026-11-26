@@ -7051,6 +7051,7 @@ async function init() {
   const route = routeFromUrl();
   if (route.sym && (bySymbol[route.sym] || pairOf(route.sym))) panelCfg[activeIdx].symbol = route.sym;
   buildCharts();
+  document.documentElement.classList.remove("booting");
   toggleBook(showBook);
   toggleTape(showTape);
   renderAccount();
