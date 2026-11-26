@@ -3742,7 +3742,9 @@ function sltpCell(p, m) {
 // (leverage included, as the PnL column counts it), a slider and the price itself; Enter saves, Esc closes,
 // Remove (or an empty price) takes the order away
 let posEdit = null; // a pair's stop being typed in its row
-const sltpPop = { mid: null, k: null };
+const sltpPop = { mid: null, k: null, exec: "market", limitTyped: false };
+// Market or Limit, remembered for TP and SL apart
+let sltpExecPref = load("sltpExec", { tp: "market", sl: "market" });
 function sltpPos() { return account && sltpPop.mid != null && account.positions.find((x) => x.market_id === sltpPop.mid); }
 // what a % of the initial margin means for this position: the price that gives it, and back
 function sltpMath(p) {
@@ -3765,6 +3767,11 @@ function openSltpPop(btn) {
   $("#sltpPopTitle").textContent = `${k === "tp" ? "Take profit" : "Stop loss"} · ${m.symbol}`;
   $("#sltpChips").innerHTML = [25, 50, 75, 100].map((x) => `<button type="button" data-sltppct="${x}">${k === "tp" ? "+" : "−"}${x}%</button>`).join("");
   $("#sltpPrice").value = cur ? cur.trigger_price : "";
+  // an existing order keeps its own execution, its limit price too
+  sltpPop.exec = cur ? (/limit/i.test(cur.type) ? "limit" : "market") : sltpExecPref[k] || "market";
+  sltpPop.limitTyped = !!(cur && sltpPop.exec === "limit" && cur.price && cur.price !== cur.trigger_price);
+  $("#sltpLimit").value = cur && sltpPop.exec === "limit" ? cur.price || cur.trigger_price : "";
+  sltpExecShow();
   $("#sltpPopRemove").classList.toggle("hidden", !cur);
   $("#sltpPopError").classList.add("hidden");
   sltpFromPrice();
@@ -3775,12 +3782,23 @@ function openSltpPop(btn) {
   pop.style.top = Math.max(12, Math.min(r.top - h - 8 < 12 ? r.bottom + 8 : r.top - h - 8, innerHeight - h - 12)) + "px";
 }
 function closeSltpPop() { $("#sltpPop").classList.add("hidden"); sltpPop.mid = null; }
+function sltpExecShow() {
+  const lim = sltpPop.exec === "limit";
+  $$("#sltpExec button").forEach((b) => b.classList.toggle("active", b.dataset.exec === sltpPop.exec));
+  $("#sltpLimitRow").classList.toggle("hidden", !lim);
+  $("#sltpPriceLabel").textContent = lim ? "Trigger" : t("Prezzo");
+}
+// until a limit is typed, it follows the trigger
+function sltpLimitFollow() {
+  if (sltpPop.exec === "limit" && !sltpPop.limitTyped) $("#sltpLimit").value = $("#sltpPrice").value;
+}
 // a % chosen (chip, slider or box): the price from it
 function sltpSetPct(pct, fromBox) {
   const p = sltpPos();
   if (!p) return;
   if (!fromBox) $("#sltpPctIn").value = pct ? +pct.toFixed(1) : "";
   $("#sltpPrice").value = pct > 0 ? sltpMath(p).price(pct) : "";
+  sltpLimitFollow();
   sltpShow(pct);
 }
 // a price typed: the % from it
@@ -3788,6 +3806,7 @@ function sltpFromPrice() {
   const p = sltpPos(), price = +$("#sltpPrice").value;
   const pct = p && price > 0 ? sltpMath(p).pct(price) : 0;
   $("#sltpPctIn").value = price > 0 ? +pct.toFixed(1) : "";
+  sltpLimitFollow();
   sltpShow(pct);
 }
 function sltpShow(pct) {
@@ -3802,7 +3821,8 @@ function sltpShow(pct) {
   // a TP on the wrong side of the price, or a SL the price has already passed, would trigger at once
   const now = price > 0 && (k === "tp" ? (long ? price <= mark : price >= mark) : (long ? price >= mark : price <= mark));
   const pastLiq = k === "sl" && price > 0 && p.liq && (long ? price <= p.liq : price >= p.liq);
-  const usd = price > 0 ? (price - p.entry) * p.size : 0;
+  const limit = sltpPop.exec === "limit" ? +$("#sltpLimit").value : 0;
+  const usd = price > 0 ? ((limit > 0 ? limit : price) - p.entry) * p.size : 0;
   const out = $("#sltpUsd");
   out.textContent = price > 0 ? `${usd >= 0 ? "+" : "−"}${fusd(Math.abs(usd))}` : fusd(0); // no price yet: $0.00, muted
   out.className = "sltp-usd " + (!(price > 0) ? "zero" : usd >= 0 ? "up" : "down");
@@ -3817,11 +3837,17 @@ async function saveSltp(remove) {
   const p = sltpPos();
   if (!p) return closeSltpPop();
   const k = sltpPop.k, cur = positionStops(p)[k], price = remove ? 0 : +$("#sltpPrice").value;
-  if ((!price && !cur) || (cur && price === cur.trigger_price)) return closeSltpPop();
+  const lim = sltpPop.exec === "limit", limit = lim ? +$("#sltpLimit").value || price : null;
+  const curLim = cur && /limit/i.test(cur.type);
+  if (!price && !cur) return closeSltpPop();
+  if (cur && price && price === cur.trigger_price && lim === curLim && (!lim || limit === cur.price)) return closeSltpPop(); // nothing changed
   const mid = p.market_id;
   $("#sltpPopSave").disabled = true;
   try {
-    await api("/position_sltp", { method: "POST", body: JSON.stringify({ market_id: mid, kind: k, price: price || null, order_index: cur ? cur.order_index : null }) });
+    // a limit one, or a change between market and limit, replaces the order; a market one just moves
+    await api("/position_sltp", { method: "POST", body: JSON.stringify({ market_id: mid, kind: k, price: price || null, order_index: cur ? cur.order_index : null,
+      limit_price: price && lim ? limit : null, replace: !!(cur && price && (lim || curLim)) }) });
+    if (price) { sltpExecPref[k] = sltpPop.exec; store("sltpExec", sltpExecPref); }
     toast(price ? t("{kind} a {price}", { kind: k.toUpperCase(), price: fp(price, byId[mid]) }) : t("{kind} rimosso", { kind: k.toUpperCase() }));
     closeSltpPop();
     await fetchOpenOrders(true).catch(() => {});
@@ -3834,6 +3860,16 @@ function wireSltpPop() {
   $("#sltpPct").oninput = (e) => sltpSetPct(+e.target.value);
   $("#sltpPctIn").oninput = (e) => sltpSetPct(+e.target.value, true);
   $("#sltpPrice").oninput = sltpFromPrice;
+  $("#sltpExec").onclick = (e) => {
+    const b = e.target.closest("[data-exec]");
+    if (!b) return;
+    sltpPop.exec = b.dataset.exec;
+    sltpPop.limitTyped = false;
+    sltpLimitFollow();
+    sltpExecShow();
+    sltpFromPrice();
+  };
+  $("#sltpLimit").oninput = () => { sltpPop.limitTyped = $("#sltpLimit").value !== ""; sltpFromPrice(); };
   $("#sltpPopClose").onclick = $("#sltpPopCancel").onclick = closeSltpPop;
   $("#sltpPopSave").onclick = () => saveSltp(false);
   $("#sltpPopRemove").onclick = () => saveSltp(true);

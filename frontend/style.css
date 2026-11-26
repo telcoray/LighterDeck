@@ -439,7 +439,8 @@ body.resizing { cursor: row-resize; user-select: none; }
 .sltp-pop.sl .chips button.on { border-color: var(--red); color: var(--red); }
 .sltp-pop.sl .pct-track input[type="range"] { --c: var(--red); }
 .sltp-pop .size-pct { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
-.sltp-row { display: flex; align-items: center; gap: 8px; }
+.sltp-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; } /* trigger and buttons, the limit under the trigger */
+.sltp-exec { margin-bottom: 10px; }
 .sltp-pop .sltp-price { flex: 1; min-width: 0; height: 30px; margin-bottom: 0; }
 .sltp-pop .sltp-price input { flex: 1; width: 100%; height: 100%; padding-top: 0; padding-bottom: 0; }
 .sltp-row .key-actions { flex: none; align-items: center; }

@@ -982,6 +982,8 @@ const EN = {
   "Cerca evento": "Search event",
   "Uno": "One",
   "Scrivi un mercato…": "Type a market…",
+  "Una volta scattato, l'ordine resta in attesa a questo prezzo invece di andare a mercato": "Once triggered, the order rests at this price instead of going at market",
+  "Prezzo limite non valido": "Invalid limit price",
   "Scegli una percentuale o scrivi il prezzo.": "Pick a percentage or type the price.",
   "Risultato al prezzo scelto": "Result at the chosen price",
   "del margine": "of margin",

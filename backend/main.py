@@ -1327,6 +1327,8 @@ class PositionStopReq(BaseModel):
     kind: str                        # "sl" | "tp"
     price: float | None = None       # new trigger; empty removes the order
     order_index: int | None = None   # the position's current SL/TP, if it has one
+    limit_price: float | None = None # executed as a limit at this price once triggered; empty: at market
+    replace: bool = False            # cancel the current one and send a new one instead of moving it
 
 
 @app.post("/api/position_sltp")
@@ -1335,14 +1337,16 @@ async def position_sltp(r: PositionStopReq):
     if not api.signer or r.market_id not in api.markets:
         raise HTTPException(400, L("Trading non attivo", "Trading is not enabled"))
     if r.order_index is not None:
-        if r.price:
+        if r.price and r.limit_price is None and not r.replace:
             return await move_order(MoveReq(market_id=r.market_id, order_index=r.order_index, price=r.price))
         try:
             await api.cancel_order(r.market_id, r.order_index)
         except Exception as e:
             raise HTTPException(400, str(e))
         _orders_cache.pop(r.market_id, None)
-        return {"ok": True}
+        if not r.price:
+            return {"ok": True}
+        # a limit TP/SL (or one changing between market and limit) is replaced: the old one went, a new one follows
     pos = engine._position(r.market_id)
     if not pos:
         raise HTTPException(400, L("Nessuna posizione", "No position"))
@@ -1357,13 +1361,16 @@ async def position_sltp(r: PositionStopReq):
         what = L("Lo stop-loss", "The stop-loss") if is_sl else L("Il take-profit", "The take-profit")
         raise HTTPException(400, L(f"{what} deve stare {'sotto' if below else 'sopra'} il prezzo mark ({mark:g}), altrimenti scatterebbe subito",
                                    f"{what} must be {'below' if below else 'above'} the mark price ({mark:g}), or it would trigger at once"))
+    limit = m.round_price(r.limit_price) if r.limit_price is not None else None
+    if limit is not None and limit <= 0:
+        raise HTTPException(400, L("Prezzo limite non valido", "Invalid limit price"))
     try:
         # reduce-only trigger order for the position's current size
-        await api.stop_order(r.market_id, pos["size"], price, "sl" if is_sl else "tp")
+        await api.stop_order(r.market_id, pos["size"], price, "sl" if is_sl else "tp", limit_price=limit)
     except Exception as e:
         raise HTTPException(400, str(e))
     _orders_cache.pop(r.market_id, None)
-    engine.note(f"{m.symbol} {r.kind.upper()} set at {price:g} from the positions table")
+    engine.note(f"{m.symbol} {r.kind.upper()} set at {price:g}" + (f" (limit {limit:g})" if limit is not None else "") + " from the positions table")
     return {"ok": True, "price": price}
 
 

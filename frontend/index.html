@@ -40,7 +40,7 @@
 </script>
 <style>html.i18n-pending body { visibility: hidden; }</style>
 <link rel="icon" href="favicon.svg?v=1" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=391">
+<link rel="stylesheet" href="style.css?v=393">
 <script src="vendor/lightweight-charts-4.2.0.standalone.production.js"></script>
 </head>
 <body>
@@ -689,6 +689,7 @@
 <!-- trailing stop editor for an open position -->
 <div class="trail-pop sltp-pop hidden" id="sltpPop" role="dialog" aria-labelledby="sltpPopTitle">
   <div class="modal-head"><h3 id="sltpPopTitle">TP / SL</h3><span class="sltp-head-r"><button class="ghost danger hidden" id="sltpPopRemove">Rimuovi</button><button class="xbtn" id="sltpPopClose" title="Chiudi (Esc)">✕</button></span></div>
+  <div class="kindsel sltp-exec" id="sltpExec"><button type="button" data-exec="market">Market</button><button type="button" data-exec="limit">Limit</button></div>
   <div class="chips" id="sltpChips"></div>
   <div class="size-pct">
     <div class="pct-track"><input id="sltpPct" type="range" min="0" max="100" step="1" value="0" autocomplete="off" title="Distanza in % del margine iniziale, leva inclusa"><i style="left:0"></i><i style="left:25%"></i><i style="left:50%"></i><i style="left:75%"></i><i style="left:100%"></i></div>
@@ -696,8 +697,9 @@
     <b class="sltp-usd" id="sltpUsd" title="Risultato al prezzo scelto"></b>
   </div>
   <div class="sltp-row">
-    <div class="field sltp-price"><label>Prezzo</label><input id="sltpPrice" inputmode="decimal" autocomplete="off" type="number" min="0" step="any"></div>
+    <div class="field sltp-price"><label id="sltpPriceLabel">Prezzo</label><input id="sltpPrice" inputmode="decimal" autocomplete="off" type="number" min="0" step="any"></div>
     <div class="key-actions"><button class="ghost" id="sltpPopCancel">Annulla</button><button class="ghost solid-green" id="sltpPopSave">Salva</button></div>
+    <div class="field sltp-price hidden" id="sltpLimitRow" title="Una volta scattato, l'ordine resta in attesa a questo prezzo invece di andare a mercato"><label>Limit</label><input id="sltpLimit" inputmode="decimal" autocomplete="off" type="number" min="0" step="any"></div>
   </div>
   <div class="sltp-info" id="sltpInfo"></div>
   <p class="key-error hidden" id="sltpPopError"></p>
@@ -860,13 +862,13 @@
 </div>
 
 <div class="toast hidden" id="toast" role="status" aria-live="polite"></div>
-<script src="i18n.js?v=391"></script>
-<script src="i18n-zh.js?v=391"></script>
-<script src="i18n-ko.js?v=391"></script>
-<script src="formulas.js?v=391"></script>
-<script src="paper.js?v=391"></script>
-<script src="live.js?v=391"></script>
-<script src="app.js?v=391"></script>
-<script src="picker.js?v=391"></script>
+<script src="i18n.js?v=393"></script>
+<script src="i18n-zh.js?v=393"></script>
+<script src="i18n-ko.js?v=393"></script>
+<script src="formulas.js?v=393"></script>
+<script src="paper.js?v=393"></script>
+<script src="live.js?v=393"></script>
+<script src="app.js?v=393"></script>
+<script src="picker.js?v=393"></script>
 </body>
 </html>

@@ -670,14 +670,15 @@ const Paper = (() => {
     return { ok: true, price };
   }
 
-  function positionSltp({ market_id, kind, price, order_index }) {
+  function positionSltp({ market_id, kind, price, order_index, limit_price = null, replace = false }) {
     if (order_index !== null && order_index !== undefined) {
-      if (price) return moveOrder({ market_id, order_index, price });
+      if (price && limit_price == null && !replace) return moveOrder({ market_id, order_index, price });
       findOrder(market_id, order_index);
       S.orders = S.orders.filter((o) => !(o.market_id === +market_id && o.order_index === +order_index));
       changed = true;
       save();
-      return { ok: true };
+      if (!price) return { ok: true };
+      // a limit one, or one changing between market and limit: the old one went, a new one follows
     }
     const m = mkt(market_id), pos = S.positions[market_id];
     if (!pos) err(t("Nessuna posizione"));
@@ -688,7 +689,8 @@ const Paper = (() => {
       const what = isSl ? t("Lo stop-loss") : t("Il take-profit");
       err(t(below ? "{what} deve stare sotto il prezzo mark ({mark}), altrimenti scatterebbe subito" : "{what} deve stare sopra il prezzo mark ({mark}), altrimenti scatterebbe subito", { what, mark: +mark.toPrecision(10) }));
     }
-    addTriggers(market_id, pos.size > 0, isSl ? price : null, isSl ? null : price);
+    if (limit_price != null && !(roundPrice(limit_price, m) > 0)) err(t("Prezzo limite non valido"));
+    addTriggers(market_id, pos.size > 0, isSl ? price : null, isSl ? null : price, isSl ? limit_price : null, isSl ? null : limit_price);
     changed = true;
     save();
     return { ok: true, price };

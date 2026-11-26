@@ -847,22 +847,26 @@ class LighterAPI:
             leverage=leverage, api_key_index=self.api_key_index,
         ), f"leverage {self.markets[market_id].symbol} {leverage}x {'cross' if cross else 'isolated'}")
 
-    async def stop_order(self, market_id, position_size, trigger, kind="sl", slippage_pct=None):
-        """Reduce-only trigger order that closes `position_size` (signed position) at `trigger`."""
+    async def stop_order(self, market_id, position_size, trigger, kind="sl", slippage_pct=None, limit_price=None):
+        """Reduce-only trigger order that closes `position_size` (signed position) at `trigger`: at market,
+        or with `limit_price` as a limit order resting at that price once triggered."""
         import lighter
 
+        S = lighter.SignerClient
         m = self.markets[market_id]
         slip = (slippage_pct if slippage_pct is not None else config.MAX_SLIPPAGE_PCT) / 100
         is_ask = position_size > 0  # closing a long sells
-        worst = m.round_price(trigger * (1 - slip if is_ask else 1 + slip))
-        order_type = lighter.SignerClient.ORDER_TYPE_STOP_LOSS if kind == "sl" else lighter.SignerClient.ORDER_TYPE_TAKE_PROFIT
+        limit = limit_price is not None
+        worst = m.round_price(limit_price if limit else trigger * (1 - slip if is_ask else 1 + slip))
+        order_type = ((S.ORDER_TYPE_STOP_LOSS_LIMIT if limit else S.ORDER_TYPE_STOP_LOSS) if kind == "sl"
+                      else (S.ORDER_TYPE_TAKE_PROFIT_LIMIT if limit else S.ORDER_TYPE_TAKE_PROFIT))
         if not self.signer:
             raise RuntimeError("trading disabled")
         coi = self._coi()
         await self._send(lambda: self.signer.create_order(
             market_index=market_id, client_order_index=coi, base_amount=m.size_int(position_size),
             price=m.price_int(worst), is_ask=is_ask, order_type=order_type,
-            time_in_force=lighter.SignerClient.ORDER_TIME_IN_FORCE_IMMEDIATE_OR_CANCEL,
+            time_in_force=S.ORDER_TIME_IN_FORCE_GOOD_TILL_TIME if limit else S.ORDER_TIME_IN_FORCE_IMMEDIATE_OR_CANCEL,
             reduce_only=True, trigger_price=m.price_int(m.round_price(trigger)),
             api_key_index=self.api_key_index,
         ), f"{kind} {m.symbol} @ {trigger}")

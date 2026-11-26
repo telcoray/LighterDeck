@@ -199,10 +199,12 @@ const Live = (() => {
     return send((n) => sign("SignCreateGroupedOrders", list.length === 3 ? OTOCO : OTO, list, 0, 0, 0, 0, 0, 0, n));
   }
 
-  function stopOrder(m, posSize, trigger, kind) {
-    const isAsk = posSize > 0, worst = roundPrice(m, trigger * (isAsk ? 1 - SLIP : 1 + SLIP));
-    return createOrder(m, { coi: coi(), base: sizeInt(m, posSize), price: priceInt(m, worst), isAsk, type: kind === "sl" ? STOP_LOSS : TAKE_PROFIT,
-      tif: IOC, reduce: true, trigger: priceInt(m, roundPrice(m, trigger)), expiry: -1 });
+  // limit: once triggered it rests as a limit at that price instead of going at market
+  function stopOrder(m, posSize, trigger, kind, limit = null) {
+    const isAsk = posSize > 0, worst = roundPrice(m, limit ?? trigger * (isAsk ? 1 - SLIP : 1 + SLIP));
+    const type = kind === "sl" ? (limit == null ? STOP_LOSS : STOP_LOSS_LIMIT) : (limit == null ? TAKE_PROFIT : TAKE_PROFIT_LIMIT);
+    return createOrder(m, { coi: coi(), base: sizeInt(m, posSize), price: priceInt(m, worst), isAsk, type,
+      tif: limit == null ? IOC : GTT, reduce: true, trigger: priceInt(m, roundPrice(m, trigger)), expiry: -1 });
   }
 
   const modifyOrder = (m, oi, size, price, trigger = 0) => send((n) => sign("SignModifyOrder", m.id, oi, sizeInt(m, size),
@@ -473,19 +475,21 @@ const Live = (() => {
     return { ok: true, price };
   }
 
-  async function positionSltp({ market_id, kind, price, order_index }) {
+  async function positionSltp({ market_id, kind, price, order_index, limit_price = null, replace = false }) {
     const m = mkt(market_id);
     if (order_index !== null && order_index !== undefined) {
-      if (price) return moveOrder({ market_id, order_index, price });
+      if (price && limit_price == null && !replace) return moveOrder({ market_id, order_index, price });
       await cancelOrder(m, +order_index);
       delete orders[market_id];
-      return { ok: true };
+      if (!price) return { ok: true };
+      // a limit one, or one changing between market and limit: the old one went, a new one follows
     }
     const pos = position(market_id) || err(t("Nessuna posizione"));
     price = roundPrice(m, price || 0);
     if (price <= 0) err(t("Prezzo non valido"));
     sideError(price, (kind === "sl") === pos.size > 0, (prices[market_id] || {}).mark, kind === "sl");
-    await stopOrder(m, pos.size, price, kind);
+    if (limit_price != null && !(roundPrice(m, limit_price) > 0)) err(t("Prezzo limite non valido"));
+    await stopOrder(m, pos.size, price, kind, limit_price);
     delete orders[market_id];
     return { ok: true, price };
   }
