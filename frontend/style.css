@@ -401,6 +401,11 @@ body.resizing { cursor: row-resize; user-select: none; }
 .subtabs button.active { color: var(--text); border-color: var(--text); }
 .subtabs.small { gap: 14px; padding: 0; margin-bottom: 10px; }
 .subtabs.small button { padding: 7px 0; font-size: 11px; }
+/* the bottom panel, a little more compact */
+.bottom .subtabs button { padding: 7px 0 6px; }
+.btab .table th { padding-top: 6px; padding-bottom: 6px; }
+.btab .table td { padding-top: 6px; padding-bottom: 6px; }
+.btab .table td.mk small, .btab .table td.pnl small, .btab .table td small.pos-lev { margin-top: 1px; }
 .count { color: var(--muted); font-family: var(--mono); font-size: 10px; margin-left: 3px; }
 .btab { flex: 1; overflow: auto; }
 /* the rows fit and only their bottom padding sits under the side bar: no vertical bar (fitBtabY in app.js) */
