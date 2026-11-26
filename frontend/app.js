@@ -3804,8 +3804,8 @@ function sltpShow(pct) {
   const pastLiq = k === "sl" && price > 0 && p.liq && (long ? price <= p.liq : price >= p.liq);
   const usd = price > 0 ? (price - p.entry) * p.size : 0;
   const out = $("#sltpUsd");
-  out.textContent = price > 0 ? `${usd >= 0 ? "+" : "−"}${fusd(Math.abs(usd))}` : "";
-  out.className = "sltp-usd " + (usd >= 0 ? "up" : "down");
+  out.textContent = price > 0 ? `${usd >= 0 ? "+" : "−"}${fusd(Math.abs(usd))}` : fusd(0); // no price yet: $0.00, muted
+  out.className = "sltp-usd " + (!(price > 0) ? "zero" : usd >= 0 ? "up" : "down");
   $("#sltpInfo").innerHTML = !(price > 0) ? ""
     : (now ? `<div class="warn">${t("Si attiverebbe subito: il prezzo è già oltre.")}</div>` : "")
       + (pastLiq ? `<div class="warn">${t("Oltre la liquidazione ({price}): la posizione verrebbe liquidata prima.", { price: fp(p.liq, m) })}</div>` : "");
