@@ -3941,7 +3941,7 @@ function wireBtabY() {
 }
 
 let evenColsRO = null;
-const EVEN_MAX = 14;
+const EVEN_MAX = 20;
 function evenCols(box) {
   if (!evenColsRO) { evenColsRO = new ResizeObserver(() => evenCols(box)); evenColsRO.observe(box); }
   const tb = box.querySelector("table");
