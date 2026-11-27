@@ -163,6 +163,9 @@ async def auth(request: Request, call_next):
     if (response.status_code == 200 and not path.startswith("/api/") and path.endswith((".js", ".css"))
             and ("v" in request.query_params or path.startswith("/vendor/"))):
         response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        # Cloudflare keeps its copy only an hour: a copy it got wrong (cut short while the server restarted
+        # during a deploy) mends itself instead of breaking the page for a year
+        response.headers["Cloudflare-CDN-Cache-Control"] = "public, max-age=3600"
     response.headers.setdefault("Cache-Control", "no-cache")
     for k, v in SECURITY_HEADERS.items():  # a response that sets its own (the logos) keeps it
         response.headers.setdefault(k, v)

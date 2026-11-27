@@ -43,10 +43,28 @@
       setTimeout(() => document.documentElement.classList.remove("i18n-pending"), 1500);
     }
   } catch (e) {}
+  // a safety net: if app.js still hasn't run after a while (a download that stalls on the way), say so and
+  // offer a reload instead of a spinner that never ends
+  setTimeout(function () {
+    if (typeof init === "function" || !document.body) return;
+    var it = (typeof lang === "string" ? lang : "en") === "it";
+    var box = document.createElement("div");
+    box.className = "boot-stuck";
+    box.textContent = it ? "La pagina non finisce di caricarsi: la rete è lenta o si è interrotta. "
+      : "The page is not finishing loading: the connection is slow or was cut. ";
+    var b = document.createElement("button");
+    b.textContent = it ? "Ricarica" : "Reload";
+    b.onclick = function () { location.reload(); };
+    box.appendChild(b);
+    document.body.appendChild(box);
+  }, 20000);
 </script>
-<style>html.i18n-pending body { visibility: hidden; }</style>
+<style>html.i18n-pending body { visibility: hidden; }
+.boot-stuck { position: fixed; left: 50%; top: 40%; transform: translateX(-50%); z-index: 9999; max-width: 90vw; padding: 14px 16px;
+  border: 1px solid #3a2a2a; border-radius: 8px; background: #16110f; color: #e8d6d0; font: 13px/1.5 system-ui, sans-serif; text-align: center; }
+.boot-stuck button { margin-left: 8px; padding: 4px 12px; border: 1px solid #555; border-radius: 5px; background: #222; color: #fff; cursor: pointer; }</style>
 <link rel="icon" href="favicon.svg?v=1" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=428">
+<link rel="stylesheet" href="style.css?v=429">
 </head>
 <body>
 
@@ -881,13 +899,13 @@
   })();
 </script>
 <script src="vendor/lightweight-charts-4.2.0.standalone.production.js"></script>
-<script src="i18n.js?v=428"></script>
-<script src="i18n-zh.js?v=428"></script>
-<script src="i18n-ko.js?v=428"></script>
-<script src="formulas.js?v=428"></script>
-<script src="paper.js?v=428"></script>
-<script src="live.js?v=428"></script>
-<script src="app.js?v=428"></script>
-<script src="picker.js?v=428"></script>
+<script src="i18n.js?v=429"></script>
+<script src="i18n-zh.js?v=429"></script>
+<script src="i18n-ko.js?v=429"></script>
+<script src="formulas.js?v=429"></script>
+<script src="paper.js?v=429"></script>
+<script src="live.js?v=429"></script>
+<script src="app.js?v=429"></script>
+<script src="picker.js?v=429"></script>
 </body>
 </html>
