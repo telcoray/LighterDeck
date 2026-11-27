@@ -10,7 +10,10 @@ const TF_LABEL = { "1d": "1D", "3d": "3D", "1w": "1W", "1M": "1M" };
 const tfLabel = (tf) => TF_LABEL[tf] || tf;
 const TF_SECS = { "1m": 60, "3m": 180, "5m": 300, "15m": 900, "30m": 1800, "1h": 3600, "2h": 7200, "4h": 14400,
                   "8h": 28800, "12h": 43200, "1d": 86400, "3d": 259200, "1w": 604800, "1M": 2592000 };
-const DEFAULT_TFS = ["1m", "5m", "15m", "30m", "1h", "4h", "12h", "1d"];
+// a phone has room for one row: no 30m there (it stays under More)
+const DEFAULT_TFS = matchMedia("(hover: none), (max-width: 768px)").matches
+  ? ["1m", "5m", "15m", "1h", "4h", "12h", "1d"]
+  : ["1m", "5m", "15m", "30m", "1h", "4h", "12h", "1d"];
 let shownTfs = load("tfs", DEFAULT_TFS).filter((t) => ALL_TFS.includes(t));
 
 // The charts' times in the computer's own time zone, like the calendar (the library alone writes UTC).
