@@ -374,16 +374,7 @@ class Panel {
     if (token !== this.loadToken) return;
     this.loadingAt = 0;
     if (!ca || !cb) { this.retryLoad(token); return; }
-    // bars both markets have; a ratio's true high and low aren't known, so they come from the bar's
-    // open, close and the two highs and lows over each other
-    const byTime = new Map(cb.map((c) => [c.time, c]));
-    const candles = [];
-    for (const x of ca) {
-      const y = byTime.get(x.time);
-      if (!y || !y.open || !y.close || !y.high || !y.low) continue;
-      const o = x.open / y.open, c = x.close / y.close, h = x.high / y.high, l = x.low / y.low;
-      candles.push({ time: x.time, open: o, close: c, high: Math.max(o, c, h, l), low: Math.min(o, c, h, l) });
-    }
+    const candles = ratioCandles(ca, cb);
     const d = (this.pairDec = candles.length ? ratioDecimals(candles[candles.length - 1].close) : 6);
     this.series.applyOptions({ priceFormat: { type: "price", precision: d, minMove: 1 / 10 ** d } });
     this.data = new Map(candles.map((c) => [c.time, c]));
@@ -1623,6 +1614,21 @@ function wireToolbarFit() {
   new MutationObserver(() => { cancelAnimationFrame(raf); raf = requestAnimationFrame(fitToolbar); }).observe($("#tfs"), { childList: true });
 }
 
+// a spread's candles: the bars both markets have. A ratio's true high and low aren't known, so they come from
+// the bar's open, close and the two highs and lows over each other (one market's high over the other's low
+// would draw wicks far past anything the ratio reached)
+function ratioCandles(ca, cb) {
+  const byTime = new Map(cb.map((c) => [c.time, c]));
+  const candles = [];
+  for (const x of ca) {
+    const y = byTime.get(x.time);
+    if (!y || !y.open || !y.close || !y.high || !y.low) continue;
+    const o = x.open / y.open, c = x.close / y.close, h = x.high / y.high, l = x.low / y.low;
+    candles.push({ time: x.time, open: o, close: c, high: Math.max(o, c, h, l), low: Math.min(o, c, h, l) });
+  }
+  return candles;
+}
+
 // ---------- a favourite's chart on hover ----------
 // Resting the pointer on a favourite for a moment shows its last 24 hours in 15-minute candles, under it; a spread
 // shows its ratio. Candles are kept a minute per market, so moving along the bar doesn't ask Lighter again.
@@ -1635,13 +1641,9 @@ async function peekBars(sym) {
   const get = (m) => api(`/candles?market_id=${m.id}&resolution=${PEEK_TF}&count=${PEEK_BARS}`);
   const pr = pairOf(sym);
   let bars;
-  if (pr) { // the ratio of the two markets' candles, where both have a bar
+  if (pr) { // the ratio of the two markets' candles, as on the main chart
     const [a, b] = await Promise.all([get(pr[0]), get(pr[1])]);
-    const bm = new Map(b.map((c) => [c.time, c]));
-    bars = a.filter((c) => bm.has(c.time) && bm.get(c.time).close).map((c) => {
-      const d = bm.get(c.time), open = c.open / d.open, close = c.close / d.close;
-      return { time: c.time, open, close, high: Math.max(open, close, c.high / d.low), low: Math.min(open, close, c.low / d.high) };
-    });
+    bars = ratioCandles(a, b);
   } else {
     bars = await get(bySymbol[sym]);
   }
