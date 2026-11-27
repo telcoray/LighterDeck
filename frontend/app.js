@@ -3924,6 +3924,14 @@ function renderPositions() {
 // still grow and shrink with the window.
 // A table that fits except for the few pixels the horizontal bar takes (its last row's bottom padding)
 // would get a vertical bar too: those pixels are hidden instead. Checked whenever a tab is redrawn or resized.
+// an empty tab (no positions, no orders…) shrinks the panel to its tabs and that one line, and the charts get the
+// rest; it goes back to its own height as soon as the tab has something to show
+function fitBottomEmpty() {
+  const b = $$(".btab").find((x) => !x.classList.contains("hidden"));
+  const empty = !!b && b.children.length === 1 && b.firstElementChild.classList.contains("empty");
+  $("#bottom").classList.toggle("is-empty", empty);
+  $("#bottomSplit").classList.toggle("is-empty", empty);
+}
 function fitBtabY(b) {
   const over = b.scrollHeight - b.clientHeight;
   b.classList.toggle("fit-y", over > 0 && over <= 10);
@@ -3931,7 +3939,7 @@ function fitBtabY(b) {
 function wireBtabY() {
   $$(".btab").forEach((b) => {
     new ResizeObserver(() => fitBtabY(b)).observe(b);
-    new MutationObserver(() => fitBtabY(b)).observe(b, { childList: true });
+    new MutationObserver(() => { fitBtabY(b); fitBottomEmpty(); }).observe(b, { childList: true });
     // a table wider than the panel scrolls sideways with the mouse wheel, unless it has rows to scroll down to
     b.addEventListener("wheel", (e) => {
       if (e.shiftKey || b.scrollWidth <= b.clientWidth || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return; // a sideways swipe scrolls by itself
@@ -5593,6 +5601,7 @@ function switchView(v, opts = {}) {
 function switchBottom(t) {
   $$("#bottomTabs button").forEach((b) => b.classList.toggle("active", b.dataset.btab === t));
   $$(".btab").forEach((s) => s.classList.toggle("hidden", s.id !== "btab-" + t));
+  fitBottomEmpty();
   if (t === "orders") loadOrders();
   if (t === "trades") loadTrades();
   if (t === "funding") loadFundingPaid();
