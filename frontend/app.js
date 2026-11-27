@@ -1715,23 +1715,42 @@ function wireTickerPeek() {
   box.addEventListener("scroll", hidePeek, { passive: true });
 }
 
-// favourites row: drag an item sideways to reorder (a plain click still selects the market)
+// favourites row: drag an item sideways to reorder (a plain click still selects the market). On a touch screen
+// a tap opens the market and a swipe scrolls the row; holding a favourite for a moment picks it up to move.
 let tickerDrag = null, tickerDragEnd = 0;
+const TICKER_HOLD = 350; // ms
 function wireTickerDrag() {
   const box = $("#ticker");
+  const lift = (d) => {
+    d.lifted = true;
+    d.el.classList.add("dragging");
+    document.body.classList.add("reordering");
+  };
   box.addEventListener("pointerdown", (e) => {
     const el = e.target.closest(".tk");
     if (!el || e.button !== 0) return;
-    tickerDrag = { el, x0: e.clientX, y0: e.clientY, left0: el.offsetLeft, top0: el.offsetTop, moved: false, id: e.pointerId };
+    const d = tickerDrag = { el, x0: e.clientX, y0: e.clientY, left0: el.offsetLeft, top0: el.offsetTop, moved: false, id: e.pointerId,
+      touch: e.pointerType !== "mouse", lifted: false };
+    if (d.touch) d.timer = setTimeout(() => {
+      if (tickerDrag !== d) return;
+      lift(d);
+      if (navigator.vibrate) navigator.vibrate(10);
+    }, TICKER_HOLD);
   });
+  // once a favourite is picked up the finger moves it, not the row
+  box.addEventListener("touchmove", (e) => { if (tickerDrag && tickerDrag.lifted) e.preventDefault(); }, { passive: false });
+  box.addEventListener("contextmenu", (e) => { if (tickerDrag && tickerDrag.touch) e.preventDefault(); });
   box.addEventListener("pointermove", (e) => {
     const d = tickerDrag;
     if (!d || e.pointerId !== d.id) return;
+    if (d.touch && !d.lifted) { // moving before the hold: a swipe, the row scrolls
+      if (Math.hypot(e.clientX - d.x0, e.clientY - d.y0) > 8) { clearTimeout(d.timer); tickerDrag = null; }
+      return;
+    }
     if (!d.moved) {
       if (Math.hypot(e.clientX - d.x0, e.clientY - d.y0) < 5) return;
       d.moved = true;
-      d.el.classList.add("dragging");
-      document.body.classList.add("reordering");
+      lift(d);
       try { box.setPointerCapture(e.pointerId); } catch {}
     }
     if ($(".ticker").classList.contains("wrap")) { // rows: move it before or after the favourite under the pointer
@@ -1759,6 +1778,13 @@ function wireTickerDrag() {
     const d = tickerDrag;
     if (!d || e.pointerId !== d.id) return;
     tickerDrag = null;
+    clearTimeout(d.timer);
+    if (d.lifted && !d.moved) { // held and let go in place: nothing moved, and no tap either
+      d.el.classList.remove("dragging");
+      document.body.classList.remove("reordering");
+      tickerDragEnd = Date.now();
+      return;
+    }
     if (!d.moved) return;
     d.el.classList.remove("dragging");
     d.el.style.transform = "";
