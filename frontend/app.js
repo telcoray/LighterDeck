@@ -6248,7 +6248,7 @@ function wireTrail() {
 }
 
 // ================= resizable bottom panel =================
-const BOTTOM_DEFAULT = 210;
+const BOTTOM_DEFAULT = 160; // the tabs, the column titles and two positions; drag the bar for more
 function setBottomHeight(h) {
   const room = $("#bottom").parentElement.clientHeight; // 0 while the trade view is hidden
   if (room) h = Math.min(h, room - 220); // keep room for the charts
