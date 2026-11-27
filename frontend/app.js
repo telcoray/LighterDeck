@@ -1298,8 +1298,8 @@ function renderPairBar([a, b]) {
   const sym = `${a.symbol}/${b.symbol}`;
   renderMkStar(sym);
   $("#mkSym").textContent = sym;
-  if ($("#mkIco").dataset.sym !== a.symbol) {
-    $("#mkIco").outerHTML = ico(a.symbol).replace('<i class="mk-ico"', `<i class="mk-ico" id="mkIco" data-sym="${a.symbol}"`);
+  if ($("#mkIco").dataset.sym !== sym) {
+    $("#mkIco").outerHTML = `<span class="pair-ico" id="mkIco" data-sym="${esc(sym)}">${ico(a.symbol)}${ico(b.symbol)}</span>`;
   }
   const pa = prices[a.id], pb = prices[b.id];
   const xa = pa && (pa.last || pa.mark), xb = pb && (pb.last || pb.mark);

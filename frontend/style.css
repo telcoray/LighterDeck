@@ -342,8 +342,11 @@ html.booting .marketbar .stat > span, html.booting .marketbar .stat-val, html.bo
 .legend .zval { margin-left: 8px; color: var(--muted); }
 .legend .zval b { color: var(--text-2); font-weight: 500; }
 .legend .zval b.hot { color: var(--amber); }
-.pair-ico { display: inline-flex; }
-.pair-ico .mk-ico + .mk-ico { margin-left: -6px; box-shadow: 0 0 0 2px var(--bg); }
+/* a spread's logo: one circle cut on the diagonal, the first market top-left and the second bottom-right */
+.pair-ico { display: inline-grid; flex: none; align-self: center; }
+.pair-ico > .mk-ico { grid-area: 1 / 1; }
+.pair-ico > .mk-ico:first-child { clip-path: polygon(0 0, calc(100% - 1.5px) 0, 0 calc(100% - 1.5px)); }
+.pair-ico > .mk-ico:last-child { clip-path: polygon(100% 1.5px, 100% 100%, 1.5px 100%); }
 .ctx-badges { display: flex; align-items: center; gap: 6px; flex: none; }
 .ctx-badges:empty { display: none; }
 .chart-ctx { position: absolute; top: 32px; left: 12px; right: 84px; z-index: 2; flex-wrap: wrap; }
@@ -774,7 +777,7 @@ body.dragging-line, body.dragging-line * { cursor: ns-resize !important; user-se
 #mktTable tbody tr { cursor: pointer; }
 .star { color: var(--faint); font-size: 13px; padding: 0 2px; }
 .star.on { color: var(--amber); }
-.mk-star { margin-left: 6px; padding: 2px 3px; font-size: 14px; line-height: 1; border-radius: 3px; }
+.mk-star { margin: 0 4px 0 -4px; padding: 2px 3px; font-size: 14px; line-height: 1; border-radius: 3px; }
 .mk-star:hover { color: var(--text-2); background: var(--raised); }
 .mk-star.on:hover { color: var(--amber); }
 .open-btn { color: var(--muted); font-family: var(--ui); font-size: 11px; }
