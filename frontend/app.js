@@ -3917,8 +3917,26 @@ function wireSltpPop() {
   document.addEventListener("mousedown", (e) => { if (!e.target.closest("#sltpPop, [data-psl]")) closeSltpPop(); });
 }
 
+// a button pressed in the positions table: the prices redraw the table several times a second, and a button
+// swapped between press and release loses its click (a close that asks OK? twice); the redraw waits for it
+let posPress = null; // { pending }
+function wirePosPress() {
+  $("#btab-positions").addEventListener("pointerdown", (e) => { if (e.target.closest("button")) posPress = { pending: false }; });
+  const release = () => {
+    const p = posPress;
+    if (!p) return;
+    setTimeout(() => { // after the click that follows the release
+      if (posPress !== p) return;
+      posPress = null;
+      if (p.pending) renderPositions();
+    }, 0);
+  };
+  addEventListener("pointerup", release, true);
+  addEventListener("pointercancel", release, true);
+}
 function renderPositions() {
   if (posEdit) return; // don't rebuild the row under a TP/SL being typed
+  if (posPress) { posPress.pending = true; return; }
   const box = $("#btab-positions");
   const list = account ? account.positions : [];
   $("#posCount").textContent = list.length; // 0 too: the tabs after it never move
@@ -7093,6 +7111,7 @@ async function init() {
   });
   wireBottomSplit();
   wireTrail();
+  wirePosPress();
   applyTheme(load("theme", "ghiaccio")); // first visit: Ice (Ghiaccio)
   $("#themeBtn").onclick = (e) => { e.stopPropagation(); $("#langMenu").classList.add("hidden"); $("#themeMenu").classList.toggle("hidden"); fitInView($("#themeMenu")); };
   $("#themeMenu").onclick = (e) => {
