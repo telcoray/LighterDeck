@@ -342,11 +342,11 @@ html.booting .marketbar .stat > span, html.booting .marketbar .stat-val, html.bo
 .legend .zval { margin-left: 8px; color: var(--muted); }
 .legend .zval b { color: var(--text-2); font-weight: 500; }
 .legend .zval b.hot { color: var(--amber); }
-/* a spread's logo: one circle cut on the diagonal, the first market top-left and the second bottom-right */
+/* a spread's logo: the two markets' circles overlapping on the diagonal, the first on top (top-left) with a thin ring that parts it from the second (bottom-right) */
 .pair-ico { display: inline-grid; flex: none; align-self: center; }
 .pair-ico > .mk-ico { grid-area: 1 / 1; }
-.pair-ico > .mk-ico:first-child { clip-path: polygon(0 0, calc(100% - 1.5px) 0, 0 calc(100% - 1.5px)); }
-.pair-ico > .mk-ico:last-child { clip-path: polygon(100% 1.5px, 100% 100%, 1.5px 100%); }
+.pair-ico > .mk-ico:first-child { z-index: 1; transform: translate(-21%, -21%) scale(.72); box-shadow: 0 0 0 1.5px var(--bg); }
+.pair-ico > .mk-ico:last-child { transform: translate(21%, 21%) scale(.72); }
 .ctx-badges { display: flex; align-items: center; gap: 6px; flex: none; }
 .ctx-badges:empty { display: none; }
 .chart-ctx { position: absolute; top: 32px; left: 12px; right: 84px; z-index: 2; flex-wrap: wrap; }
