@@ -307,6 +307,8 @@ const EN = {
   "Altri preferiti": "More favourites",
   "Paper trading: ricomincia o passa al live": "Paper trading: start over or switch to live",
   "Il server si sta riavviando, riprovo…": "The server is restarting, trying again…",
+  "Non riesco a raggiungere il server ({why}): riprovo…": "Can't reach the server ({why}): trying again…",
+  "nessuna risposta": "no answer", "rete non raggiungibile": "network unreachable",
   "Ricollego la chiave…": "Reconnecting the key…",
   "Non riesco a ricollegare la chiave: ricarica la pagina tra poco": "Couldn't reconnect the key: reload the page in a moment",
   "Paper trading": "Paper trading",

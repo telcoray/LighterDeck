@@ -7049,20 +7049,26 @@ async function init() {
   document.addEventListener("click", () => $("#langMenu").classList.add("hidden"));
   onLangChange = rerenderLanguage;
   // while the server restarts (a deploy) it doesn't answer for a few seconds: wait for it instead of asking
-  // for a token, which is only for a refused one
+  // for a token, which is only for one our server refused. A request that hangs (a slow or flaky network far
+  // away) is dropped after a while and tried again, and after a few tries the page says what went wrong
+  // instead of spinning forever.
   for (let i = 0; ; i++) {
+    const ac = new AbortController(), tm = setTimeout(() => ac.abort(), 12000);
     try {
-      info = await api("/info");
+      info = await api("/info", { signal: ac.signal });
       break;
     } catch (e) {
-      if ((e.status === 401 || e.status === 403) || i >= 30) {
+      if (e.status === 401 && e.message === "bad token") {
         const token = prompt(t("Token di accesso LighterDeck:"));
         if (token) { store("token", token); location.reload(); }
         return;
       }
-      if (i === 1) toast(t("Il server si sta riavviando, riprovo…"));
+      const why = e.name === "AbortError" ? t("nessuna risposta")
+        : e.status ? `HTTP ${e.status}` : t("rete non raggiungibile");
+      if (i >= 2) toast(t("Non riesco a raggiungere il server ({why}): riprovo…").replace("{why}", why), true);
+      else if (i === 1) toast(t("Il server si sta riavviando, riprovo…"));
       await new Promise((ok) => setTimeout(ok, 2000));
-    }
+    } finally { clearTimeout(tm); }
   }
   markets = info.markets;
   liveTrading = info.trading;
