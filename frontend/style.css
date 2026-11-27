@@ -774,6 +774,9 @@ body.dragging-line, body.dragging-line * { cursor: ns-resize !important; user-se
 #mktTable tbody tr { cursor: pointer; }
 .star { color: var(--faint); font-size: 13px; padding: 0 2px; }
 .star.on { color: var(--amber); }
+.mk-star { margin-left: 6px; padding: 2px 3px; font-size: 14px; line-height: 1; border-radius: 3px; }
+.mk-star:hover { color: var(--text-2); background: var(--raised); }
+.mk-star.on:hover { color: var(--amber); }
 .open-btn { color: var(--muted); font-family: var(--ui); font-size: 11px; }
 tr:hover .open-btn { color: var(--green); }
 .auto-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; }

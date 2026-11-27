@@ -560,6 +560,8 @@ const EN = {
   "Apri": "Open",
   "Vai alla lista": "Go to list",
   "Preferito": "Favourite",
+  "Aggiungi ai preferiti": "Add to favourites",
+  "Togli dai preferiti": "Remove from favourites",
   "Cerca": "Search",
   "Chiudi": "Close",
   "Apri ovunque": "Open anywhere",

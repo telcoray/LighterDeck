@@ -1260,11 +1260,18 @@ function setSymbol(sym) {
 }
 
 // ================= market bar / ticker =================
+// the star in the market button: this market or spread in the favourites, or out of them
+function renderMkStar(sym) {
+  const star = $("#mkStar"), on = favs.includes(sym);
+  star.classList.toggle("on", on);
+  star.title = t(on ? "Togli dai preferiti" : "Aggiungi ai preferiti");
+}
 function renderMarketBar() {
   const pr = activePair();
   if (pr) return renderPairBar(pr);
   const m = activeMarket();
   if (!m) return;
+  renderMkStar(m.symbol);
   $("#mkSym").textContent = m.symbol;
   if ($("#mkIco").dataset.sym !== m.symbol) {
     $("#mkIco").outerHTML = ico(m.symbol).replace('<i class="mk-ico"', `<i class="mk-ico" id="mkIco" data-sym="${m.symbol}"`);
@@ -1289,6 +1296,7 @@ function renderMarketBar() {
 // a spread in the market bar: the ratio and its 24h change; the rest belongs to each market
 function renderPairBar([a, b]) {
   const sym = `${a.symbol}/${b.symbol}`;
+  renderMkStar(sym);
   $("#mkSym").textContent = sym;
   if ($("#mkIco").dataset.sym !== a.symbol) {
     $("#mkIco").outerHTML = ico(a.symbol).replace('<i class="mk-ico"', `<i class="mk-ico" id="mkIco" data-sym="${a.symbol}"`);
@@ -5675,7 +5683,15 @@ function wire() {
   $$("#layouts button").forEach((b) => (b.onclick = () => { layout = b.dataset.layout; store("layout", layout); buildCharts(); }));
   $("#obToggle").onclick = () => toggleBook(!showBook);
   $("#tapeToggle").onclick = () => toggleTape(!showTape);
-  $("#mktSelect").onclick = () => ($("#picker").classList.contains("hidden") ? openPalette() : closePalette());
+  $("#mktSelect").onclick = (e) => {
+    if (e.target.closest("#mkStar")) { // the star: in or out of the favourites, without opening the list
+      const pr = activePair(), sym = pr ? `${pr[0].symbol}/${pr[1].symbol}` : activeMarket().symbol;
+      toggleFav(sym);
+      renderMkStar(sym);
+      return;
+    }
+    $("#picker").classList.contains("hidden") ? openPalette() : closePalette();
+  };
   wireTickerDrag();
   wireTickerScroll();
   wireTickerPeek();
