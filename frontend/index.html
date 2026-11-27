@@ -26,6 +26,36 @@
 <script>
   // until app.js has the markets from the server: a spinner on the chart, no placeholder numbers
   document.documentElement.classList.add("booting");
+  // the first requests start now, while the scripts download: the market list, then the candles of the charts
+  // this visit shows. app.js takes them over (ldPre) instead of asking again.
+  window.ldPre = {};
+  try {
+    var ldLoad = function (k, d) { try { var v = localStorage.getItem("ld." + k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } };
+    var ldGet = function (u) {
+      var p = fetch("/api" + u, { headers: { "X-Token": ldLoad("token", "") } })
+        .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); });
+      p.catch(function () {});
+      window.ldPre[u] = { p: p, at: Date.now() };
+      return p;
+    };
+    ldGet("/info").then(function (info) {
+      var by = {};
+      info.markets.forEach(function (m) { by[m.symbol] = m; });
+      var cfg = ldLoad("panels", [{ symbol: "BTC", tf: "1h" }, { symbol: "ETH", tf: "1h" }, { symbol: "XAU", tf: "1h" }, { symbol: "HOOD", tf: "1h" }]);
+      var phone = matchMedia("(hover: none), (max-width: 768px)").matches;
+      var n = { "1": 1, "2v": 2, "2h": 2, "4": 4 }[ldLoad("layout", phone ? "1" : "4")] || 4;
+      var act = Math.min(ldLoad("active", 0), 3);
+      if (act >= n) act = 0;
+      var seg = location.pathname.split("/");
+      if (seg[1] === "trade" && seg[2] && cfg[act]) cfg[act] = { symbol: decodeURIComponent(seg[2]).toUpperCase().replace("-", "/"), tf: cfg[act].tf };
+      cfg.slice(0, n).forEach(function (c) {
+        String(c.symbol || "").split("/").forEach(function (sym) {
+          var u = by[sym] && "/candles?market_id=" + by[sym].id + "&resolution=" + c.tf + "&count=600";
+          if (u && !window.ldPre[u]) ldGet(u);
+        });
+      });
+    }).catch(function () {});
+  } catch (e) {}
   // the fonts load on the side: the page paints with the fallback and swaps them in, instead of waiting on Google
   var fonts = document.createElement("link");
   fonts.rel = "stylesheet";
@@ -64,7 +94,7 @@
   border: 1px solid #3a2a2a; border-radius: 8px; background: #16110f; color: #e8d6d0; font: 13px/1.5 system-ui, sans-serif; text-align: center; }
 .boot-stuck button { margin-left: 8px; padding: 4px 12px; border: 1px solid #555; border-radius: 5px; background: #222; color: #fff; cursor: pointer; }</style>
 <link rel="icon" href="favicon.svg?v=1" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=430">
+<link rel="stylesheet" href="style.css?v=432">
 </head>
 <body>
 
@@ -899,13 +929,13 @@
   })();
 </script>
 <script src="vendor/lightweight-charts-4.2.0.standalone.production.js"></script>
-<script src="i18n.js?v=430"></script>
-<script src="i18n-zh.js?v=430"></script>
-<script src="i18n-ko.js?v=430"></script>
-<script src="formulas.js?v=430"></script>
-<script src="paper.js?v=430"></script>
-<script src="live.js?v=430"></script>
-<script src="app.js?v=430"></script>
-<script src="picker.js?v=430"></script>
+<script src="i18n.js?v=432"></script>
+<script src="i18n-zh.js?v=432"></script>
+<script src="i18n-ko.js?v=432"></script>
+<script src="formulas.js?v=432"></script>
+<script src="paper.js?v=432"></script>
+<script src="live.js?v=432"></script>
+<script src="app.js?v=432"></script>
+<script src="picker.js?v=432"></script>
 </body>
 </html>

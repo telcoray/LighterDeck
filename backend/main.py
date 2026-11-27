@@ -160,12 +160,20 @@ async def auth(request: Request, call_next):
     # after a deploy once anyone has loaded it, doesn't wait on this server for them. Everything else, the
     # page itself and its data files included, is revalidated, so an update shows up on the next reload.
     path = request.url.path
-    if (response.status_code == 200 and not path.startswith("/api/") and path.endswith((".js", ".css"))
+    if (response.status_code == 200 and not path.startswith("/api/") and path.endswith((".js", ".css", ".json"))
             and ("v" in request.query_params or path.startswith("/vendor/"))):
         response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
         # Cloudflare keeps its copy only an hour: a copy it got wrong (cut short while the server restarted
         # during a deploy) mends itself instead of breaking the page for a year
         response.headers["Cloudflare-CDN-Cache-Control"] = "public, max-age=3600"
+    elif response.status_code == 200 and config.PUBLIC_MODE and not config.DASH_TOKEN and request.method == "GET":
+        # the public site: what is the same for every visitor is kept by Cloudflare for a short while, so the
+        # first load is answered near the visitor instead of from Tokyo. Browsers still revalidate it.
+        edge = (60 if path == "/" or path.startswith("/trade/") else
+                30 if path == "/api/info" else
+                10 if path == "/api/candles" else 0)
+        if edge:
+            response.headers["Cloudflare-CDN-Cache-Control"] = f"public, max-age={edge}"
     response.headers.setdefault("Cache-Control", "no-cache")
     for k, v in SECURITY_HEADERS.items():  # a response that sets its own (the logos) keeps it
         response.headers.setdefault(k, v)
@@ -189,8 +197,9 @@ async def info(request: Request):
         "browser_trading": config.PUBLIC_MODE and config.BROWSER_TRADING,
         "browser_automations": users.available,
         "referral_url": config.REFERRAL_URL, "github_url": config.GITHUB_URL,
-        # Cloudflare's visitor country, so the public site can show the page for excluded countries
-        "blocked_country": config.PUBLIC_MODE and request.headers.get("cf-ipcountry", "") in config.BLOCKED_COUNTRIES,
+        # the excluded countries: the page asks Cloudflare for the visitor's (/cdn-cgi/trace), so this answer is
+        # the same for everyone and Cloudflare can keep it
+        "blocked_countries": sorted(config.BLOCKED_COUNTRIES) if config.PUBLIC_MODE else [],
         "trading": bool(api.signer), "account_index": config.ACCOUNT_INDEX, "armed": engine.armed,
         "credentials": config.CREDENTIALS_SOURCE if api.signer else None,
         "api_key_index": config.API_KEY_INDEX if api.signer else None,

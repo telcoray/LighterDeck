@@ -125,6 +125,19 @@ async function api(path, opts = {}) {
     const r = Paper.route(path, opts);
     if (r !== undefined) return r;
   }
+  // a request the page already started while the scripts loaded (index.html): taken over once, if recent
+  const pre = !opts.method && window.ldPre && window.ldPre[path];
+  if (pre) {
+    delete window.ldPre[path];
+    if (Date.now() - pre.at < 20000) {
+      try {
+        return await new Promise((ok, no) => {
+          pre.p.then(ok, no);
+          if (opts.signal) opts.signal.addEventListener("abort", () => no(opts.signal.reason));
+        });
+      } catch {} // failed or too slow: asked again below
+    }
+  }
   const r = await fetch("/api" + path, { ...opts, headers: { "Content-Type": "application/json", "X-Token": TOKEN, "X-Lang": LANG, ...(opts.headers || {}) } });
   const body = await r.json().catch(() => ({}));
   if (!r.ok) throw Object.assign(new Error(body.detail || r.statusText), { status: r.status });
@@ -4934,7 +4947,13 @@ function wireEventTrades() {
 function applyPublic() {
   document.body.classList.toggle("public", !!info.public);
   if (!info.public) return;
-  if (info.blocked_country) { $("#geoPage").classList.remove("hidden"); return; }
+  // the visitor's country, from Cloudflare (the server's answer is the same for everyone so it can be kept)
+  if ((info.blocked_countries || []).length) {
+    fetch("/cdn-cgi/trace").then((r) => (r.ok ? r.text() : "")).then((txt) => {
+      const loc = (txt.match(/^loc=(\w+)/m) || [])[1];
+      if (loc && info.blocked_countries.includes(loc)) $("#geoPage").classList.remove("hidden");
+    }).catch(() => {});
+  }
   $("#pubGithub").href = info.github_url;
   $("#pubReferral").href = info.referral_url;
   $("#pubBar").classList.toggle("hidden", !!load("pubbarClosed", false));
@@ -7082,6 +7101,9 @@ async function init() {
       await new Promise((ok) => setTimeout(ok, 2000));
     } finally { clearTimeout(tm); }
   }
+  // the market list may already be here (index.html started it early): the scripts after this one
+  // (picker.js) must have run before the page is wired
+  if (document.readyState === "loading") await new Promise((ok) => document.addEventListener("DOMContentLoaded", ok, { once: true }));
   markets = info.markets;
   liveTrading = info.trading;
   if (info.public && info.browser_trading && Live.saved()) {
