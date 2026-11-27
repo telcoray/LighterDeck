@@ -46,6 +46,14 @@ users = Users(api, feed, calendar, book, go=go)  # public site: visitors' automa
 clients = set()
 
 
+def tick_message(logs):
+    """What the UI gets every second: prices, account, automation state and the new log lines."""
+    return {
+        "type": "tick", "prices": feed.stats, "account": engine.account,
+        "armed": engine.armed, "logs": logs, "stops": engine.market_stops(), "exits": engine.exit_plans(), "working": engine.working(),
+    }
+
+
 async def broadcast_loop():
     """Push prices, account and automation log to every open UI once per second."""
     sent = 0
@@ -55,10 +63,7 @@ async def broadcast_loop():
             continue
         new_logs = [l for l in engine.logs if l["seq"] > sent]
         sent = engine.log_seq
-        msg = json.dumps({
-            "type": "tick", "prices": feed.stats, "account": engine.account,
-            "armed": engine.armed, "logs": new_logs, "stops": engine.market_stops(), "exits": engine.exit_plans(), "working": engine.working(),
-        })
+        msg = json.dumps(tick_message(new_logs))
         for ws in list(clients):
             try:
                 await ws.send_text(msg)
@@ -171,7 +176,8 @@ async def auth(request: Request, call_next):
         # first load is answered near the visitor instead of from Tokyo. Browsers still revalidate it.
         edge = (60 if path == "/" or path.startswith("/trade/") else
                 30 if path == "/api/info" else
-                10 if path == "/api/candles" else 0)
+                10 if path == "/api/candles" else
+                2 if path == "/api/tick" else 0)
         if edge:
             response.headers["Cloudflare-CDN-Cache-Control"] = f"public, max-age={edge}"
     response.headers.setdefault("Cache-Control", "no-cache")
@@ -210,6 +216,12 @@ async def info(request: Request):
                    "max_orders_per_day": config.MAX_ORDERS_PER_DAY},
         "markets": sorted((m.to_dict() for m in api.markets.values()), key=lambda m: -m["volume_usd"]),
     }
+
+
+@app.get("/api/tick")
+async def tick_now():
+    """The latest tick, for the page to show prices before its live socket is open."""
+    return tick_message([])
 
 
 @app.get("/api/candles")
@@ -1644,6 +1656,7 @@ async def ws_endpoint(ws: WebSocket, token: str = ""):
         await ws.close(code=4401)
         return
     await ws.accept()
+    await ws.send_text(json.dumps(tick_message([])))  # prices at once, not at the next second's broadcast
     clients.add(ws)
     try:
         while True:

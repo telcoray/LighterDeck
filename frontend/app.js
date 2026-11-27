@@ -5434,7 +5434,12 @@ function connect() {
   ws.onopen = () => setStatus(true);
   ws.onmessage = (ev) => {
     const msg = JSON.parse(ev.data);
-    if (msg.type !== "tick") return;
+    if (msg.type === "tick") onTick(msg);
+  };
+  ws.onclose = () => { setStatus(false); setTimeout(connect, 2000); };
+}
+// a tick: from the live socket every second, or the snapshot the page asked for while it opened
+function onTick(msg) {
     prices = msg.prices;
     lastTick = Date.now();
     if (Live.on) {
@@ -5477,8 +5482,6 @@ function connect() {
       renderMarkets.at = Date.now();
       renderMarkets();
     }
-  };
-  ws.onclose = () => { setStatus(false); setTimeout(connect, 2000); };
 }
 
 let feedOk = false;
@@ -7177,7 +7180,7 @@ async function init() {
     switchView(r.view || "trade", { fromUrl: true });
   });
   renderSessions();
-  await loadCalendar();
+  const calendarLoaded = loadCalendar();
   loadRules();
   if (Live.on) account = Live.account();
   if (Paper.on) {
@@ -7194,7 +7197,10 @@ async function init() {
     }).catch(() => {});
   } else api("/logs").then(addLogs).catch(() => {});
   for (const box of [$("#btab-log"), $("#activityLog")]) if (!box.children.length) box.innerHTML = `<div class="empty">${t("Nessuna attività.")}</div>`;
+  // prices at once: the snapshot index.html already asked for, until the live socket's first tick
+  api("/tick").then((m) => { if (!lastTick) onTick(m); }).catch(() => {});
   connect();
+  await calendarLoaded;
   if (chartEls.orders) fetchOpenOrders().catch(() => {});
 
   setInterval(clock, 250);
