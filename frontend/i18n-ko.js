@@ -782,3 +782,4 @@ Object.assign(DICTS.ko, { "Pick a percentage or type the price.": "비율을 고
 Object.assign(DICTS.ko, { "Once triggered, the order rests at this price instead of going at market": "발동되면 시장가 대신 이 가격에 지정가 주문으로 대기합니다", "Invalid limit price": "지정가가 올바르지 않습니다" });
 Object.assign(DICTS.ko, { "Add to favourites": "즐겨찾기에 추가", "Remove from favourites": "즐겨찾기에서 제거" });
 Object.assign(DICTS.ko, { "Can't reach the server ({why}): trying again…": "서버에 연결할 수 없습니다({why}): 다시 시도 중…", "no answer": "응답 없음", "network unreachable": "네트워크에 연결할 수 없음" });
+Object.assign(DICTS.ko, { "Hide the panel": "패널 숨기기", "Show the panel": "패널 표시" });

@@ -782,3 +782,4 @@ Object.assign(DICTS.zh, { "Pick a percentage or type the price.": "选择百分�
 Object.assign(DICTS.zh, { "Once triggered, the order rests at this price instead of going at market": "触发后，订单以此价格挂单，而不是按市价成交", "Invalid limit price": "限价无效" });
 Object.assign(DICTS.zh, { "Add to favourites": "加入收藏", "Remove from favourites": "从收藏中移除" });
 Object.assign(DICTS.zh, { "Can't reach the server ({why}): trying again…": "无法连接服务器（{why}）：正在重试…", "no answer": "无响应", "network unreachable": "网络不可达" });
+Object.assign(DICTS.zh, { "Hide the panel": "隐藏面板", "Show the panel": "显示面板" });

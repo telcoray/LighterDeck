@@ -237,6 +237,7 @@ const EN = {
   "Altri": "More",
   "Altri timeframe": "More timeframes",
   "Mostra nella barra": "Show in toolbar",
+  "Nascondi il pannello": "Hide the panel", "Mostra il pannello": "Show the panel",
   "Ripristina": "Reset",
   "Tutti i timeframe sono nella barra.": "All timeframes are in the toolbar.",
   "3m, 2h, 8h, 3D, 1W e 1M sono costruiti unendo candele più piccole, come fa Lighter.":

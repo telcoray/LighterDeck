@@ -3981,6 +3981,14 @@ function renderPositions() {
 // would get a vertical bar too: those pixels are hidden instead. Checked whenever a tab is redrawn or resized.
 // an empty tab (no positions, no orders…) shrinks the panel to its tabs and that one line, and the charts get the
 // rest; it goes back to its own height as soon as the tab has something to show
+// the arrow at the end of the bottom tabs folds the panel down to its tab row, so the charts get the room;
+// the arrow again, or any tab, opens it
+function setBottomFold(on) {
+  $("#bottom").classList.toggle("folded", on);
+  $("#bottomSplit").classList.toggle("folded", on);
+  $("#bottomFold").title = t(on ? "Mostra il pannello" : "Nascondi il pannello");
+  store("bottomFold", on);
+}
 function fitBottomEmpty() {
   const b = $$(".btab").find((x) => !x.classList.contains("hidden"));
   const empty = !!b && b.children.length === 1 && b.firstElementChild.classList.contains("empty");
@@ -5654,7 +5662,7 @@ function switchView(v, opts = {}) {
 }
 
 function switchBottom(t) {
-  $$("#bottomTabs button").forEach((b) => b.classList.toggle("active", b.dataset.btab === t));
+  $$("#bottomTabs [data-btab]").forEach((b) => b.classList.toggle("active", b.dataset.btab === t));
   $$(".btab").forEach((s) => s.classList.toggle("hidden", s.id !== "btab-" + t));
   fitBottomEmpty();
   if (t === "orders") loadOrders();
@@ -5822,7 +5830,9 @@ function wire() {
   };
 
   // bottom tables
-  $$("#bottomTabs button").forEach((b) => (b.onclick = () => switchBottom(b.dataset.btab)));
+  $$("#bottomTabs [data-btab]").forEach((b) => (b.onclick = () => { setBottomFold(false); switchBottom(b.dataset.btab); }));
+  $("#bottomFold").onclick = () => setBottomFold(!$("#bottom").classList.contains("folded"));
+  setBottomFold(load("bottomFold", false));
   // resting on a close button shows what it would give back (on phones there's no hover, and it takes two taps anyway)
   $("#btab-positions").addEventListener("mouseover", (e) => {
     const b = e.target.closest("[data-close]");
