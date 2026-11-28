@@ -6590,6 +6590,7 @@ function credentialsChanged(newInfo) {
 // still runs for the tests but isn't offered
 const NETWORKS = { mainnet: ["Lighter Core", "L'exchange principale di Lighter"],
   robinhood: ["Lighter Robinhood", "Lighter su Robinhood Chain: mercati, conti e chiavi propri"] };
+const NET_ICONS = { mainnet: "net-lighter.svg?v=1", robinhood: "net-robinhood.png?v=1" };
 const NET_NAMES = { ...Object.fromEntries(Object.entries(NETWORKS).map(([k, v]) => [k, v[0]])), testnet: "Testnet" };
 function renderNetMenu() {
   const sites = (info && info.network_sites) || {};
@@ -6598,7 +6599,7 @@ function renderNetMenu() {
   $(".net-pick").classList.toggle("switch", on);
   if (!on) return;
   $("#netMenu").innerHTML = ids.map((id) => `<button type="button" data-net="${id}" class="${id === info.network ? "active" : ""}">
-      <i class="net-dot ${id}"></i><span>${NETWORKS[id][0]}</span><span class="check">✓</span></button>`).join("");
+      ${NET_ICONS[id] ? `<img class="net-ico" src="${NET_ICONS[id]}" alt="">` : ""}<span>${NETWORKS[id][0]}</span><span class="check">✓</span></button>`).join("");
   $("#netBadge").onclick = (e) => {
     e.stopPropagation();
     $("#themeMenu").classList.add("hidden"); $("#langMenu").classList.add("hidden");
