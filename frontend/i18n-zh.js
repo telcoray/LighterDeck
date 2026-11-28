@@ -784,3 +784,4 @@ Object.assign(DICTS.zh, { "Add to favourites": "加入收藏", "Remove from favo
 Object.assign(DICTS.zh, { "Can't reach the server ({why}): trying again…": "无法连接服务器（{why}）：正在重试…", "no answer": "无响应", "network unreachable": "网络不可达" });
 Object.assign(DICTS.zh, { "Hide the panel": "隐藏面板", "Show the panel": "显示面板" });
 Object.assign(DICTS.zh, { "Lighter's main exchange": "Lighter 的主交易所", "Lighter on Robinhood Chain: its own markets, accounts and keys": "Robinhood Chain 上的 Lighter：独立的市场、账户和密钥" });
+Object.assign(DICTS.zh, { "Refresh the chart": "刷新图表" });

@@ -333,6 +333,13 @@ html.booting .marketbar .stat > span, html.booting .marketbar .stat-val, html.bo
 .panel .chart { position: absolute; inset: 0; }
 .legend { position: absolute; top: 8px; left: 12px; right: 84px; z-index: 2; display: flex; align-items: center; gap: 10px; font-size: 12px; pointer-events: none; white-space: nowrap; overflow: hidden; }
 .legend .ohlc { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+/* refresh button, top right just left of the price scale: fresh candles and the view of a page load */
+.chart-reset { position: absolute; top: 6px; right: 70px; z-index: 3; width: 22px; height: 22px; display: grid; place-items: center;
+  border-radius: 4px; color: var(--muted); background: color-mix(in srgb, var(--bg) 70%, transparent); opacity: .7; }
+.chart-reset:hover { color: var(--text); background: var(--raised); opacity: 1; }
+.chart-reset svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.chart-reset.spin svg { animation: chart-reset-spin .5s ease-out; }
+@keyframes chart-reset-spin { to { transform: rotate(360deg); } }
 .legend .ttl { color: var(--text-2); font-size: 13px; pointer-events: auto; cursor: pointer; }
 .legend .ttl b { color: var(--text); font-weight: 500; }
 .legend .ttl:hover b { color: var(--green); }

@@ -228,11 +228,13 @@ class Panel {
     this.el.innerHTML = `<div class="chart"></div>
       <div class="legend"><span class="ttl"></span><i class="dot"></i><span class="ohlc"></span></div>
       <div class="ctx-badges chart-ctx"></div>
+      <button type="button" class="chart-reset" title="${t("Aggiorna il grafico")}" aria-label="${t("Aggiorna il grafico")}"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13 8a5 5 0 1 1-1.46-3.54"/><path d="M13 2.5V5h-2.5"/></svg></button>
       <div class="ev-tip hidden"></div>
       <div class="drag-ok hidden"></div>
       <div class="chart-menu hidden"></div>`;
     this.el.addEventListener("mousedown", () => setActive(this.idx));
     $(".ttl", this.el).addEventListener("click", (e) => { e.stopPropagation(); setActive(this.idx); openPalette(); });
+    $(".chart-reset", this.el).addEventListener("click", (e) => { e.stopPropagation(); this.resetView(); });
     this.chart = LightweightCharts.createChart($(".chart", this.el), {
       autoSize: true,
       layout: { background: { color: "transparent" }, fontSize: 11, fontFamily: "JetBrains Mono, monospace" },
@@ -443,7 +445,30 @@ class Panel {
 
   // a new market or timeframe opens on the latest candle with the gap on its right; the periodic
   // reload of the same chart keeps wherever it was scrolled
+  // the refresh button: fresh candles and the view a page load gives (normal zoom, the live edge on the right,
+  // prices fitted to the candles)
+  resetView() {
+    const btn = $(".chart-reset", this.el);
+    btn.classList.remove("spin");
+    void btn.offsetWidth;
+    btn.classList.add("spin");
+    this.yZoom = 1;
+    const ps = this.chart.priceScale("right");
+    ps.applyOptions({ autoScale: false });
+    ps.applyOptions({ autoScale: true });
+    this.chart.timeScale().applyOptions({ barSpacing: 8 });
+    this.viewFor = null; // keepGap puts it back at the live edge
+    this.keepGap();
+    this.load();
+  }
+  // the button sits just left of the price scale, whose width follows the prices
+  placeReset() {
+    const w = Math.round(this.chart.priceScale("right").width());
+    if (w && w !== this.resetAt) { this.resetAt = w; $(".chart-reset", this.el).style.right = w + 6 + "px"; }
+  }
+
   keepGap() {
+    this.placeReset();
     if (!this.last || !this.el.clientWidth) return; // a hidden chart gets it once shown
     const chart = this.cfg.symbol + this.cfg.tf + ":";
     const gap = Math.max(rightGap(), this.labelGap()), view = chart + gap; // a phone turned wide gets the wider gap
