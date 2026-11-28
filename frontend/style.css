@@ -333,12 +333,21 @@ html.booting .marketbar .stat > span, html.booting .marketbar .stat-val, html.bo
 .panel .chart { position: absolute; inset: 0; }
 .legend { position: absolute; top: 8px; left: 12px; right: 84px; z-index: 2; display: flex; align-items: center; gap: 10px; font-size: 12px; pointer-events: none; white-space: nowrap; overflow: hidden; }
 .legend .ohlc { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-/* refresh button, top right just left of the price scale: fresh candles and the view of a page load */
-.chart-reset { position: absolute; top: 6px; right: 70px; z-index: 3; width: 22px; height: 22px; display: grid; place-items: center;
-  border-radius: 4px; color: var(--muted); background: color-mix(in srgb, var(--bg) 70%, transparent); opacity: .7; }
-.chart-reset:hover { color: var(--text); background: var(--raised); opacity: 1; }
-.chart-reset svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
-.chart-reset.spin svg { animation: chart-reset-spin .5s ease-out; }
+/* navigation bar, bottom centre of a chart, shown while the pointer is over it: zoom, scroll in time, refresh */
+.chart-nav { position: absolute; left: 50%; bottom: 40px; z-index: 3; display: flex; gap: 6px; transform: translateX(-50%);
+  opacity: 0; pointer-events: none; transition: opacity .15s; }
+.panel:hover .chart-nav, .panel.nav-show .chart-nav, .chart-nav:focus-within { opacity: 1; pointer-events: auto; }
+.chart-nav button { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 6px; color: var(--text-2);
+  background: color-mix(in srgb, var(--raised) 88%, transparent); box-shadow: 0 1px 4px rgba(0, 0, 0, .35); touch-action: manipulation; }
+.chart-nav button:hover { color: var(--text); background: var(--line-2); }
+.chart-nav .nav-reset { margin-left: 8px; }
+.chart-nav.small { gap: 4px; }
+.chart-nav.small button { width: 24px; height: 24px; border-radius: 5px; }
+.chart-nav.small .nav-reset { margin-left: 4px; }
+.chart-nav.small svg { width: 13px; height: 13px; }
+.chart-nav.tiny [data-nav="left"], .chart-nav.tiny [data-nav="right"] { display: none; }
+.chart-nav svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.nav-reset.spin svg { animation: chart-reset-spin .5s ease-out; }
 @keyframes chart-reset-spin { to { transform: rotate(360deg); } }
 .legend .ttl { color: var(--text-2); font-size: 13px; pointer-events: auto; cursor: pointer; }
 .legend .ttl b { color: var(--text); font-weight: 500; }

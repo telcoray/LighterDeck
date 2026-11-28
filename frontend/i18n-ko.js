@@ -785,3 +785,4 @@ Object.assign(DICTS.ko, { "Can't reach the server ({why}): trying again…": "�
 Object.assign(DICTS.ko, { "Hide the panel": "패널 숨기기", "Show the panel": "패널 표시" });
 Object.assign(DICTS.ko, { "Lighter's main exchange": "Lighter 메인 거래소", "Lighter on Robinhood Chain: its own markets, accounts and keys": "Robinhood Chain의 Lighter: 별도의 마켓, 계정, 키" });
 Object.assign(DICTS.ko, { "Refresh the chart": "차트 새로고침" });
+Object.assign(DICTS.ko, { "Zoom out": "축소", "Zoom in": "확대", "Back in time": "이전으로", "Forward in time": "다음으로" });

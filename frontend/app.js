@@ -228,13 +228,19 @@ class Panel {
     this.el.innerHTML = `<div class="chart"></div>
       <div class="legend"><span class="ttl"></span><i class="dot"></i><span class="ohlc"></span></div>
       <div class="ctx-badges chart-ctx"></div>
-      <button type="button" class="chart-reset" title="${t("Aggiorna il grafico")}" aria-label="${t("Aggiorna il grafico")}"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13 8a5 5 0 1 1-1.46-3.54"/><path d="M13 2.5V5h-2.5"/></svg></button>
+      <div class="chart-nav">
+        <button type="button" data-nav="out" title="${t("Riduci lo zoom")}" aria-label="${t("Riduci lo zoom")}"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8h9"/></svg></button>
+        <button type="button" data-nav="in" title="${t("Aumenta lo zoom")}" aria-label="${t("Aumenta lo zoom")}"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8h9M8 3.5v9"/></svg></button>
+        <button type="button" data-nav="left" title="${t("Indietro nel tempo")}" aria-label="${t("Indietro nel tempo")}"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3.5L5.5 8l4.5 4.5"/></svg></button>
+        <button type="button" data-nav="right" title="${t("Avanti nel tempo")}" aria-label="${t("Avanti nel tempo")}"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3.5L10.5 8 6 12.5"/></svg></button>
+        <button type="button" data-nav="reset" class="nav-reset" title="${t("Aggiorna il grafico")}" aria-label="${t("Aggiorna il grafico")}"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13 8a5 5 0 1 1-1.46-3.54"/><path d="M13 2.5V5h-2.5"/></svg></button>
+      </div>
       <div class="ev-tip hidden"></div>
       <div class="drag-ok hidden"></div>
       <div class="chart-menu hidden"></div>`;
     this.el.addEventListener("mousedown", () => setActive(this.idx));
     $(".ttl", this.el).addEventListener("click", (e) => { e.stopPropagation(); setActive(this.idx); openPalette(); });
-    $(".chart-reset", this.el).addEventListener("click", (e) => { e.stopPropagation(); this.resetView(); });
+    this.wireNav();
     this.chart = LightweightCharts.createChart($(".chart", this.el), {
       autoSize: true,
       layout: { background: { color: "transparent" }, fontSize: 11, fontFamily: "JetBrains Mono, monospace" },
@@ -445,10 +451,49 @@ class Panel {
 
   // a new market or timeframe opens on the latest candle with the gap on its right; the periodic
   // reload of the same chart keeps wherever it was scrolled
-  // the refresh button: fresh candles and the view a page load gives (normal zoom, the live edge on the right,
+  // The navigation bar, bottom centre, shown while the pointer is over the chart (after a tap on a touch
+  // screen, for a few seconds): zoom out / in, back / forward in time, and refresh. Holding a button repeats it.
+  wireNav() {
+    const nav = $(".chart-nav", this.el), ts = () => this.chart.timeScale();
+    const act = (k) => {
+      if (k === "reset") return this.resetView();
+      if (k === "in" || k === "out") {
+        const sp = ts().options().barSpacing || 8;
+        ts().applyOptions({ barSpacing: Math.min(50, Math.max(0.5, k === "in" ? sp * 1.25 : sp / 1.25)) });
+        return;
+      }
+      const bars = Math.max(5, Math.round((this.el.clientWidth / (ts().options().barSpacing || 8)) * 0.15));
+      ts().scrollToPosition(ts().scrollPosition() + (k === "left" ? -bars : bars), true);
+    };
+    let rep = 0, wait = 0;
+    const stop = () => { clearTimeout(wait); clearInterval(rep); };
+    nav.addEventListener("pointerdown", (e) => {
+      e.stopPropagation(); // not a drag of the chart under it
+      const b = e.target.closest("[data-nav]");
+      if (!b || e.button !== 0) return;
+      e.preventDefault();
+      act(b.dataset.nav);
+      if (b.dataset.nav !== "reset") wait = setTimeout(() => (rep = setInterval(() => act(b.dataset.nav), 90)), 350);
+    });
+    for (const ev of ["pointerup", "pointerleave", "pointercancel"]) nav.addEventListener(ev, stop);
+    nav.addEventListener("click", (e) => { // the keyboard (Enter / space); the mouse already acted on pointerdown
+      const b = e.target.closest("[data-nav]");
+      if (b && e.detail === 0) act(b.dataset.nav);
+    });
+    nav.addEventListener("mousedown", (e) => e.stopPropagation());
+    // a touch screen has no hover: a tap on the chart shows the bar for a few seconds
+    this.el.addEventListener("pointerdown", (e) => {
+      if (e.pointerType === "mouse") return;
+      this.el.classList.add("nav-show");
+      clearTimeout(this.navHide);
+      this.navHide = setTimeout(() => this.el.classList.remove("nav-show"), 3500);
+    });
+  }
+
+  // the refresh: fresh candles and the view a page load gives (normal zoom, the live edge on the right,
   // prices fitted to the candles)
   resetView() {
-    const btn = $(".chart-reset", this.el);
+    const btn = $(".nav-reset", this.el);
     btn.classList.remove("spin");
     void btn.offsetWidth;
     btn.classList.add("spin");
@@ -461,10 +506,19 @@ class Panel {
     this.keepGap();
     this.load();
   }
-  // the button sits just left of the price scale, whose width follows the prices
+  // the bar sits centred over the candles (not the price scale), just above the dates
   placeReset() {
-    const w = Math.round(this.chart.priceScale("right").width());
-    if (w && w !== this.resetAt) { this.resetAt = w; $(".chart-reset", this.el).style.right = w + 6 + "px"; }
+    const w = Math.round(this.chart.priceScale("right").width()), h = Math.round(this.chart.timeScale().height());
+    const plot = this.el.clientWidth - w, at = w + ":" + h + ":" + plot;
+    if (w && at !== this.navAt) {
+      this.navAt = at;
+      const nav = $(".chart-nav", this.el);
+      nav.style.left = `calc((100% - ${w}px) / 2)`;
+      nav.style.bottom = h + 12 + "px";
+      // a narrow chart: smaller buttons, and without the scroll arrows when even those don't fit
+      nav.classList.toggle("small", plot < 260);
+      nav.classList.toggle("tiny", plot < 175);
+    }
   }
 
   keepGap() {

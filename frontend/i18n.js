@@ -237,7 +237,8 @@ const EN = {
   "Altri": "More",
   "Altri timeframe": "More timeframes",
   "Mostra nella barra": "Show in toolbar",
-  "Aggiorna il grafico": "Refresh the chart", "Nascondi il pannello": "Hide the panel", "Mostra il pannello": "Show the panel",
+  "Aggiorna il grafico": "Refresh the chart", "Riduci lo zoom": "Zoom out", "Aumenta lo zoom": "Zoom in",
+  "Indietro nel tempo": "Back in time", "Avanti nel tempo": "Forward in time", "Nascondi il pannello": "Hide the panel", "Mostra il pannello": "Show the panel",
   "Ripristina": "Reset",
   "Tutti i timeframe sono nella barra.": "All timeframes are in the toolbar.",
   "3m, 2h, 8h, 3D, 1W e 1M sono costruiti unendo candele più piccole, come fa Lighter.":
