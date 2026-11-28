@@ -1834,7 +1834,9 @@ function bookConnect() {
   const ws = new WebSocket(info.ws_url);
   book.ws = ws;
   ws.onopen = () => bookSubscribe(activeMarket());
+  book.lastMsg = Date.now();
   ws.onmessage = (ev) => {
+    book.lastMsg = Date.now();
     const msg = JSON.parse(ev.data);
     if (msg.type === "ping") { ws.send(JSON.stringify({ type: "pong" })); return; }
     if (msg.type && msg.type.endsWith("/trade")) return bookTrades(msg);
@@ -1860,6 +1862,23 @@ function bookConnect() {
     if (showBook || showTape) setTimeout(bookConnect, 2000);
   };
 }
+
+// A stream can go quiet without closing (a tablet or phone whose network naps, a tab left in the background):
+// the book and the trades would stay frozen at the last update. Nothing heard for a while, or the tab coming
+// back into view after one: the stream is dropped and opened again, with a fresh snapshot.
+const BOOK_QUIET = 30000;
+function bookWatch() {
+  const ws = book.ws;
+  if (!ws || !(showBook || showTape) || ws.readyState !== 1 || Date.now() - book.lastMsg < BOOK_QUIET) return;
+  ws.onclose = ws.onmessage = null;
+  try { ws.close(); } catch {}
+  book.ws = null;
+  book.live = false;
+  book.market = null;
+  bookConnect();
+}
+setInterval(bookWatch, 5000);
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") bookWatch(); });
 
 function bookSubscribe(m, resync = false) {
   if (!book.ws || book.ws.readyState !== 1 || !m) return;
