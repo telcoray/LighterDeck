@@ -6586,7 +6586,11 @@ function credentialsChanged(newInfo) {
 // the network badge: blue on the testnet; on the mainnet green when orders are real (a connected account,
 // not paper), neutral grey when nothing real is at stake (paper, read-only: it only says where prices come from)
 // the same LighterDeck on Lighter's other networks: the badge opens them, on the same page and market
-const NETWORKS = { mainnet: ["Mainnet", "Rete vera di Lighter, soldi veri"], testnet: ["Testnet", "Rete di prova di Lighter, soldi finti"] };
+// the exchanges the menu switches between, each a LighterDeck site of its own (info.network_sites); the testnet
+// still runs for the tests but isn't offered
+const NETWORKS = { mainnet: ["Lighter Core", "L'exchange principale di Lighter"],
+  robinhood: ["Lighter Robinhood", "Lighter su Robinhood Chain: mercati, conti e chiavi propri"] };
+const NET_NAMES = { ...Object.fromEntries(Object.entries(NETWORKS).map(([k, v]) => [k, v[0]])), testnet: "Testnet" };
 function renderNetMenu() {
   const sites = (info && info.network_sites) || {};
   const ids = Object.keys(NETWORKS).filter((id) => sites[id]);
@@ -7159,7 +7163,7 @@ async function init() {
   const opts = markets.map((m) => `<option value="${m.id}">${m.symbol}</option>`).join("");
   $$(".marketSelect").forEach((s) => (s.innerHTML = opts));
   renderEventSelect();
-  const net = info.network === "testnet" ? "Testnet" : "Mainnet";
+  const net = NET_NAMES[info.network] || "Lighter Core";
   $("#netBadge").textContent = net;
   $("#sbNet").textContent = net;
   renderNetMenu();

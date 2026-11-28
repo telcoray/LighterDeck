@@ -783,3 +783,4 @@ Object.assign(DICTS.ko, { "Once triggered, the order rests at this price instead
 Object.assign(DICTS.ko, { "Add to favourites": "즐겨찾기에 추가", "Remove from favourites": "즐겨찾기에서 제거" });
 Object.assign(DICTS.ko, { "Can't reach the server ({why}): trying again…": "서버에 연결할 수 없습니다({why}): 다시 시도 중…", "no answer": "응답 없음", "network unreachable": "네트워크에 연결할 수 없음" });
 Object.assign(DICTS.ko, { "Hide the panel": "패널 숨기기", "Show the panel": "패널 표시" });
+Object.assign(DICTS.ko, { "Lighter's main exchange": "Lighter 메인 거래소", "Lighter on Robinhood Chain: its own markets, accounts and keys": "Robinhood Chain의 Lighter: 별도의 마켓, 계정, 키" });

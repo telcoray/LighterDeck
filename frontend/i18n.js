@@ -268,6 +268,8 @@ const EN = {
   "Solo gli eventi di {c}": "Only {c}'s events",
   "Mostra tutti i paesi": "Show every country",
   "Rete vera di Lighter, soldi veri": "Lighter's real network, real money",
+  "L'exchange principale di Lighter": "Lighter's main exchange",
+  "Lighter su Robinhood Chain: mercati, conti e chiavi propri": "Lighter on Robinhood Chain: its own markets, accounts and keys",
   "Rete di prova di Lighter, soldi finti": "Lighter's test network, play money",
   "Settimana, mese e anno: il tasso attuale ripetuto, una stima. Quello pagato davvero è nello storico qui sotto.": "Week, month and year: the current rate repeated, an estimate. What was actually paid is in the history below.",
   "Dal telefono: apri lighterdeck.xyz nel browser dell'app del tuo wallet (MetaMask, Rabby…) per creare la chiave con un tocco, senza copiare nulla.": "On a phone: open lighterdeck.xyz in your wallet app's browser (MetaMask, Rabby…) to create the key in one tap, with nothing to copy.",

@@ -10,7 +10,7 @@ const Live = (() => {
   // the network the server reads its data from: mainnet, or Lighter's testnet on a test instance
   const net = {
     get url() { return (info && info.lighter_url) || "https://mainnet.zklighter.elliot.ai"; },
-    get chain() { return info && info.network === "testnet" ? 300 : 304; },
+    get chain() { return !info ? 304 : info.network === "testnet" ? 300 : info.network === "robinhood" ? 466324 : 304; },
   };
   const SLIP = 0.005;   // worst-price margin of closes and SL/TP, as the server's MAX_SLIPPAGE_PCT
   const ORDERS_TTL = 4000;
