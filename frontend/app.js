@@ -1919,9 +1919,17 @@ function drawBook() {
   const asks = bookLevels(book.asks, true, g, fit($("#bookAsks")));
   const bids = bookLevels(book.bids, false, g, fit($("#bookBids")));
   const usd = bookUnit === "usd";
-  // dollars short, so millions fit the narrow column: 840, 12.5K, 2.35M
-  const fq = (v) => (!usd ? fsize(v, m) : v >= 1e6 ? (v / 1e6).toFixed(2) + "M" : v >= 1e4 ? (v / 1e3).toFixed(1) + "K"
-    : v.toLocaleString("en-US", { maximumFractionDigits: v >= 100 ? 0 : 2 }));
+  // short numbers, so the size and total columns never run into each other in the narrow column: dollars
+  // 840, 12.5K, 2.35M; a size keeps fewer decimals the bigger it is (1.38K, 299.2, 26.01, 0.0123)
+  const sd = m.size_decimals ?? 4;
+  const fq = (v) => {
+    if (v >= 1e6) return (v / 1e6).toFixed(2) + "M";
+    if (v >= 1e4) return (v / 1e3).toFixed(1) + "K";
+    if (usd) return v.toLocaleString("en-US", { maximumFractionDigits: v >= 100 ? 0 : 2 });
+    if (v >= 1000) return (v / 1e3).toFixed(2) + "K";
+    const dd = Math.min(sd, v >= 100 ? 1 : v >= 10 ? 2 : v >= 1 ? 3 : 4);
+    return v.toFixed(dd);
+  };
   const rows = (lvls, rev) => {
     let tot = 0;
     const withTot = lvls.map(([p, sz, dol]) => { const v = usd ? dol : sz; tot += v; return [p, v, tot]; });
