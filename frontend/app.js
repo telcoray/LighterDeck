@@ -6598,7 +6598,7 @@ function renderNetMenu() {
   $(".net-pick").classList.toggle("switch", on);
   if (!on) return;
   $("#netMenu").innerHTML = ids.map((id) => `<button type="button" data-net="${id}" class="${id === info.network ? "active" : ""}">
-      <i class="net-dot ${id}"></i><span>${NETWORKS[id][0]}<small>${t(NETWORKS[id][1])}</small></span><span class="check">✓</span></button>`).join("");
+      <i class="net-dot ${id}"></i><span>${NETWORKS[id][0]}</span><span class="check">✓</span></button>`).join("");
   $("#netBadge").onclick = (e) => {
     e.stopPropagation();
     $("#themeMenu").classList.add("hidden"); $("#langMenu").classList.add("hidden");
